@@ -21358,8 +21358,8 @@
         vc = (i.p, i(0));
       const wc = [
           {
-            q: "Why does it run so poorly/like a slideshow?",
-            a: "Check that your browser application is running with hardware acceleration enabled - both in the browser settings and your GPU settings",
+            q: "这个游戏是哪里来的",
+            a: "这个游戏是slowroads.io上的游戏，我找到了一些复制版本，加上我的音乐做出来的，游戏版权还是归原作者所有，我仅享有音乐版权~",
           },
           {
             q: "What's different about this driving game?",
@@ -21664,11 +21664,11 @@
                     }),
                     Object(vc.jsx)("div", {
                       id: "splash-header",
-                      children: "slow roads",
+                      children: "Dreamy Voyage",
                     }),
                     Object(vc.jsx)("div", {
                       id: "splash-subheader",
-                      children: "endless driving zen",
+                      children: "幻  梦  之  旅",
                     }),
                     t
                       ? Object(vc.jsx)(Ic, {
