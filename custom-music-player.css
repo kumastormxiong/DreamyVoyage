@@ -9,7 +9,7 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 50vw;
+    width: 70vw; /* 增加宽度 */
     height: 30vh;
     display: flex;
     align-items: center;
@@ -17,13 +17,14 @@
     padding: 0;
     color: white;
     font-family: 'Jura', 'Microsoft YaHei', sans-serif;
-    font-size: calc(30vh * 0.7); /* 高度的70%作为字体大小，适配手机和PC */
+    font-size: calc(30vh * 0.3); /* 缩小字体 */
     z-index: 1000;
     opacity: 0;
     transition: opacity 1s ease-in-out;
     text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.7);
     white-space: nowrap; /* 不自动换行 */
     overflow: hidden;
+    text-overflow: ellipsis; /* 超出部分显示省略号 */
 }
 
 /* 当添加show类时，标题变为可见 */
