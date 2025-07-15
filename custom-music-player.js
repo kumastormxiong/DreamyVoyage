@@ -98,5 +98,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // l键：播放下一首
             playNextSong();
         }
+        if (event.key === 'm') {
+            // m键：切换静音
+            audio.muted = !audio.muted;
+        }
     });
 });

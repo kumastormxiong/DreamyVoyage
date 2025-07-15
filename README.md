@@ -1,7 +1,10 @@
-# slowroads.io 本地版说明文档
+# 幻梦之旅（Dreamy Voyage）本地版说明文档
 
 ## 游戏简介
-slowroads.io 是一个基于 WebGL 和 Three.js 的浏览器 3D 驾驶游戏，主打程序化生成的无限道路和风景，带来放松的驾驶体验。无需联网即可本地运行。
+
+幻梦之旅（Dreamy Voyage）是一个基于 WebGL 和 Three.js 的浏览器 3D 驾驶游戏，主打程序化生成的无限道路和风景，带来放松的驾驶体验。无需联网即可本地运行。
+
+要想体验我的游戏，请访问：https://dreamy.voyage
 
 ---
 
@@ -14,11 +17,28 @@ slowroads.io 是一个基于 WebGL 和 Three.js 的浏览器 3D 驾驶游戏，�
 - **UI与设置**：可调节画质、音量、辅助功能、界面显示等。
 - **音效系统**：支持环境音、车辆音效、操作提示音。
 
+## 操作说明
+
+- **方向键/WASD**：控制车辆移动
+- **Q/E**：切换场景/模式
+- **C**：切换摄像机视角
+- **T**：自由视角
+- **F**：自动驾驶开关
+- **空格**：手刹
+- **R**：重置车辆
+- **U**：显示/隐藏UI
+- **O**：上一首音乐
+- **L**：下一首音乐
+- **M**：静音
+- **P**：暂停
+- **F3**：调试模式
+
 ---
 
 ## 主要自定义参数与功能说明
 
 ### 1. 控制设置
+
 - **键盘映射**：
   - Forward（前进）、Backward（后退）、Left/Right（转向）、Boost（加速）、Handbrake（手刹）、CameraMode（切换视角）、Autodrive（自动驾驶）、Reset（重置）、Mute（静音）、Pause（暂停）等。
   - 所有按键均可在设置中自定义。
@@ -28,16 +48,19 @@ slowroads.io 是一个基于 WebGL 和 Three.js 的浏览器 3D 驾驶游戏，�
   - steerSmoothing（转向平滑度）、steerRange（最大转向角）、linearity（线性度）、deadzone（死区）等。
 
 ### 2. 车辆参数
+
 - **车型选择**：Roadster、Bus、Bike 等。
 - **动力与物理**：
   - mode（驱动方式）、gripFactor（轮胎抓地力）、speedFactor（动力系数）、steerRotation（方向盘最大旋转角）、seatAdjustment（座椅前后）、seatHeight（座椅高度）、showWheel（显示方向盘）等。
 
 ### 3. 场景与画质
+
 - **画质等级**：影响地形细节、远景距离、树木密度等。
 - **天气与地形**：可切换不同天气、地形类型。
 - **辅助功能**：ShowWorm（辅助线）、Barriers（障碍物）、AutoPause（自动暂停）等。
 
 ### 4. 音频设置
+
 - **音量调节**、**静音**、**音效开关**。
 
 ---
@@ -100,4 +123,4 @@ slowroads.io 是一个基于 WebGL 和 Three.js 的浏览器 3D 驾驶游戏，�
 ## 备注
 
 - 由于源码为压缩混淆版，无法直接在js文件中插入注释。
-- 如需深度二次开发，建议基于Three.js和React自行重构。 
+- 如需深度二次开发，建议基于Three.js和React自行重构。
