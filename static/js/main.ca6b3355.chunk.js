@@ -21359,7 +21359,7 @@
       const wc = [
           {
             q: "这个旅程是如何做出来的",
-            a: "这个游戏是slowroads.io上anslo制作的游戏，我非常喜欢这个游戏，我在github上找到了一个复刻版本，我修复了部分bug，在原版游戏的基础上，加上我的原创音乐做出来的，游戏版权还是归原作者所有，我仅享有音乐版权，如侵犯原作者权益，请原作者联系我删除，谢谢~",
+            a: "这个旅程原型游戏是slowroads.io上anslo制作的，我非常喜欢这个游戏，我在github上找到了一个复刻版本，我修复了部分bug，在原版游戏的基础上，加上我的原创音乐做出来的，游戏版权还是归原作者所有，我仅享有音乐版权，如侵犯原作者权益，请原作者联系我删除，谢谢~",
           }, 
           {
             q: "What's different about this driving game?",
@@ -21570,10 +21570,10 @@
                 alt: "",
               }),
               Object(vc.jsx)("br", {}),
-              "Apologies, this project is not yet properly supported on mobile devices. Check back later in Spring 2024 for Slow Roads 2!",
+              "Apologies, this project is not yet properly supported on mobile devices. 本旅程对移动端的支持还有待加强,您可以继续在移动端游玩,部分功能可能无法正常使用.",
               Object(vc.jsx)("br", {}),
               Object(vc.jsx)("br", {}),
-              "If you're not on a mobile device, please disregard this message and click below to force a reload.",
+              "If you're not on a mobile device, please disregard this message and click below to force a reload.点击继续.",
               Object(vc.jsx)("br", {}),
               Object(vc.jsx)("br", {}),
               Object(vc.jsx)("div", {
@@ -21735,9 +21735,9 @@
                             className: "splash-about",
                             children: [
                               Object(vc.jsx)("strong", {
-                                children: "Dreamy Voyage",
+                                children: " Dreamy Voyage ",
                               }),
-                              " 这是一趟随缘而生的幻梦之旅。道路在车轮下自然延展，风景随算法无心流淌。没有终点，亦无束缚——唯你、引擎的低语、迷惘的音乐，以及地平线那端的空寂之美。",
+                              " 是一趟随缘而生的幻梦之旅。道路在车轮下自然延展，风景随算法无心流淌。没有终点，亦无束缚——唯你、引擎的低语、迷惘的音乐，以及地平线那端的空寂之美。",
                               Object(vc.jsx)("br", {}),
                               Object(vc.jsx)("strong", {
                                 children: "请浸心体验这次幻梦的音乐之旅。",
