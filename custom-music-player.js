@@ -113,24 +113,24 @@ document.addEventListener('DOMContentLoaded', () => {
         songTitleElement.textContent = name;
         // 添加show类使元素可见
         songTitleElement.classList.add('show');
-        // 8秒后隐藏
+        // 12秒后隐藏
         setTimeout(() => {
             songTitleElement.classList.remove('show');
-        }, 8000);
+        }, 12000);
     }
 
     // 切歌时也要淡出再切换
     function playNextSong() {
         fadeVolume(0, 1000, false);
         setTimeout(() => {
-            currentSongIndex = (currentSongIndex + 1) % songList.length;
+            currentSongIndex = Math.floor(Math.random() * songList.length);
             playSong(currentSongIndex);
         }, 2000);
     }
     function playPrevSong() {
         fadeVolume(0, 1000, false);
         setTimeout(() => {
-            currentSongIndex = (currentSongIndex - 1 + songList.length) % songList.length;
+            currentSongIndex = Math.floor(Math.random() * songList.length);
             playSong(currentSongIndex);
         }, 2000);
     }

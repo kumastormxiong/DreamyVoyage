@@ -5177,13 +5177,13 @@
       let sn = localStorage.getItem("seen-version");
       const nn = null !== sn && sn !== tn,
         an = [
-          "Added link to Driftmas 2023",
+          "Added link to The Game",
           "Added a setting to disable roadside barriers",
         ],
         on = {
-          targetDate: "January",
+          targetDate: "2025",
           changes: [
-            "Slow Roads 2 release",
+            "Slow Roads on STEAM",
             "New engine for performance & graphics upgrades",
             "Mobile support",
           ],
@@ -14014,7 +14014,7 @@
       })();
       var jh = Nh;
       const zh = 0.3,
-        Oh = window.localStorage.getItem("settings-camera-mode") || 0;
+        Oh = window.localStorage.getItem("settings-camera-mode") || 2;
       var Lh = i(15);
       const Rh = "analytics_returningPlayer",
         Th = "analytics_lastActive",
@@ -23566,18 +23566,18 @@
                 children: [
                   Object(vc.jsx)(qp, {
                     selected: 0 == e,
+                    text: "8m",
+                    onMouseDown: () => Ks.set(2),
+                  }),
+                  Object(vc.jsx)(qp, {
+                    selected: 1 == e,
                     text: "off",
                     onMouseDown: () => Ks.set(0),
                   }),
                   Object(vc.jsx)(qp, {
-                    selected: 1 == e,
+                    selected: 2 == e,
                     text: "3m",
                     onMouseDown: () => Ks.set(1),
-                  }),
-                  Object(vc.jsx)(qp, {
-                    selected: 2 == e,
-                    text: "8m",
-                    onMouseDown: () => Ks.set(2),
                   }),
                   Object(vc.jsx)(qp, {
                     selected: 3 == e,
@@ -23752,10 +23752,10 @@
         },
         Ep = () =>
           Object(vc.jsxs)("a", {
-            href: "https://ko-fi.com/slowroads",
+            href: "https://music.163.com/#/album?id=274829791",
             target: "_blank",
             rel: "noreferrer",
-            title: "Support development on Ko-fi!",
+            title: "Support Music!",
             className: "menu-item",
             style: {
               padding: "0px 12px",
@@ -23776,7 +23776,7 @@
               }),
               Object(vc.jsx)("div", {
                 style: { fontSize: "14px", color: "#fff" },
-                children: "donate",
+                children: "Support",
               }),
             ],
           }),
