@@ -1,7 +1,7 @@
 /**
  * 自定义音乐播放器
  * 功能：为slowroads.io游戏添加自定义音乐播放功能
- * 支持：播放本地音乐文件、显示歌曲名称、键盘控制
+ * 支持：播放本地音乐文件、显示歌曲名称、键盘控制、播放历史记录
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -11,6 +11,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let songList = [];
     // 当前播放歌曲的索引
     let currentSongIndex = -1;
+    // 播放历史记录（最多保存10首）
+    let playHistory = [];
+    // 历史记录显示状态
+    let historyVisible = false;
+    // 当前选中的历史记录索引
+    let selectedHistoryIndex = -1;
 
     // 创建显示歌曲名称的DOM元素
     const songTitleElement = document.createElement('div');
@@ -24,6 +30,12 @@ document.addEventListener('DOMContentLoaded', () => {
     tipElement.className = 'song-title-tip'; // 新增样式类，和#song-title一致
     document.body.appendChild(tipElement);
 
+    // 创建历史记录显示元素
+    const historyElement = document.createElement('div');
+    historyElement.id = 'play-history';
+    historyElement.className = 'play-history';
+    document.body.appendChild(historyElement);
+
     // 分步显示提示
     function showTip() {
         setTimeout(() => {
@@ -36,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tipElement.classList.remove('show');
             // 等待过渡结束再切换内容并淡入
             setTimeout(() => {
-                tipElement.textContent = 'O\u00A0\u00A0&\u00A0\u00A0L\u00A0\u00A0\u00A0\u00A0♪\u00A0\u00A0↑\u00A0\u00A0↓';
+                tipElement.textContent = 'O\u00A0\u00A0&\u00A0\u00A0L\u00A0\u00A0\u00A0\u00A0♪\u00A0\u00A0↑\u00A0\u00A0↓\u00A0\u00A0H';
                 tipElement.classList.add('show');
             }, 2000); // 1s为CSS过渡时间
         }, 16000);
@@ -53,6 +65,87 @@ document.addEventListener('DOMContentLoaded', () => {
             songList = data;
             // 不自动播放，等待点击splash-loader
         });
+
+    /**
+     * 添加歌曲到播放历史
+     * @param {string} songName - 歌曲名称
+     */
+    function addToHistory(songName) {
+        // 如果已经存在，先移除
+        const existingIndex = playHistory.indexOf(songName);
+        if (existingIndex !== -1) {
+            playHistory.splice(existingIndex, 1);
+        }
+        // 添加到开头
+        playHistory.unshift(songName);
+        // 保持最多10首
+        if (playHistory.length > 10) {
+            playHistory = playHistory.slice(0, 10);
+        }
+    }
+
+    /**
+     * 显示播放历史记录
+     */
+    function showPlayHistory() {
+        if (playHistory.length === 0) {
+            historyElement.innerHTML = '<div class="history-item">暂无播放历史</div>';
+        } else {
+            let html = '<div class="history-title">播放历史 (按 ↑↓ 选择，回车播放)</div>';
+            playHistory.forEach((song, index) => {
+                const songName = song.replace(/^\d+-/, '').replace(/\.mp3$/, '');
+                const selectedClass = index === selectedHistoryIndex ? 'selected' : '';
+                html += `<div class="history-item ${selectedClass}" data-index="${index}">${index + 1}. ${songName}</div>`;
+            });
+            historyElement.innerHTML = html;
+        }
+        historyElement.classList.add('show');
+        historyVisible = true;
+        selectedHistoryIndex = 0; // 默认选中第一首
+    }
+
+    /**
+     * 隐藏播放历史记录
+     */
+    function hidePlayHistory() {
+        historyElement.classList.remove('show');
+        historyVisible = false;
+        selectedHistoryIndex = -1;
+    }
+
+    /**
+     * 选择历史记录中的歌曲
+     * @param {number} direction - 1为向下，-1为向上
+     */
+    function selectHistoryItem(direction) {
+        if (!historyVisible || playHistory.length === 0) return;
+        
+        selectedHistoryIndex += direction;
+        if (selectedHistoryIndex < 0) {
+            selectedHistoryIndex = playHistory.length - 1;
+        } else if (selectedHistoryIndex >= playHistory.length) {
+            selectedHistoryIndex = 0;
+        }
+        
+        // 更新显示
+        showPlayHistory();
+    }
+
+    /**
+     * 播放选中的历史记录歌曲
+     */
+    function playSelectedHistorySong() {
+        if (!historyVisible || selectedHistoryIndex < 0 || selectedHistoryIndex >= playHistory.length) return;
+        
+        const selectedSong = playHistory[selectedHistoryIndex];
+        // 找到歌曲在songList中的索引
+        const songIndex = songList.indexOf(selectedSong);
+        if (songIndex !== -1) {
+            currentSongIndex = songIndex;
+            playSong(currentSongIndex);
+        }
+        hidePlayHistory();
+    }
 
     /**
      * 随机播放歌曲
@@ -93,6 +186,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 头2秒淡入
         fadeVolume(1, 1000, true);
         showSongTitle(songName);
+        // 添加到播放历史
+        addToHistory(songName);
         // 监听淡出
         audio.onended = null;
         audio.ontimeupdate = function () {
@@ -152,6 +247,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 键盘快捷键
     document.addEventListener('keydown', (event) => {
+        // 如果历史记录显示中，优先处理历史记录相关按键
+        if (historyVisible) {
+            if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                selectHistoryItem(-1);
+                return;
+            }
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                selectHistoryItem(1);
+                return;
+            }
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                playSelectedHistorySong();
+                return;
+            }
+            if (event.key === 'Escape' || event.key === 'h' || event.key === 'H') {
+                event.preventDefault();
+                hidePlayHistory();
+                return;
+            }
+        }
+
+        // 常规音乐控制按键
         if (event.key === 'o') {
             // o键：播放上一首
             playPrevSong();
@@ -163,6 +283,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.key === 'm') {
             // m键：切换静音
             audio.muted = !audio.muted;
+        }
+        if (event.key === 'h' || event.key === 'H') {
+            // h键：显示播放历史
+            if (!historyVisible) {
+                showPlayHistory();
+            }
         }
     });
 });

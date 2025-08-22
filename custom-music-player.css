@@ -63,3 +63,89 @@
 .song-title-tip, #song-title {
     pointer-events: none;
 }
+
+/* 播放历史记录样式 */
+.play-history {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80vw;
+    max-width: 600px;
+    max-height: 70vh;
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 15px;
+    padding: 20px;
+    color: white;
+    font-family: 'Jura', 'Microsoft YaHei', sans-serif;
+    font-size: 18px;
+    z-index: 2000;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    overflow-y: auto;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.play-history.show {
+    opacity: 1;
+}
+
+.history-title {
+    text-align: center;
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    color: #4CAF50;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.history-item {
+    padding: 12px 15px;
+    margin: 5px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    border: 1px solid transparent;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.history-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateX(5px);
+}
+
+.history-item.selected {
+    background: rgba(76, 175, 80, 0.3);
+    border-color: #4CAF50;
+    color: #4CAF50;
+    font-weight: bold;
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+}
+
+.history-item.selected:hover {
+    background: rgba(76, 175, 80, 0.4);
+}
+
+/* 滚动条样式 */
+.play-history::-webkit-scrollbar {
+    width: 8px;
+}
+
+.play-history::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+.play-history::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+}
+
+.play-history::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
