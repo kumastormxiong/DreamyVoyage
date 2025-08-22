@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tipElement.classList.remove('show');
             // 等待过渡结束再切换内容并淡入
             setTimeout(() => {
-                tipElement.textContent = 'O\u00A0\u00A0&\u00A0\u00A0L\u00A0\u00A0\u00A0\u00A0♪\u00A0\u00A0↑\u00A0\u00A0↓\u00A0\u00A0H';
+                tipElement.textContent = 'O\u00A0\u00A0&\u00A0\u00A0L\u00A0\u00A0\u00A0\u00A0♪\u00A0\u00A0↑\u00A0\u00A0↓\u00A0\u00A0·';
                 tipElement.classList.add('show');
             }, 2000); // 1s为CSS过渡时间
         }, 16000);
@@ -91,11 +91,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (playHistory.length === 0) {
             historyElement.innerHTML = '<div class="history-item">暂无播放历史</div>';
         } else {
-            let html = '<div class="history-title">播放历史 (按 ↑↓ 选择，回车播放)</div>';
+            let html = '<div class="history-title">播放历史 (按 ↑↓ 选择，回车播放，或直接点击)</div>';
             playHistory.forEach((song, index) => {
                 const songName = song.replace(/^\d+-/, '').replace(/\.mp3$/, '');
                 const selectedClass = index === selectedHistoryIndex ? 'selected' : '';
-                html += `<div class="history-item ${selectedClass}" data-index="${index}">${index + 1}. ${songName}</div>`;
+                html += `<div class="history-item ${selectedClass}" data-index="${index}" onclick="window.playHistorySongByIndex(${index})">${index + 1}. ${songName}</div>`;
             });
             historyElement.innerHTML = html;
         }
@@ -146,6 +146,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         hidePlayHistory();
     }
+
+    /**
+     * 通过索引播放历史记录中的歌曲（供onclick调用）
+     */
+    function playHistorySongByIndex(index) {
+        if (index < 0 || index >= playHistory.length) return;
+        
+        const selectedSong = playHistory[index];
+        // 找到歌曲在songList中的索引
+        const songIndex = songList.indexOf(selectedSong);
+        if (songIndex !== -1) {
+            currentSongIndex = songIndex;
+            playSong(currentSongIndex);
+        }
+        hidePlayHistory();
+    }
+
+    // 将函数暴露到全局作用域，供onclick调用
+    window.playHistorySongByIndex = playHistorySongByIndex;
 
     /**
      * 随机播放歌曲
@@ -264,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 playSelectedHistorySong();
                 return;
             }
-            if (event.key === 'Escape' || event.key === 'h' || event.key === 'H') {
+            if (event.key === 'Escape' || event.key === '·') {
                 event.preventDefault();
                 hidePlayHistory();
                 return;
@@ -284,8 +303,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // m键：切换静音
             audio.muted = !audio.muted;
         }
-        if (event.key === 'h' || event.key === 'H') {
-            // h键：显示播放历史
+        if (event.key === '·') {
+            // ·键：显示播放历史
             if (!historyVisible) {
                 showPlayHistory();
             }

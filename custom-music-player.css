@@ -111,6 +111,7 @@
     transition: all 0.2s ease-in-out;
     border: 1px solid transparent;
     background: rgba(255, 255, 255, 0.05);
+    user-select: none;
 }
 
 .history-item:hover {
