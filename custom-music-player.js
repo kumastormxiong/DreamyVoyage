@@ -95,9 +95,18 @@ document.addEventListener('DOMContentLoaded', () => {
             playHistory.forEach((song, index) => {
                 const songName = song.replace(/^\d+-/, '').replace(/\.mp3$/, '');
                 const selectedClass = index === selectedHistoryIndex ? 'selected' : '';
-                html += `<div class="history-item ${selectedClass}" data-index="${index}" onclick="window.playHistorySongByIndex(${index})">${index + 1}. ${songName}</div>`;
+                html += `<div class="history-item ${selectedClass}" data-index="${index}">${index + 1}. ${songName}</div>`;
             });
             historyElement.innerHTML = html;
+            
+            // 添加点击事件监听器
+            const historyItems = historyElement.querySelectorAll('.history-item');
+            historyItems.forEach((item, index) => {
+                item.addEventListener('click', () => {
+                    selectedHistoryIndex = index;
+                    playSelectedHistorySong();
+                });
+            });
         }
         historyElement.classList.add('show');
         historyVisible = true;
@@ -146,25 +155,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         hidePlayHistory();
     }
-
-    /**
-     * 通过索引播放历史记录中的歌曲（供onclick调用）
-     */
-    function playHistorySongByIndex(index) {
-        if (index < 0 || index >= playHistory.length) return;
-        
-        const selectedSong = playHistory[index];
-        // 找到歌曲在songList中的索引
-        const songIndex = songList.indexOf(selectedSong);
-        if (songIndex !== -1) {
-            currentSongIndex = songIndex;
-            playSong(currentSongIndex);
-        }
-        hidePlayHistory();
-    }
-
-    // 将函数暴露到全局作用域，供onclick调用
-    window.playHistorySongByIndex = playHistorySongByIndex;
 
     /**
      * 随机播放歌曲
@@ -283,7 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 playSelectedHistorySong();
                 return;
             }
-            if (event.key === 'Escape' || event.key === '·') {
+            if (event.key === 'Escape' || event.key === '.' || event.key === '·') {
                 event.preventDefault();
                 hidePlayHistory();
                 return;
@@ -303,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // m键：切换静音
             audio.muted = !audio.muted;
         }
-        if (event.key === '·') {
+        if (event.key === '.' || event.key === '·') {
             // ·键：显示播放历史
             if (!historyVisible) {
                 showPlayHistory();

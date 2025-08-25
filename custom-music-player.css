@@ -112,12 +112,14 @@
     border: 1px solid transparent;
     background: rgba(255, 255, 255, 0.05);
     user-select: none;
+    position: relative;
 }
 
 .history-item:hover {
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.2);
     transform: translateX(5px);
+    box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2);
 }
 
 .history-item.selected {
@@ -130,6 +132,12 @@
 
 .history-item.selected:hover {
     background: rgba(76, 175, 80, 0.4);
+    box-shadow: 0 0 15px rgba(76, 175, 80, 0.6);
+}
+
+.history-item:active {
+    transform: translateX(5px) scale(0.98);
+    transition: transform 0.1s ease-in-out;
 }
 
 /* 滚动条样式 */
