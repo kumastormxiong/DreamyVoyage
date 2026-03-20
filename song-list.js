@@ -1,4 +1,4 @@
-[
+window.songList = [
     "01-幻梦之旅-Dreamy Voyage.mp3",
     "02-某日-Another Day.mp3",
     "03-前夜-The Eve.mp3",
@@ -50,4 +50,4 @@
     "48-凝固痉挛-Solidification Spasm.mp3",
     "49-正义焦虑-Justice Anxiety.mp3",
     "50-静态延迟-Static Delay.mp3"
-]
+];

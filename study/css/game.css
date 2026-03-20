@@ -1,0 +1,118 @@
+/* 游戏样式 */
+body {
+  margin: 0;
+  padding: 0;
+  background: #0a0a0a;
+  font-family: 'Microsoft YaHei', Arial, sans-serif;
+  overflow: hidden;
+}
+
+#game-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+#ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.hud {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 15px;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.hud-item {
+  margin-bottom: 8px;
+}
+
+.hud-item:last-child {
+  margin-bottom: 0;
+}
+
+.label {
+  color: #4CAF50;
+  font-weight: bold;
+  margin-right: 8px;
+}
+
+.controls-info {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 15px;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.controls-info div {
+  margin-bottom: 5px;
+}
+
+.controls-info div:last-child {
+  margin-bottom: 0;
+}
+
+/* 加载动画 */
+.loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-size: 18px;
+  text-align: center;
+}
+
+.loading::after {
+  content: '';
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #4CAF50;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spin 1s linear infinite;
+  margin-left: 10px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .hud {
+    top: 10px;
+    left: 10px;
+    padding: 10px;
+    font-size: 12px;
+  }
+  
+  .controls-info {
+    bottom: 10px;
+    right: 10px;
+    padding: 10px;
+    font-size: 10px;
+  }
+}
+

@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>结账 · 幻梦之旅</title>
+  <link rel="stylesheet" href="./assets/style.css" />
+</head>
+<body>
+  <header class="site-header"><div class="container header-wrap"><div class="brand">幻梦之旅</div><nav class="nav"><a href="./index.html">首页</a><a href="./pricing.html">价格</a><a href="./contact.html">联系</a><a href="./privacy.html">隐私</a><a href="./terms.html">条款</a><a href="./refund.html">退款</a></nav></div></header>
+  <main class="container" style="padding:24px 0;max-width:760px">
+    <h1>结账</h1>
+    <p>你正在购买：<span id="product-name">—</span>（SKU：<code id="sku">—</code>）</p>
+    <p>我们将跳转至支付服务商完成安全结账与开票。</p>
+    <div style="margin:16px 0">
+      <a id="checkout-link" class="btn btn-primary" href="#">前往支付</a>
+      <a class="btn" href="./pricing.html">返回价格页</a>
+    </div>
+    <p style="color:#4c5a7d">支付即表示同意 <a href="./terms.html">服务条款</a>、<a href="./refund.html">退款政策</a> 与 <a href="./privacy.html">隐私政策</a>。</p>
+  </main>
+  <script>
+    // 简易路由到支付商（占位）。可替换为 Creem 的 checkout 链接。
+    const params = new URLSearchParams(location.search);
+    const sku = params.get('sku') || 'starter';
+    document.getElementById('sku').textContent = sku;
+    const productMap = { starter: '入门版', creator: '创作者版' };
+    document.getElementById('product-name').textContent = productMap[sku] || '入门版';
+    // TODO: 替换为真实 Creem checkout 链接
+    const link = `https://checkout.example/pay?product=${encodeURIComponent(sku)}`;
+    document.getElementById('checkout-link').href = link;
+  </script>
+</body>
+</html>
+
+

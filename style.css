@@ -1,0 +1,597 @@
+:root {
+    --bg-color: #050608;
+    --neon-cyan: #00f2ff;
+    --neon-magenta: #ff007f;
+    --neon-purple: #b53cff;
+    --glass-bg: rgba(15, 10, 25, 0.4);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --text-main: #ffffff;
+    --text-muted: rgba(255, 255, 255, 0.6);
+    --font-cyber: 'Orbitron', sans-serif;
+    --font-normal: 'Inter', sans-serif;
+    --transition-speed: 0.3s;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body, html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    font-family: var(--font-normal);
+}
+
+/* ==========================================
+   WebGL Canvas 背景
+   ========================================== */
+#webgl-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none; /* 让鼠标事件穿透到下层（虽然我们想交互，但可以让JS监听 window） */
+}
+
+/* ==========================================
+   进场遮罩 Intro Overlay
+   ========================================== */
+#intro-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, #1a0b2e 0%, #050508 100%);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: opacity 0.8s ease, visibility 0.8s;
+}
+
+.intro-content {
+    text-align: center;
+}
+
+/* Glitch 文字效果 */
+.glitch-text {
+    font-family: var(--font-cyber);
+    font-size: 3rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    position: relative;
+    color: #fff;
+    text-shadow: 0 0 10px var(--neon-cyan);
+    margin-bottom: 15px;
+}
+
+.glitch-text::before, .glitch-text::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+}
+
+.glitch-text::before {
+    left: 2px;
+    text-shadow: -2px 0 var(--neon-magenta);
+    clip: rect(44px, 450px, 56px, 0);
+    animation: glitch-anim 5s infinite linear alternate-reverse;
+}
+
+.glitch-text::after {
+    left: -2px;
+    text-shadow: -2px 0 var(--neon-cyan);
+    clip: rect(100px, 450px, 120px, 0);
+    animation: glitch-anim2 5s infinite linear alternate-reverse;
+}
+
+.intro-subtitle {
+    font-weight: 300;
+    letter-spacing: 4px;
+    color: var(--neon-cyan);
+    margin-bottom: 40px;
+    font-size: 1rem;
+    text-transform: uppercase;
+}
+
+#enter-btn {
+    background: transparent;
+    border: 2px solid var(--neon-magenta);
+    color: #fff;
+    padding: 12px 35px;
+    font-family: var(--font-cyber);
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 4px;
+    box-shadow: 0 0 15px rgba(255, 0, 127, 0.4);
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+#enter-btn:hover {
+    background: var(--neon-magenta);
+    color: #fff;
+    box-shadow: 0 0 25px var(--neon-magenta);
+    transform: translateY(-2px);
+}
+
+/* ==========================================
+   主应用容器
+   ========================================== */
+#app {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: opacity 0.5s ease;
+}
+
+#app.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* ==========================================
+   卡片式播放器核心 Player Card
+   ========================================== */
+#player-container {
+    perspective: 1000px;
+    z-index: 20;
+}
+
+.player-card {
+    width: 380px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    padding: 30px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.player-card:hover {
+    box-shadow: 0 0 30px rgba(181, 60, 255, 0.15),
+                0 25px 50px -12px rgba(0, 0, 0, 0.6);
+}
+
+/* 专辑封面 */
+.cover-wrapper {
+    width: 200px;
+    height: 200px;
+    margin: 0 auto 25px;
+    position: relative;
+    border-radius: 50%;
+}
+
+#cover-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    animation: rotate 20s infinite linear;
+    animation-play-state: paused; /* 默认暂停 */
+}
+
+/* 播放时的旋转类 */
+.playing #cover-img {
+    animation-play-state: running;
+}
+
+.glow-ring {
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    right: -8px;
+    bottom: -8px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    border-top-color: var(--neon-cyan);
+    border-bottom-color: var(--neon-magenta);
+    opacity: 0.6;
+    animation: rotate-reverse 10s infinite linear;
+}
+
+/* 歌曲信息 */
+.song-info {
+    margin-bottom: 25px;
+}
+
+#song-title {
+    font-family: var(--font-cyber);
+    font-size: 1.4rem;
+    letter-spacing: 1px;
+    color: #fff;
+    margin-bottom: 5px;
+    text-shadow: 0 0 5px rgba(255,255,255,0.2);
+}
+
+#album-title {
+    font-size: 0.85rem;
+    color: var(--neon-cyan);
+    font-weight: 300;
+    opacity: 0.8;
+}
+
+/* 进度条 */
+.progress-bar-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 30px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-family: var(--font-cyber);
+}
+
+.progress-track {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    position: relative;
+    cursor: pointer;
+}
+
+.progress-fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, var(--neon-cyan), var(--neon-magenta));
+    border-radius: 3px;
+    position: relative;
+    box-shadow: 0 0 10px var(--neon-cyan);
+}
+
+.progress-handle {
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    left: 0%; /* JS 动态改变 */
+    box-shadow: 0 0 8px var(--neon-cyan);
+    transition: transform 0.1s;
+}
+
+.progress-track:hover .progress-handle {
+    transform: translate(-50%, -50%) scale(1.2);
+}
+
+/* 操控区 */
+.controls {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin-bottom: 25px;
+}
+
+.btn-ctrl {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-ctrl:hover {
+    color: #fff;
+    text-shadow: 0 0 10px var(--neon-cyan);
+}
+
+.btn-play {
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, var(--neon-purple), var(--neon-magenta));
+    color: #fff;
+    font-size: 1.3rem;
+    border-radius: 50%;
+    box-shadow: 0 0 15px var(--neon-magenta);
+}
+
+.btn-play:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 25px var(--neon-magenta);
+}
+
+/* 社交平台 */
+.social-links {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    border-top: 1px solid var(--glass-border);
+    padding-top: 20px;
+}
+
+.social-icon {
+    font-size: 1.3rem;
+    color: var(--text-muted);
+    transition: all 0.3s;
+}
+
+.social-icon:hover {
+    transform: translateY(-3px);
+}
+
+.social-icon.netease:hover {
+    color: #e60026;
+    text-shadow: 0 0 10px #e60026;
+}
+
+.social-icon.spotify:hover {
+    color: #1DB954;
+    text-shadow: 0 0 10px #1DB954;
+}
+
+/* ==========================================
+   歌单抽屉 Drawer
+   ========================================== */
+#songs-drawer {
+    position: fixed;
+    top: 0;
+    right: -320px; /* 默认隐藏 */
+    width: 320px;
+    height: 100%;
+    background: rgba(10, 8, 15, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-left: 1px solid var(--glass-border);
+    transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    z-index: 500;
+}
+
+#songs-drawer.open {
+    right: 0;
+}
+
+.drawer-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--glass-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.drawer-header h3 {
+    font-family: var(--font-cyber);
+    color: var(--neon-cyan);
+    font-size: 1.1rem;
+}
+
+#close-drawer-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+
+.song-list-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 0;
+}
+
+/* 自定义滚动条 */
+.song-list-container::-webkit-scrollbar {
+    width: 4px;
+}
+.song-list-container::-webkit-scrollbar-thumb {
+    background: var(--neon-purple);
+    border-radius: 2px;
+}
+
+.song-item {
+    padding: 15px 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.song-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--neon-cyan);
+}
+
+.song-item.active {
+    background: rgba(181, 60, 255, 0.1);
+    color: var(--neon-magenta);
+    border-left: 3px solid var(--neon-magenta);
+}
+
+.song-index {
+    font-family: var(--font-cyber);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    width: 25px;
+}
+
+.song-item-title {
+    font-size: 0.9rem;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ==========================================
+   一键分享海报 Share Modal
+   ========================================== */
+#share-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: opacity 0.3s ease;
+}
+
+.hidden-modal {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+}
+
+.modal-box {
+    position: relative;
+    background: rgba(15, 10, 25, 0.9);
+    border: 1px solid var(--neon-purple);
+    border-radius: 16px;
+    padding: 20px;
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 0 30px var(--neon-purple);
+    z-index: 1010;
+}
+
+#close-modal-btn {
+    position: absolute;
+    top: -12px;
+    right: -12px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 1.5rem;
+    cursor: pointer;
+    background: var(--bg-color);
+    border-radius: 50%;
+}
+
+#poster-container {
+    background: #000;
+    min-height: 480px; /* 预估比例 */
+    border-radius: 8px;
+    margin-bottom: 15px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+#poster-container img {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+}
+
+.share-hint {
+    font-size: 0.8rem;
+    color: var(--neon-cyan);
+    margin-top: 10px;
+    font-family: var(--font-cyber);
+    letter-spacing: 1px;
+}
+
+/* ==========================================
+   响应式设计 Media Queries (适配手机)
+   ========================================== */
+@media (max-width: 480px) {
+    .player-card {
+        width: 90vw;
+        padding: 20px;
+        border-radius: 20px;
+    }
+    
+    .cover-wrapper {
+        width: 160px;
+        height: 160px;
+    }
+    
+    #song-title {
+        font-size: 1.2rem;
+    }
+    
+    .btn-ctrl {
+        font-size: 1rem;
+    }
+    
+    .btn-play {
+        width: 45px;
+        height: 45px;
+        font-size: 1.1rem;
+    }
+
+    #poster-container {
+        min-height: 400px;
+    }
+}
+
+/* ==========================================
+   Keyframes
+   ========================================== */
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes rotate-reverse {
+    from { transform: rotate(360deg); }
+    to { transform: rotate(0deg); }
+}
+
+@keyframes glitch-anim {
+    0% { clip: rect(2px, 9999px, 31px, 0); }
+    20% { clip: rect(44px, 9999px, 16px, 0); }
+    40% { clip: rect(81px, 9999px, 99px, 0); }
+    60% { clip: rect(11px, 9999px, 58px, 0); }
+    80% { clip: rect(76px, 9999px, 35px, 0); }
+    100% { clip: rect(23px, 9999px, 83px, 0); }
+}
+
+@keyframes glitch-anim2 {
+    0% { clip: rect(65px, 9999px, 100px, 0); }
+    20% { clip: rect(12px, 9999px, 12px, 0); }
+    40% { clip: rect(45px, 9999px, 55px, 0); }
+    60% { clip: rect(32px, 9999px, 78px, 0); }
+    80% { clip: rect(98px, 9999px, 11px, 0); }
+    100% { clip: rect(14px, 9999px, 44px, 0); }
+}

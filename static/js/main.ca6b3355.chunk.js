@@ -21795,7 +21795,7 @@
                                   href: "https://music.163.com/#/artist?id=98388237",
                                   children: " - 虚空造物 -  ,  ",
                                 }),
-                                " 一个 AI探索者 , and Anslo ( the game maker ) is a creative developer exploring the space between design and computer science. With a background in software engineering and a life-long love of functional art, my projects focus on finding novel applications of digital technology in answering interesting design questions.",
+                                " 一个 AI探索者 , and Anslo ( the Original game Slowroads.io maker ) is a creative developer exploring the space between design and computer science. With a background in software engineering and a life-long love of functional art, my projects focus on finding novel applications of digital technology in answering interesting design questions.",
                                 Object(vc.jsx)("br", {}),
                                 Object(vc.jsx)("br", {}),
                                 "Slow Roads exists primarily as an exploration of procedural scenery generation, but also as an experiment testing the boundaries of 3D application development within JavaScript. As a game, this project is a nostalgic love letter to the rolling hills of the Peak District, and to the arcade rally games I would play for hours on end as a child. As a technical demo, I aim to set a high bar and redress the negative idea of what can be accomplished in the browser.",

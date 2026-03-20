@@ -158,3 +158,9 @@
 .play-history::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.5);
 }
+
+/* Hide Development Plan and all following sections on the about page */
+#about-wrapper > div:nth-of-type(4),
+#about-wrapper > div:nth-of-type(4) ~ * {
+    display: none !important;
+}
