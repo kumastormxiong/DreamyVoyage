@@ -1,5 +1,5 @@
 /**
- * DreamyVoyage - 炫酷音乐播放网页 (全景 WebGL 液态 Shader & 圆弧频谱 & 悬浮抽屉版)
+ * DreamyVoyage - 炫酷音乐播放网页 (极致全景 WebGL 液态 Shader & 2D 圆弧频谱 & 进度条拖拽锁)
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModalBtn = document.getElementById('close-modal-btn');
     const posterContainer = document.getElementById('poster-container');
 
+    // 双 Canvas 渲染
     const bgCanvas = document.getElementById('webgl-canvas'); 
     const spCanvas = document.getElementById('spectre-canvas'); 
     const spCtx = spCanvas.getContext('2d');
@@ -42,6 +43,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let audioContext = null;
     let analyser = null;
     let dataArray = null;
+
+    // 进度条拖拽控制锁
+    let isDragging = false;
 
     function resizeCanvas() {
         bgCanvas.width = spCanvas.width = window.innerWidth;
@@ -77,8 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const item = document.createElement('div');
             item.className = 'song-item';
             if (index === currentSongIndex) item.className += ' active';
-            
-            // 下方设置 Staggered 浮出变量
             item.style.setProperty('--delay', index);
 
             item.innerHTML = `
@@ -110,16 +112,14 @@ document.addEventListener('DOMContentLoaded', () => {
         progressFill.style.width = '0%'; progressHandle.style.left = '0%'; currentTimeEl.innerText = "0:00";
     }
 
-    // 核心触发：开启、全屏、播放
     function startExperience() {
         introOverlay.style.opacity = '0';
         setTimeout(() => introOverlay.style.display = 'none', 800);
         app.classList.remove('hidden');
 
-        // ==== 点击任意按键进入播放界面时，自动全屏 ====
         if (document.documentElement.requestFullscreen) {
             document.documentElement.requestFullscreen().catch(e => console.log('Fullscreen被阻：', e));
-        } else if (document.documentElement.webkitRequestFullscreen) { /* Safari */
+        } else if (document.documentElement.webkitRequestFullscreen) {
             document.documentElement.webkitRequestFullscreen();
         }
 
@@ -160,19 +160,47 @@ document.addEventListener('DOMContentLoaded', () => {
     btnNext.addEventListener('click', (e) => { e.stopPropagation(); currentSongIndex = (currentSongIndex + 1) % songList.length; loadSong(currentSongIndex); playAudio(); });
     btnPrev.addEventListener('click', (e) => { e.stopPropagation(); currentSongIndex = (currentSongIndex - 1 + songList.length) % songList.length; loadSong(currentSongIndex); playAudio(); });
 
+    // 音频时间滚动更新（排斥拖动触发跳起）
     audio.addEventListener('timeupdate', () => {
-        if (audio.duration) {
+        if (audio.duration && !isDragging) {
             const progress = (audio.currentTime / audio.duration) * 100;
-            progressFill.style.width = `${progress}%`; progressHandle.style.left = `${progress}%`;
-            currentTimeEl.innerText = formatTime(audio.currentTime); durationTimeEl.innerText = formatTime(audio.duration);
+            progressFill.style.width = `${progress}%`; 
+            progressHandle.style.left = `${progress}%`;
+            currentTimeEl.innerText = formatTime(audio.currentTime); 
+            durationTimeEl.innerText = formatTime(audio.duration);
         }
     });
 
-    progressTrack.addEventListener('click', (e) => {
-        e.stopPropagation();
+    // ==========================================
+    // 进度条微操拖拽（修正卡顿、漂移）
+    // ==========================================
+    function updateProgress(clientX) {
+        if (!audio.duration) return;
         const rect = progressTrack.getBoundingClientRect();
-        audio.currentTime = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1) * audio.duration;
+        const percentage = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
+        progressFill.style.width = `${percentage * 100}%`;
+        progressHandle.style.left = `${percentage * 100}%`;
+        currentTimeEl.innerText = formatTime(percentage * audio.duration);
+        audio.currentTime = percentage * audio.duration;
+    }
+
+    // 鼠标事件
+    progressTrack.addEventListener('mousedown', (e) => {
+        e.stopPropagation(); isDragging = true; updateProgress(e.clientX);
     });
+    window.addEventListener('mousemove', (e) => {
+        if (isDragging) { e.preventDefault(); updateProgress(e.clientX); }
+    });
+    window.addEventListener('mouseup', (e) => { if (isDragging) { e.stopPropagation(); isDragging = false; } });
+
+    // 触摸屏事件
+    progressTrack.addEventListener('touchstart', (e) => {
+        e.stopPropagation(); isDragging = true; updateProgress(e.touches[0].clientX);
+    }, { passive: false });
+    window.addEventListener('touchmove', (e) => {
+        if (isDragging) { e.preventDefault(); updateProgress(e.touches[0].clientX); }
+    }, { passive: false });
+    window.addEventListener('touchend', (e) => { if (isDragging) { e.stopPropagation(); isDragging = false; } });
 
     audio.addEventListener('ended', () => btnNext.click());
 
@@ -182,16 +210,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${m}:${s < 10 ? '0' : ''}${s}`;
     }
 
-    // 抽屉开关 & 遮罩联动
-    function openDrawer() {
-        drawer.classList.add('open');
-        drawerOverlay.classList.add('active');
-    }
-
-    function closeDrawer() {
-        drawer.classList.remove('open');
-        drawerOverlay.classList.remove('active');
-    }
+    function openDrawer() { drawer.classList.add('open'); drawerOverlay.classList.add('active'); }
+    function closeDrawer() { drawer.classList.remove('open'); drawerOverlay.classList.remove('active'); }
 
     btnList.addEventListener('click', (e) => { e.stopPropagation(); openDrawer(); });
     closeDrawerBtn.addEventListener('click', (e) => { e.stopPropagation(); closeDrawer(); });
@@ -214,10 +234,11 @@ document.addEventListener('DOMContentLoaded', () => {
         uniform float iTime;
         varying vec2 vUv;
 
-        vec3 uColorA = vec3(0.16, 0.03, 0.24); // 紫黑
-        vec3 uColorB = vec3(1.0, 0.31, 0.85); // 粉红
-        vec3 uColorC = vec3(0.2, 0.96, 1.0);  // 赛博蓝
-        vec3 uColorD = vec3(0.84, 1.0, 0.35); // 亮黄绿
+        // 蒸汽波/赛博暗色调
+        vec3 uColorA = vec3(0.08, 0.01, 0.16); // 更加暗夜的紫黑
+        vec3 uColorB = vec3(0.65, 0.15, 0.5);  // 暗霓虹粉
+        vec3 uColorC = vec3(0.1, 0.5, 0.65);    // 赛色深蓝
+        vec3 uColorD = vec3(0.4, 0.6, 0.15);    // 暗黄绿度
 
         float hash21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
         float noise(vec2 p) {
@@ -235,18 +256,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         void main() {
-            vec2 p = (2.0 * gl_FragCoord.xy - iResolution.xy) / iResolution.y;
-            float t = iTime * 0.4; 
+            // 修正：使用 vUv 代替 gl_FragCoord ，防手机端绝对坐标超精度横条纹断线故障
+            vec2 p = (vUv * 2.0 - 1.0);
+            p.x *= iResolution.x / iResolution.y;
 
-            float auroraA = sin(p.x * 2.0 + t * 0.4 + fbm(p * 1.4) * 4.0);
+            float t = iTime * 0.25; // 再减慢速度，适合缓慢气泡模糊环境
+
+            float auroraA = sin(p.x * 2.1 + t * 0.4 + fbm(p * 1.4) * 4.0);
             float auroraB = sin(p.y * 3.4 - t * 0.35 + fbm(p * 2.1) * 3.0);
             float curtain = smoothstep(0.0, 1.0, fbm(p * 1.7 + vec2(0.0, t * 0.08)));
 
             vec3 base = mix(uColorA, uColorB, clamp(vUv.y * 0.5 + 0.5, 0.0, 1.0));
             base = mix(base, uColorC, 0.5 + 0.5 * auroraA * auroraB);
-            base += uColorD * (0.25 + curtain * 0.45) * smoothstep(0.2, 0.9, auroraA * 0.5 + 0.5);
+            base += uColorD * (0.2 + curtain * 0.35) * smoothstep(0.2, 0.9, auroraA * 0.5 + 0.5);
 
-            gl_FragColor = vec4(base, 1.0);
+            // 再次整体暗色化适配蒸汽波调：压暗 35% 渲染深邃感
+            gl_FragColor = vec4(base * 0.65, 1.0);
         }
     `;
 
@@ -296,11 +321,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const centerX = spCanvas.width / 2;
             const centerY = spCanvas.height / 2;
 
-            if (!gl) { // Fallback 渲染板
+            if (!gl) { // Fallback 渲染板（仅极光下沉）
                 spCtx.fillStyle = 'rgba(5, 4, 10, 0.2)'; spCtx.fillRect(0, 0, spCanvas.width, spCanvas.height);
                 spCtx.save(); spCtx.globalCompositeOperation = 'screen';
                 const grad1 = spCtx.createRadialGradient(centerX - 100, centerY - 100, 0, centerX - 100, centerY - 100, spCanvas.width * 0.5 + lowFreqValue);
-                grad1.addColorStop(0, `hsla(${hue}, 100%, 65%, 0.3)`); grad1.addColorStop(1, 'rgba(0,0,0,0)');
+                grad1.addColorStop(0, `hsla(${hue}, 100%, 65%, 0.2)`); grad1.addColorStop(1, 'rgba(0,0,0,0)');
                 spCtx.fillStyle = grad1; spCtx.fillRect(0,0,spCanvas.width,spCanvas.height); spCtx.restore();
             }
 
@@ -322,16 +347,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (isPlaying && dataArray) {
-                spCtx.save(); spCtx.shadowBlur = 30; spCtx.shadowColor = `hsla(${hue}, 100%, 65%, 0.5)`;
-                spCtx.strokeStyle = `hsla(${hue}, 100%, 75%, 0.4)`; spCtx.lineWidth = 5;
+                spCtx.save(); spCtx.shadowBlur = 30; spCtx.shadowColor = `hsla(${hue}, 100%, 65%, 0.4)`;
+                spCtx.strokeStyle = `hsla(${hue}, 100%, 75%, 0.3)`; spCtx.lineWidth = 4;
                 spCtx.beginPath(); spCtx.arc(centerX, centerY, 135 + lowFreqValue * 0.4, 0, Math.PI * 2); spCtx.stroke(); spCtx.restore();
             }
-            hue = (hue + 0.15) % 360; 
+            hue = (hue + 0.12) % 360; 
         }
         renderLoop();
     }
 
-    // 6. 系统 SharePanel 与海报生成板并存
+    // 6. 系统海报生成
     btnShare.addEventListener('click', (e) => {
         e.stopPropagation(); posterContainer.innerHTML = '<p style="color:var(--neon-cyan)">正在初始化分享...</p>';
         const posterCanvas = document.createElement('canvas'); const pCtx = posterCanvas.getContext('2d');
