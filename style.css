@@ -38,7 +38,17 @@ body, html {
     width: 100%;
     height: 100%;
     z-index: 1;
-    pointer-events: none; /* 让鼠标事件穿透到下层（虽然我们想交互，但可以让JS监听 window） */
+    pointer-events: none;
+}
+
+#spectre-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5; /* 在 WebGL 和应用层 10 之间 */
+    pointer-events: none;
 }
 
 /* ==========================================
