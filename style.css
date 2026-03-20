@@ -330,6 +330,16 @@ body, html {
     transition: all 0.3s;
 }
 
+.social-icon.netease {
+    color: #e60026;
+    text-shadow: 0 0 8px rgba(230, 0, 38, 0.4);
+}
+
+.social-icon.spotify {
+    color: #1DB954;
+    text-shadow: 0 0 8px rgba(29, 185, 84, 0.4);
+}
+
 .social-icon:hover {
     transform: translateY(-3px);
 }
