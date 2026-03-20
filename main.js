@@ -1,5 +1,5 @@
 /**
- * DreamyVoyage - 炫酷音乐播放网页 (全景 WebGL 霓虹万花筒 Shader & 2D 圆弧频谱 & 进度条拖拽单次结算版)
+ * DreamyVoyage - 炫酷音乐播放网页 (全景 WebGL 液态 FBM Shader & 2D 圆弧频谱 & 进度条防抖版)
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -43,9 +43,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let analyser = null;
     let dataArray = null;
 
-    // 进度条拖拽性能锁
+    // 进度条拖拽与防抖性能锁
     let isDragging = false; 
-    let pendingTime = 0; // 拖拽中预定时间
+    let pendingTime = 0; 
+    let lastProgress = 0; // 防止在 timeupdate 里因缓冲导致微小倒车颠簸
 
     function resizeCanvas() {
         bgCanvas.width = spCanvas.width = window.innerWidth;
@@ -109,7 +110,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const items = document.querySelectorAll('.song-item');
         items.forEach((item, i) => { i === index ? item.classList.add('active') : item.classList.remove('active'); });
+        
+        // 切歌重温进度线浮点值
         progressFill.style.width = '0%'; progressHandle.style.left = '0%'; currentTimeEl.innerText = "0:00";
+        lastProgress = 0; 
     }
 
     function startExperience() {
@@ -164,43 +168,55 @@ document.addEventListener('DOMContentLoaded', () => {
     audio.addEventListener('timeupdate', () => {
         if (audio.duration && !isDragging) {
             const progress = (audio.currentTime / audio.duration) * 100;
-            progressFill.style.width = `${progress}%`; progressHandle.style.left = `${progress}%`;
+            
+            // ===== 核心防抖：只有递增推进，或者是大幅度跳转（切歌/切进度）才更新视觉渲染，防止微幅回跳的颠簸 =====
+            if (progress >= lastProgress || Math.abs(progress - lastProgress) > 5) {
+                progressFill.style.width = `${progress}%`; progressHandle.style.left = `${progress}%`;
+                lastProgress = progress;
+            }
             currentTimeEl.innerText = formatTime(audio.currentTime); durationTimeEl.innerText = formatTime(audio.duration);
         }
     });
 
-    // ==========================================
-    // 进度条微操拖拽（彻底解耦实时Range拉扯跳动）
-    // ==========================================
     function updateProgress(clientX) {
         if (!audio.duration) return;
         const rect = progressTrack.getBoundingClientRect();
         const percentage = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
         
-        // 1. 实时更新排版的 UI 占用渲染，不碰 audio.currentTime
         progressFill.style.width = `${percentage * 100}%`;
         progressHandle.style.left = `${percentage * 100}%`;
         currentTimeEl.innerText = formatTime(percentage * audio.duration);
         
-        // 2. 预存结算时间
         pendingTime = percentage * audio.duration; 
     }
 
-    progressTrack.addEventListener('mousedown', (e) => { e.stopPropagation(); isDragging = true; updateProgress(e.clientX); });
+    progressTrack.addEventListener('mousedown', (e) => { 
+        e.stopPropagation(); isDragging = true; 
+        document.body.classList.add('dragging'); 
+        updateProgress(e.clientX); 
+    });
     window.addEventListener('mousemove', (e) => { if (isDragging) { e.preventDefault(); updateProgress(e.clientX); } });
     window.addEventListener('mouseup', (e) => { 
         if (isDragging) { 
             e.stopPropagation(); isDragging = false; 
-            audio.currentTime = pendingTime; // 只有在释放的一刹那，才向浏览器请求断面，丝滑无跳跃
+            document.body.classList.remove('dragging');
+            audio.currentTime = pendingTime; 
+            lastProgress = (pendingTime / audio.duration) * 100; // 同步锁线
         } 
     });
 
-    progressTrack.addEventListener('touchstart', (e) => { e.stopPropagation(); isDragging = true; updateProgress(e.touches[0].clientX); }, { passive: false });
+    progressTrack.addEventListener('touchstart', (e) => { 
+        e.stopPropagation(); isDragging = true; 
+        document.body.classList.add('dragging');
+        updateProgress(e.touches[0].clientX); 
+    }, { passive: false });
     window.addEventListener('touchmove', (e) => { if (isDragging) { e.preventDefault(); updateProgress(e.touches[0].clientX); } }, { passive: false });
     window.addEventListener('touchend', (e) => { 
         if (isDragging) { 
             e.stopPropagation(); isDragging = false; 
-            audio.currentTime = pendingTime; // 触屏端结算
+            document.body.classList.remove('dragging');
+            audio.currentTime = pendingTime; 
+            lastProgress = (pendingTime / audio.duration) * 100;
         } 
     });
 
@@ -220,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
     drawerOverlay.addEventListener('click', (e) => { e.stopPropagation(); closeDrawer(); });
 
     // ==========================================
-    // 5.1 底层：全景 WebGL 霓虹万花筒 Cosine Palette Shader
+    // 5.1 底层：全景 WebGL 梦幻 FBM 极光 Shader 
     // ==========================================
     let glProgram;
 
@@ -230,49 +246,51 @@ document.addEventListener('DOMContentLoaded', () => {
         void main() { vUv = position * 0.5 + 0.5; gl_Position = vec4(position, 0.0, 1.0); }
     `;
 
-    // 彻底重构：换用不会由于 FBM 导致色阶 Banding 的万花筒循环算法，霓虹感极强
+    // ===== 倒车：退回 FBM 计算，在 CSS 50px 模糊下，霓虹极光绝对流畅且 0 撕裂度 =====
     const fsSource = `
         precision highp float;
         uniform vec2 iResolution;
         uniform float iTime;
         varying vec2 vUv;
 
-        // Iq (Inigo Quilez) Cosine Palette 配色公式
-        vec3 palette( in float t, in vec3 a, in vec3 b, in vec3 c, in vec3 d ) {
-            return a + b*cos( 6.28318*(c*t+d) );
+        vec3 uColorA = vec3(0.06, 0.01, 0.12); // 深沉暗紫
+        vec3 uColorB = vec3(1.0, 0.05, 0.65);  // 高闪霓虹粉
+        vec3 uColorC = vec3(0.0, 0.85, 1.0);   // 高亮赛博蓝
+        vec3 uColorD = vec3(0.65, 1.0, 0.0);   // 亮荧光黄绿
+
+        float hash21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+        float noise(vec2 p) {
+            vec2 i = floor(p); vec2 f = fract(p);
+            float a = hash21(i); float b = hash21(i + vec2(1.0, 0.0));
+            float c = hash21(i + vec2(0.0, 1.0)); float d = hash21(i + vec2(1.0, 1.0));
+            vec2 u = f * f * (3.0 - 2.0 * f);
+            return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+        }
+
+        float fbm(vec2 p) {
+            float value = 0.0; float amplitude = 0.5;
+            for (int i = 0; i < 3; i += 1) { 
+                value += amplitude * noise(p); p *= 2.1; amplitude *= 0.5;
+            }
+            return value;
         }
 
         void main() {
             vec2 p = (vUv * 2.0 - 1.0);
             p.x *= iResolution.x / iResolution.y;
 
-            vec2 p_orig = p;
-            float t = iTime * 0.18; // 速度调适，流淌感
-            vec3 finalColor = vec3(0.0);
+            float t = iTime * 0.42; 
 
-            // 3 次万花筒递归：在任何平台上都没有色阶断纹，不偏大爆 float
-            for(float i = 0.0; i < 3.0; i++) {
-                p = fract(p * 1.5) - 0.5;
+            float auroraA = sin(p.x * 2.1 + t * 0.35 + fbm(p * 1.2) * 3.0);
+            float auroraB = sin(p.y * 3.4 - t * 0.3 + fbm(p * 1.5) * 2.5);
+            float curtain = smoothstep(0.0, 1.0, fbm(p * 1.3 + vec2(0.0, t * 0.08)));
 
-                float d = length(p) * exp(-length(p_orig));
+            vec3 base = mix(uColorA, uColorB, clamp(vUv.y * 0.6 + 0.4, 0.0, 1.0));
+            base = mix(base, uColorC, 0.5 + 0.5 * auroraA * auroraB);
+            base += uColorD * (0.2 + curtain * 0.35) * smoothstep(0.2, 0.9, auroraA * 0.5 + 0.5);
 
-                // 蒸汽波霓虹色彩：选用高对比饱和色彩配方
-                vec3 col = palette(length(p_orig) + i * 0.45 + t, 
-                    vec3(0.5, 0.5, 0.5), 
-                    vec3(0.5, 0.5, 0.5), 
-                    vec3(1.0, 1.0, 1.0), 
-                    vec3(0.26, 0.41, 0.66)
-                );
-
-                d = sin(d * 8.0 + t) / 8.0;
-                d = abs(d);
-                d = pow(0.012 / d, 1.2); // 增强霓虹线条对比
-
-                finalColor += col * d;
-            }
-
-            // 抑制极端溢出，让色彩明朗霓虹
-            gl_FragColor = vec4(clamp(finalColor, 0.0, 1.0), 1.0);
+            vec3 neonColor = base * 1.25 - 0.08;
+            gl_FragColor = vec4(clamp(neonColor * 0.95, 0.0, 1.0), 1.0);
         }
     `;
 
@@ -332,7 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const x1 = Math.cos(angle) * baseRadius; const y1 = Math.sin(angle) * baseRadius;
                     const x2 = Math.cos(angle) * (baseRadius + barHeight); const y2 = Math.sin(angle) * (baseRadius + barHeight);
 
-                    spCtx.shadowBlur = 15; spCtx.shadowColor = `hsl(${(hue + i * 2) % 360}, 100%, 60%)`;
+                    spCtx.shadowBlur = 10; spCtx.shadowColor = `hsl(${(hue + i * 2) % 360}, 100%, 60%)`;
                     spCtx.strokeStyle = `hsl(${(hue + i) % 360}, 100%, 65%)`; spCtx.lineWidth = window.innerWidth < 480 ? 3 : 5;
                     spCtx.beginPath(); spCtx.moveTo(x1, y1); spCtx.lineTo(x2, y2); spCtx.stroke();
                 }
@@ -340,7 +358,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (isPlaying && dataArray) {
-                spCtx.save(); spCtx.shadowBlur = 15; spCtx.shadowColor = `hsla(${hue}, 100%, 65%, 0.4)`;
+                spCtx.save(); spCtx.shadowBlur = 12; spCtx.shadowColor = `hsla(${hue}, 100%, 65%, 0.4)`;
                 spCtx.strokeStyle = `hsla(${hue}, 100%, 75%, 0.4)`; spCtx.lineWidth = 4;
                 spCtx.beginPath(); spCtx.arc(centerX, centerY, 135 + lowFreqValue * 0.4, 0, Math.PI * 2); spCtx.stroke(); spCtx.restore();
             }
@@ -361,8 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (gl) { pCtx.drawImage(bgCanvas, 0, 0, 1080, 1920); } 
             else { pCtx.fillStyle = '#0a0815'; pCtx.fillRect(0, 0, 1080, 1920); }
 
-            // 海报底色蒙层透明度降下 50%
-            pCtx.fillStyle = 'rgba(8, 4, 15, 0.52)'; pCtx.fillRect(0, 0, 1080, 1920);
+            pCtx.fillStyle = 'rgba(8, 4, 15, 0.48)'; pCtx.fillRect(0, 0, 1080, 1920);
 
             pCtx.strokeStyle = 'rgba(0, 242, 255, 0.05)'; pCtx.lineWidth = 1;
             for(let i=0; i<1080; i+=60) { pCtx.moveTo(i, 0); pCtx.lineTo(i, 1920); }
