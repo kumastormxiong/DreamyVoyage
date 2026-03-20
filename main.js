@@ -1,5 +1,5 @@
 /**
- * DreamyVoyage - 炫酷音乐播放网页 (极致全景 WebGL 液态 Shader & 2D 圆弧频谱 & 动态海报融合)
+ * DreamyVoyage - 炫酷音乐播放网页 (极致全景 WebGL 液态 Shader & 2D 圆弧频谱 & 高对比霓虹版)
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -34,6 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const bgCanvas = document.getElementById('webgl-canvas'); 
     const spCanvas = document.getElementById('spectre-canvas'); 
     const spCtx = spCanvas.getContext('2d');
+    
+    // 开启 preserveDrawingBuffer：保护帧缓存给海报截图使用
     const gl = bgCanvas.getContext('webgl', { preserveDrawingBuffer: true });
 
     let songList = [];
@@ -43,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let analyser = null;
     let dataArray = null;
 
-    let isDragging = false; // 进度条拖拽锁
+    let isDragging = false; 
 
     function resizeCanvas() {
         bgCanvas.width = spCanvas.width = window.innerWidth;
@@ -214,10 +216,11 @@ document.addEventListener('DOMContentLoaded', () => {
         uniform float iTime;
         varying vec2 vUv;
 
-        vec3 uColorA = vec3(0.08, 0.01, 0.16);
-        vec3 uColorB = vec3(0.65, 0.15, 0.5); 
-        vec3 uColorC = vec3(0.1, 0.5, 0.65);  
-        vec3 uColorD = vec3(0.4, 0.6, 0.15);  
+        // ===== 提高对比度的霓虹配色：紫黑、深蓝、粉紫、荧光绿 =====
+        vec3 uColorA = vec3(0.06, 0.01, 0.12); // 深沉暗紫
+        vec3 uColorB = vec3(1.0, 0.05, 0.65);  // 高闪霓虹粉
+        vec3 uColorC = vec3(0.0, 0.85, 1.0);   // 高亮赛博蓝
+        vec3 uColorD = vec3(0.65, 1.0, 0.0);   // 亮荧光黄绿
 
         float hash21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
         float noise(vec2 p) {
@@ -228,9 +231,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
         }
 
+        // ===== 修正：降噪 FBM 迭代层数，彻底防微杜绝低精度 GPU 条带现象 =====
         float fbm(vec2 p) {
             float value = 0.0; float amplitude = 0.5;
-            for (int i = 0; i < 5; i += 1) { value += amplitude * noise(p); p *= 2.0; amplitude *= 0.5; }
+            for (int i = 0; i < 3; i += 1) { // 之前是 5，降阶增强平滑度
+                value += amplitude * noise(p); p *= 2.1; amplitude *= 0.5;
+            }
             return value;
         }
 
@@ -238,18 +244,20 @@ document.addEventListener('DOMContentLoaded', () => {
             vec2 p = (vUv * 2.0 - 1.0);
             p.x *= iResolution.x / iResolution.y;
 
-            // ===== 提速：由 0.25 -> 0.45 加快流动态势 =====
-            float t = iTime * 0.45; 
+            float t = iTime * 0.42; 
 
-            float auroraA = sin(p.x * 2.1 + t * 0.4 + fbm(p * 1.4) * 4.0);
-            float auroraB = sin(p.y * 3.4 - t * 0.35 + fbm(p * 2.1) * 3.0);
-            float curtain = smoothstep(0.0, 1.0, fbm(p * 1.7 + vec2(0.0, t * 0.08)));
+            // 在此大幅简化 FBM 的倍数和波动，彻底解决色阶 Banding
+            float auroraA = sin(p.x * 2.1 + t * 0.35 + fbm(p * 1.2) * 3.0);
+            float auroraB = sin(p.y * 3.4 - t * 0.3 + fbm(p * 1.5) * 2.5);
+            float curtain = smoothstep(0.0, 1.0, fbm(p * 1.3 + vec2(0.0, t * 0.08)));
 
-            vec3 base = mix(uColorA, uColorB, clamp(vUv.y * 0.5 + 0.5, 0.0, 1.0));
+            vec3 base = mix(uColorA, uColorB, clamp(vUv.y * 0.6 + 0.4, 0.0, 1.0));
             base = mix(base, uColorC, 0.5 + 0.5 * auroraA * auroraB);
             base += uColorD * (0.2 + curtain * 0.35) * smoothstep(0.2, 0.9, auroraA * 0.5 + 0.5);
 
-            gl_FragColor = vec4(base * 0.65, 1.0);
+            // 提升一阶对比度（霓虹感）：高光增强，全域提亮 30% 抗深晦涩
+            vec3 neonColor = base * 1.22 - 0.08;
+            gl_FragColor = vec4(clamp(neonColor, 0.0, 1.0), 1.0);
         }
     `;
 
@@ -317,8 +325,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (isPlaying && dataArray) {
-                spCtx.save(); spCtx.shadowBlur = 30; spCtx.shadowColor = `hsla(${hue}, 100%, 65%, 0.4)`;
-                spCtx.strokeStyle = `hsla(${hue}, 100%, 75%, 0.3)`; spCtx.lineWidth = 4;
+                spCtx.save(); spCtx.shadowBlur = 15; spCtx.shadowColor = `hsla(${hue}, 100%, 65%, 0.4)`;
+                spCtx.strokeStyle = `hsla(${hue}, 100%, 75%, 0.4)`; spCtx.lineWidth = 4;
                 spCtx.beginPath(); spCtx.arc(centerX, centerY, 135 + lowFreqValue * 0.4, 0, Math.PI * 2); spCtx.stroke(); spCtx.restore();
             }
             hue = (hue + 0.12) % 360; 
@@ -326,6 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderLoop();
     }
 
+    // 6. 系统海报生成 (动态背景 + 疏朗重排)
     btnShare.addEventListener('click', (e) => {
         e.stopPropagation(); posterContainer.innerHTML = '<p style="color:var(--neon-cyan)">正在初始化分享...</p>';
         const posterCanvas = document.createElement('canvas'); const pCtx = posterCanvas.getContext('2d');
@@ -334,31 +343,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const imgCover = new Image(); imgCover.crossOrigin = "anonymous"; imgCover.src = coverImg.src;
 
         imgCover.onload = () => {
-            if (gl) {
-                pCtx.drawImage(bgCanvas, 0, 0, 1080, 1920);
-            } else {
-                const gradient = pCtx.createLinearGradient(0, 0, 0, 1920); 
-                gradient.addColorStop(0, '#0a0815'); gradient.addColorStop(0.5, '#12071a'); gradient.addColorStop(1, '#050308');
-                pCtx.fillStyle = gradient; pCtx.fillRect(0, 0, 1080, 1920);
-            }
+            if (gl) { pCtx.drawImage(bgCanvas, 0, 0, 1080, 1920); } 
+            else { pCtx.fillStyle = '#0a0815'; pCtx.fillRect(0, 0, 1080, 1920); }
 
-            // ===== 降黑蒙层减弱（由 0.82 降至 0.58）以穿透 Shader 底色 =====
             pCtx.fillStyle = 'rgba(10, 5, 20, 0.58)'; pCtx.fillRect(0, 0, 1080, 1920);
 
-            pCtx.strokeStyle = 'rgba(0, 242, 255, 0.06)'; pCtx.lineWidth = 2;
+            pCtx.strokeStyle = 'rgba(0, 242, 255, 0.05)'; pCtx.lineWidth = 1;
             for(let i=0; i<1080; i+=60) { pCtx.moveTo(i, 0); pCtx.lineTo(i, 1920); }
             for(let i=0; i<1920; i+=60) { pCtx.moveTo(0, i); pCtx.lineTo(1080, i); }
             pCtx.stroke();
 
             const coverSize = 580; const coverX = (1080 - coverSize) / 2; const coverY = 170;
-            
             pCtx.save(); pCtx.shadowBlur = 60; pCtx.shadowColor = '#00f2ff'; pCtx.drawImage(imgCover, coverX, coverY, coverSize, coverSize); pCtx.restore();
 
-            pCtx.font = "italic 32px 'Orbitron', sans-serif"; pCtx.fillStyle = "#ff007f"; pCtx.textAlign = "center"; 
-            pCtx.fillText("Now Playing Tracks", 1080/2, 820);
+            pCtx.font = "italic 32px 'Orbitron', sans-serif"; pCtx.fillStyle = "#ff007f"; pCtx.textAlign = "center"; pCtx.fillText("Now Playing Tracks", 1080/2, 820);
 
-            pCtx.font = "bold 66px 'Orbitron', 'PingFang SC', sans-serif";
-            pCtx.fillStyle = "#ffffff"; pCtx.shadowColor = "rgba(0, 242, 255, 0.8)"; pCtx.shadowBlur = 12;
+            pCtx.font = "bold 66px 'Orbitron', 'PingFang SC', sans-serif"; pCtx.fillStyle = "#ffffff"; pCtx.shadowBlur = 12; pCtx.shadowColor = "rgba(0, 242, 255, 0.8)"; 
             pCtx.fillText(songTitle.innerText, 1080/2, 900); pCtx.shadowBlur = 0;
 
             const shareUrl = `https://dreamy.voyage/?song=${currentSongIndex}`;
@@ -367,32 +367,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const imgQR = new Image(); imgQR.crossOrigin = "anonymous"; imgQR.src = qrUrl;
 
             imgQR.onload = () => {
-                const qrSize = 250; const qrX = (1080 - qrSize) / 2; const qrY = 1060; // QR 上提
+                const qrSize = 250; const qrX = (1080 - qrSize) / 2; const qrY = 1060; 
                 pCtx.save(); pCtx.shadowBlur = 35; pCtx.shadowColor = '#b53cff'; pCtx.drawImage(imgQR, qrX, qrY, qrSize, qrSize); pCtx.restore();
 
-                pCtx.font = "24px 'Orbitron', sans-serif"; pCtx.fillStyle = "rgba(0, 242, 255, 0.5)";
-                pCtx.fillText("长 按 保存 ，扫 码 进 入 幻 梦 腔 体", 1080/2, 1360);
+                pCtx.font = "24px 'Orbitron', sans-serif"; pCtx.fillStyle = "rgba(0, 242, 255, 0.5)"; pCtx.fillText("长 按 保存 ，扫 码 进 入 幻 梦 腔 体", 1080/2, 1360);
 
-                // ===== 专辑文字最终置底 =====
-                pCtx.font = "bold 46px 'PingFang SC', 'Microsoft YaHei', sans-serif"; pCtx.fillStyle = "rgba(255, 255, 255, 0.85)";
-                pCtx.fillText("幻 梦 之 旅", 1080/2, 1650);
+                pCtx.font = "bold 46px 'PingFang SC', 'Microsoft YaHei', sans-serif"; pCtx.fillStyle = "rgba(255, 255, 255, 0.85)"; pCtx.fillText("幻 梦 之 旅", 1080/2, 1650);
 
-                pCtx.font = "italic bold 30px 'Orbitron', sans-serif"; pCtx.fillStyle = "#ff007f";
-                pCtx.fillText("DreamyVoyage", 1080/2, 1710);
+                pCtx.font = "italic bold 30px 'Orbitron', sans-serif"; pCtx.fillStyle = "#ff007f"; pCtx.fillText("DreamyVoyage", 1080/2, 1710);
 
                 posterCanvas.toBlob((blob) => {
                     const file = new File([blob], 'dreamy_share.png', { type: 'image/png' });
                     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        navigator.share({ files: [file], title: `DreamyVoyage - ${songTitle.innerText}`, text: '一起潜入幻梦腔体的声色流吧 🎧' }).catch(() => fallbackToShowPoster(posterCanvas));
+                        navigator.share({ files: [file], title: `DreamyVoyage - ${songTitle.innerText}` }).catch(() => fallbackToShowPoster(posterCanvas));
                     } else if (navigator.share) {
-                        navigator.share({ title: `DreamyVoyage - ${songTitle.innerText}`, text: `我在听：${songTitle.innerText}`, url: shareUrl }).catch(() => fallbackToShowPoster(posterCanvas));
+                        navigator.share({ title: `DreamyVoyage - ${songTitle.innerText}`, url: shareUrl }).catch(() => fallbackToShowPoster(posterCanvas));
                     } else { fallbackToShowPoster(posterCanvas); }
                 }, 'image/png');
             };
             function fallbackToShowPoster(canvas) { const finalPoster = new Image(); finalPoster.src = canvas.toDataURL('image/png'); posterContainer.innerHTML = ''; posterContainer.appendChild(finalPoster); shareModal.classList.remove('hidden-modal'); }
-            imgQR.onerror = () => { posterContainer.innerHTML = '<p style="color:#ff007f">二维码加载失败</p>'; };
         };
-        imgCover.onerror = () => { posterContainer.innerHTML = '<p style="color:#ff007f">海报加载出错</p>'; };
     });
 
     closeModalBtn.addEventListener('click', (e) => { e.stopPropagation(); shareModal.classList.add('hidden-modal'); });
