@@ -365,31 +365,53 @@ body, html {
 }
 
 /* ==========================================
-   歌单抽屉 Drawer
+   歌单抽屉 Drawer (更新为悬浮 & Bottom Sheet)
    ========================================== */
-#songs-drawer {
+#drawer-overlay {
     position: fixed;
     top: 0;
-    right: -320px; /* 默认隐藏 */
-    width: 320px;
+    left: 0;
+    width: 100%;
     height: 100%;
-    background: rgba(10, 8, 15, 0.85);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-left: 1px solid var(--glass-border);
-    transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 490;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+#drawer-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#songs-drawer {
+    position: fixed;
+    top: 10vh; /* 悬浮状态 */
+    right: -340px; 
+    width: 300px;
+    height: 80vh;
+    background: rgba(20, 15, 35, 0.45);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border: 1px solid var(--neon-purple);
+    border-radius: 20px;
+    box-shadow: 0 0 30px rgba(181, 60, 255, 0.25);
+    transition: right 0.4s cubic-bezier(0.25, 1, 0.5, 1);
     display: flex;
     flex-direction: column;
     z-index: 500;
+    overflow: hidden;
 }
 
 #songs-drawer.open {
-    right: 0;
+    right: 30px; /* 侧边悬浮出位 */
 }
 
 .drawer-header {
     padding: 20px;
-    border-bottom: 1px solid var(--glass-border);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -399,6 +421,7 @@ body, html {
     font-family: var(--font-cyber);
     color: var(--neon-cyan);
     font-size: 1.1rem;
+    text-shadow: 0 0 8px rgba(0,242,255,0.4);
 }
 
 #close-drawer-btn {
@@ -415,32 +438,35 @@ body, html {
     padding: 10px 0;
 }
 
-/* 自定义滚动条 */
-.song-list-container::-webkit-scrollbar {
-    width: 4px;
-}
-.song-list-container::-webkit-scrollbar-thumb {
-    background: var(--neon-purple);
-    border-radius: 2px;
-}
+.song-list-container::-webkit-scrollbar { width: 4px; }
+.song-list-container::-webkit-scrollbar-thumb { background: var(--neon-purple); border-radius: 2px; }
 
 .song-item {
     padding: 15px 20px;
     cursor: pointer;
-    transition: all 0.2s;
-    border-bottom: 1px solid rgba(255,255,255,0.03);
+    border-bottom: 1px solid rgba(181, 60, 255, 0.04);
     display: flex;
     align-items: center;
     gap: 12px;
+    transform: translateX(40px);
+    opacity: 0;
+    transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.4s ease;
+    transition-delay: calc(var(--delay, 0) * 0.04s);
+}
+
+/* 抽屉打开时，启动 Staggered 级联动画 */
+#songs-drawer.open .song-item {
+    transform: translateX(0);
+    opacity: 1;
 }
 
 .song-item:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(0, 242, 255, 0.05);
     color: var(--neon-cyan);
 }
 
 .song-item.active {
-    background: rgba(181, 60, 255, 0.1);
+    background: rgba(181, 60, 255, 0.12);
     color: var(--neon-magenta);
     border-left: 3px solid var(--neon-magenta);
 }
@@ -458,6 +484,34 @@ body, html {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+/* 手机端响应式 Bottom Sheet 底部抽屉 */
+@media (max-width: 480px) {
+    #songs-drawer {
+        top: auto;
+        bottom: -62vh; /* 默认向下隐藏 */
+        right: 0 !important; 
+        width: 100%;
+        height: 60vh; /* 只覆盖下侧 60% */
+        border-radius: 24px 24px 0 0;
+        border-left: none;
+        border-top: 2px solid var(--neon-purple);
+        transition: bottom 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    #songs-drawer.open {
+        bottom: 0; /* 弹上来 */
+        right: 0;
+    }
+
+    .song-item {
+        transform: translateY(30px); /* 手机端自下而上滑入 */
+    }
+
+    #songs-drawer.open .song-item {
+        transform: translateY(0);
+    }
 }
 
 /* ==========================================
