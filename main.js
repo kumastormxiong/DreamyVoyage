@@ -1,5 +1,5 @@
 /**
- * DreamyVoyage - 炫酷音乐播放网页核心逻辑 (2D 高级兼容版)
+ * DreamyVoyage - 炫酷音乐播放网页核心逻辑 (高级分享 & 路由加载版)
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModalBtn = document.getElementById('close-modal-btn');
     const posterContainer = document.getElementById('poster-container');
 
-    const canvas = document.getElementById('webgl-canvas'); // 延用 ID，但改用 2D context
+    const canvas = document.getElementById('webgl-canvas'); 
     const ctx = canvas.getContext('2d');
 
     // 播放状态变量
@@ -49,12 +49,28 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // 2. 加载歌曲列表 (直连 song-list.js 规避跨域)
+    // 解析 URL 参数助手
+    function getQueryParam(name) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
+    }
+
+    // 2. 加载歌曲列表 (直连 song-list.js)
     async function loadSongs() {
         if (window.songList && window.songList.length > 0) {
             songList = window.songList;
             renderSongList();
-            loadSong(0);
+
+            // 检查 URL 是否带了 ?song= 路由参数
+            const songParam = getQueryParam('song');
+            if (songParam !== null) {
+                const index = parseInt(songParam);
+                if (!isNaN(index) && index >= 0 && index < songList.length) {
+                    currentSongIndex = index; // 跳转至对应歌曲
+                }
+            }
+
+            loadSong(currentSongIndex);
         } else {
             console.error('加载歌单失败: window.songList 未找到');
             songTitle.innerText = "歌单文件未找到";
@@ -126,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         playAudio(); 
-        startVisualizer(); // 启动 2D 可视化
+        startVisualizer(); 
     }
 
     introOverlay.addEventListener('click', startExperience);
@@ -134,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setupAudioAnalyser() {
         analyser = audioContext.createAnalyser();
-        analyser.fftSize = 256; // 较小的 fftSize 让频谱线条更洗炼
+        analyser.fftSize = 256; 
         const source = audioContext.createMediaElementSource(audio);
         source.connect(analyser);
         analyser.connect(audioContext.destination);
@@ -224,7 +240,6 @@ document.addEventListener('DOMContentLoaded', () => {
             this.vy = (Math.random() - 0.5) * 3;
             this.size = Math.random() * 3 + 1;
             this.opacity = Math.random() * 0.5 + 0.3;
-            // 粒子主要使用蒸汽波粉、紫、蓝
             this.color = `hsla(${260 + Math.random() * 60}, 100%, 65%, ${this.opacity})`;
         }
         update(speedMult) {
@@ -241,18 +256,16 @@ document.addEventListener('DOMContentLoaded', () => {
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
             ctx.fill();
-            ctx.shadowBlur = 0; // 重置
+            ctx.shadowBlur = 0; 
         }
     }
 
-    // 初始化 180 个粒子
     for (let i = 0; i < 180; i++) particles.push(new Particle());
 
     function startVisualizer() {
         function renderLoop() {
             requestAnimationFrame(renderLoop);
 
-            // A. 背景微透，制造发光残影 (Vaporwave 拖尾特效)
             ctx.fillStyle = 'rgba(5, 4, 10, 0.2)'; 
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -261,15 +274,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 analyser.getByteFrequencyData(dataArray);
                 let sum = 0;
                 for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                audioIntensity = (sum / dataArray.length / 30) + 1; // 极光扩张阀值
+                audioIntensity = (sum / dataArray.length / 30) + 1; 
             }
 
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
 
-            // B. 绘制放射状霓虹光谱环线 (Circular Music Visualizer)
             if (isPlaying && analyser) {
-                const baseRadius = window.innerWidth < 480 ? 95 : 120; // 自适应圆盘半径
+                const baseRadius = window.innerWidth < 480 ? 95 : 120; 
                 const lineCount = dataArray.length;
                 const angleStep = (Math.PI * 2) / lineCount;
 
@@ -278,7 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 for (let i = 0; i < lineCount; i++) {
                     const value = dataArray[i];
-                    const barHeight = value * 0.45 + (10 * Math.sin(Date.now() * 0.002 + i)); // 线高随频段抖动
+                    const barHeight = value * 0.45 + (10 * Math.sin(Date.now() * 0.002 + i)); 
                     const angle = i * angleStep;
 
                     const x1 = Math.cos(angle) * baseRadius;
@@ -286,10 +298,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const x2 = Math.cos(angle) * (baseRadius + barHeight);
                     const y2 = Math.sin(angle) * (baseRadius + barHeight);
 
-                    // 霓虹渐变线
                     ctx.shadowBlur = 15;
                     ctx.shadowColor = `hsl(${(hue + i * 2) % 360}, 100%, 60%)`;
-                    
                     ctx.strokeStyle = `hsl(${(hue + i) % 360}, 100%, 65%)`;
                     ctx.lineWidth = window.innerWidth < 480 ? 3 : 5;
                     ctx.beginPath();
@@ -298,12 +308,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     ctx.stroke();
                 }
                 ctx.restore();
-                ctx.shadowBlur = 0; // 再次重置
+                ctx.shadowBlur = 0; 
             }
 
-            // C. 水波极光环脉冲
             if (isPlaying && dataArray) {
-                const lowFreqValue = dataArray[3] || 0; // 抽取低频鼓点
+                const lowFreqValue = dataArray[3] || 0; 
                 ctx.save();
                 ctx.shadowBlur = 30;
                 ctx.shadowColor = 'rgba(181, 60, 255, 0.4)';
@@ -315,7 +324,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.restore();
             }
 
-            // D. 运行背景粒子流
             particles.forEach(p => {
                 p.update(audioIntensity * 0.8);
                 p.draw();
@@ -326,11 +334,10 @@ document.addEventListener('DOMContentLoaded', () => {
         renderLoop();
     }
 
-    // 6. 一键分享海报生成算法
+    // 6. 高级一键分享生成 & 调用系统 SharePanel 算法
     btnShare.addEventListener('click', (e) => {
         e.stopPropagation();
-        posterContainer.innerHTML = '<p style="color:var(--neon-cyan)">正在生成炫酷海报...</p>';
-        shareModal.classList.remove('hidden-modal');
+        posterContainer.innerHTML = '<p style="color:var(--neon-cyan)">正在初始化分享...</p>';
 
         const posterCanvas = document.createElement('canvas');
         const pCtx = posterCanvas.getContext('2d');
@@ -349,7 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
             pCtx.fillStyle = gradient;
             pCtx.fillRect(0, 0, 1080, 1920);
 
-            // 绘制网格
+            // 绘制网格板线
             pCtx.strokeStyle = 'rgba(0, 242, 255, 0.08)';
             pCtx.lineWidth = 2;
             for(let i=0; i<1080; i+=60) { pCtx.moveTo(i, 0); pCtx.lineTo(i, 1920); }
@@ -366,17 +373,26 @@ document.addEventListener('DOMContentLoaded', () => {
             pCtx.drawImage(imgCover, coverX, coverY, coverSize, coverSize);
             pCtx.restore();
 
-            pCtx.font = "bold 64px 'Orbitron', 'PingFang SC', sans-serif";
-            pCtx.fillStyle = "#ffffff";
+            // A. 海报增加分享时的歌曲名与标识板
+            pCtx.font = "italic 36px 'Orbitron', sans-serif";
+            pCtx.fillStyle = "#ff007f";
             pCtx.textAlign = "center";
-            pCtx.fillText(songTitle.innerText, 1080/2, 1040);
+            pCtx.fillText("Now Listening", 1080/2, 980);
+
+            pCtx.font = "bold 68px 'Orbitron', 'PingFang SC', sans-serif";
+            pCtx.fillStyle = "#ffffff";
+            pCtx.shadowColor = "rgba(0, 242, 255, 0.8)";
+            pCtx.shadowBlur = 10;
+            pCtx.fillText(songTitle.innerText, 1080/2, 1060);
+            pCtx.shadowBlur = 0;
 
             pCtx.font = "32px 'Orbitron', sans-serif";
-            pCtx.fillStyle = "#ff007f";
-            pCtx.fillText("Album: DreamyVoyage", 1080/2, 1110);
+            pCtx.fillStyle = "rgba(255,255,255,0.6)";
+            pCtx.fillText("Album: DreamyVoyage", 1080/2, 1130);
 
-            const currentUrl = window.location.href;
-            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&color=ffffff&bgcolor=000000&data=${encodeURIComponent(currentUrl)}`;
+            // B. 动态 URL 的二维码
+            const shareUrl = `https://dreamy.voyage/?song=${currentSongIndex}`;
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&color=ffffff&bgcolor=000000&data=${encodeURIComponent(shareUrl)}`;
 
             const imgQR = new Image();
             imgQR.crossOrigin = "anonymous";
@@ -389,19 +405,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 pCtx.save();
                 pCtx.shadowBlur = 30;
-                pCtx.shadowColor = '#ff007f';
+                pCtx.shadowColor = '#00f2ff';
                 pCtx.drawImage(imgQR, qrX, qrY, qrSize, qrSize);
                 pCtx.restore();
 
                 pCtx.font = "26px 'Orbitron', sans-serif";
                 pCtx.fillStyle = "rgba(0, 242, 255, 0.6)";
-                pCtx.fillText("长 按 保存 ，进 入 幻 梦 腔 体", 1080/2, 1680);
+                pCtx.fillText("长 按 保存 ，扫 码 进 入 幻 梦 腔 体", 1080/2, 1680);
 
+                // C. 尝试调用系统原生 SharePanel
+                posterCanvas.toBlob((blob) => {
+                    const file = new File([blob], 'dreamy_share.png', { type: 'image/png' });
+
+                    // 检查浏览器是否能分享这个文件文件
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        navigator.share({
+                            files: [file],
+                            title: `DreamyVoyage - ${songTitle.innerText}`,
+                            text: '一起潜入幻梦腔体的声音吧 🎧',
+                        }).catch((err) => {
+                            console.log('系统分享取消或失败:', err);
+                            // 失败降级强制展示弹窗
+                            fallbackToShowPoster(posterCanvas);
+                        });
+                    } else if (navigator.share) {
+                        // 如果只能分享网址，不能分享图片
+                        navigator.share({
+                            title: `DreamyVoyage - ${songTitle.innerText}`,
+                            text: `我在听：${songTitle.innerText}`,
+                            url: shareUrl
+                        }).catch(() => fallbackToShowPoster(posterCanvas));
+                    } else {
+                        // 降级使用之前的弹窗给离线长按保存
+                        fallbackToShowPoster(posterCanvas);
+                    }
+                }, 'image/png');
+            };
+            
+            function fallbackToShowPoster(canvas) {
                 const finalPoster = new Image();
-                finalPoster.src = posterCanvas.toDataURL('image/png');
+                finalPoster.src = canvas.toDataURL('image/png');
                 posterContainer.innerHTML = '';
                 posterContainer.appendChild(finalPoster);
-            };
+                shareModal.classList.remove('hidden-modal');
+            }
+
             imgQR.onerror = () => { posterContainer.innerHTML = '<p style="color:#ff007f">二维码加载失败</p>'; };
         };
         imgCover.onerror = () => { posterContainer.innerHTML = '<p style="color:#ff007f">海报生成出错</p>'; };
