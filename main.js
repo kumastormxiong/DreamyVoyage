@@ -380,15 +380,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 const canvasRatio = canvasWidth / canvasHeight; const posterRatio = 1080 / 1920;
 
                 let sx, sy, sWidth, sHeight;
-
                 if (canvasRatio > posterRatio) {
                     sHeight = canvasHeight; sWidth = sHeight * posterRatio; sx = (canvasWidth - sWidth) / 2; sy = 0;
                 } else {
                     sWidth = canvasWidth; sHeight = sWidth / posterRatio; sx = 0; sy = (canvasHeight - sHeight) / 2;
                 }
 
-                // ===== 核心修复：等比例居中裁剪杜绝拉伸 =====
-                pCtx.drawImage(bgCanvas, sx, sy, sWidth, sHeight, 0, 0, 1080, 1920); 
+                // 在海报 2D Canvas 通道施加模糊，消除 WebGL 裸帧的 FBM 撕裂边缘
+                // 同时稍微放大绘制区域，防止模糊边缘出现黑框
+                const blurPx = 22;
+                pCtx.save();
+                pCtx.filter = `blur(${blurPx}px) saturate(1.4)`;
+                pCtx.drawImage(bgCanvas, sx, sy, sWidth, sHeight, -blurPx * 2, -blurPx * 2, 1080 + blurPx * 4, 1920 + blurPx * 4);
+                pCtx.filter = 'none';
+                pCtx.restore();
             } 
             else { pCtx.fillStyle = '#0a0815'; pCtx.fillRect(0, 0, 1080, 1920); }
 
