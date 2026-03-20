@@ -1,14 +1,18 @@
 {
+  "name": "DreamyVoyage",
   "short_name": "DreamyVoyage",
-  "name": "Dreamy Voyage",
+  "description": "幻梦之旅 炫酷全景液态 Shader 音乐播放网页",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#080415",
+  "theme_color": "#ff007f",
   "icons": [
     {
-      "src": "favicon_circle.svg",
-      "sizes": "any"
+      "src": "./cover.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
-  ],
-  "start_url": ".",
-  "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  ]
 }

@@ -685,3 +685,5 @@ body.dragging .progress-fill, body.dragging .progress-handle { transition: none 
 .progress-bar-wrapper { display: flex; align-items: center; gap: 12px; }
 #current-time { display: inline-block; width: 45px; text-align: right; font-variant-numeric: tabular-nums; }
 #duration-time { display: inline-block; width: 45px; text-align: left; font-variant-numeric: tabular-nums; }
+
+#album-title { font-family: 'Orbitron', 'PingFang SC', sans-serif !important; font-size: 0.82rem !important; color: #00f2ff !important; text-shadow: 0 0 8px rgba(0, 242, 255, 0.45); opacity: 0.88; letter-spacing: 0.04em; margin-top: 4px; }
