@@ -1,5 +1,5 @@
 /**
- * DreamyVoyage - 炫酷音乐播放网页 (全景 WebGL 液态 FBM Shader & 2D 圆弧频谱 & 60fps 阻尼缓动进度条版)
+ * DreamyVoyage - 炫酷音乐播放网页 (全景 WebGL 液态 FBM Shader & 2D 圆弧频谱 & 60fps 阻尼缓动 & 等比例裁剪版)
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -43,10 +43,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let analyser = null;
     let dataArray = null;
 
-    // 进度条拖拽与 60fps 阻尼缓动控制器
     let isDragging = false; 
     let pendingTime = 0; 
-    let visualProgress = 0; // 视觉渲染进度
+    let visualProgress = 0; 
 
     function resizeCanvas() {
         bgCanvas.width = spCanvas.width = window.innerWidth;
@@ -133,7 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playAudio(); 
         initWebGL(); 
         startVisualizer(); 
-        startProgressLoop(); // 开启 60fps 阻尼平滑动画
+        startProgressLoop(); 
     }
 
     introOverlay.addEventListener('click', startExperience);
@@ -164,16 +163,12 @@ document.addEventListener('DOMContentLoaded', () => {
     btnNext.addEventListener('click', (e) => { e.stopPropagation(); currentSongIndex = (currentSongIndex + 1) % songList.length; loadSong(currentSongIndex); playAudio(); });
     btnPrev.addEventListener('click', (e) => { e.stopPropagation(); currentSongIndex = (currentSongIndex - 1 + songList.length) % songList.length; loadSong(currentSongIndex); playAudio(); });
 
-    // 只用来更新文本时间，不直接触碰进度线位置更新（架空 timeupdate 的粗化拉扯）
     audio.addEventListener('timeupdate', () => {
         if (audio.duration && !isDragging) {
             currentTimeEl.innerText = formatTime(audio.currentTime); durationTimeEl.innerText = formatTime(audio.duration);
         }
     });
 
-    // ==========================================
-    // 进度条完全重构方案：60fps 阻尼线性逼近（德芙极其顺滑）
-    // ==========================================
     function startProgressLoop() {
         function loop() {
             requestAnimationFrame(loop);
@@ -181,11 +176,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const target = (audio.currentTime / audio.duration) * 100;
                 const diff = target - visualProgress;
 
-                // 大幅度跳转（如切歌、循环复位），直接拼合防止回拉滞后
                 if (Math.abs(diff) > 5) {
                     visualProgress = target;
                 } else {
-                    // 数学阻尼 Lerp，逼近匀速前进，彻底平滑物理缺陷
                     visualProgress += diff * 0.12; 
                 }
 
@@ -206,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTimeEl.innerText = formatTime(percentage * audio.duration);
         
         pendingTime = percentage * audio.duration; 
-        visualProgress = percentage * 100; // 拖动时同步视觉锚点
+        visualProgress = percentage * 100; 
     }
 
     progressTrack.addEventListener('mousedown', (e) => { e.stopPropagation(); isDragging = true; updateProgress(e.clientX); });
@@ -354,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 for (let i = 0; i < lineCount; i++) {
                     const value = dataArray[i]; const barHeight = value * 0.5 + (10 * Math.sin(Date.now() * 0.002 + i)); const angle = i * angleStep;
                     const x1 = Math.cos(angle) * baseRadius; const y1 = Math.sin(angle) * baseRadius;
-                    const x2 = Math.cos(angle) * (baseRadius + barHeight); const y2 = Math.sin(angle) * (baseRadius + barHeight);
+                    const x2 = Math.cos(angle) * (barHeight + baseRadius); const y2 = Math.sin(angle) * (barHeight + baseRadius);
 
                     spCtx.shadowBlur = 10; spCtx.shadowColor = `hsl(${(hue + i * 2) % 360}, 100%, 60%)`;
                     spCtx.strokeStyle = `hsl(${(hue + i) % 360}, 100%, 65%)`; spCtx.lineWidth = window.innerWidth < 480 ? 3 : 5;
@@ -373,6 +366,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderLoop();
     }
 
+    // 6. 系统海报生成 (等比例居中裁剪背景)
     btnShare.addEventListener('click', (e) => {
         e.stopPropagation(); posterContainer.innerHTML = '<p style="color:var(--neon-cyan)">正在初始化分享...</p>';
         const posterCanvas = document.createElement('canvas'); const pCtx = posterCanvas.getContext('2d');
@@ -381,7 +375,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const imgCover = new Image(); imgCover.crossOrigin = "anonymous"; imgCover.src = coverImg.src;
 
         imgCover.onload = () => {
-            if (gl) { pCtx.drawImage(bgCanvas, 0, 0, 1080, 1920); } 
+            if (gl) { 
+                const canvasWidth = bgCanvas.width; const canvasHeight = bgCanvas.height;
+                const canvasRatio = canvasWidth / canvasHeight; const posterRatio = 1080 / 1920;
+
+                let sx, sy, sWidth, sHeight;
+
+                if (canvasRatio > posterRatio) {
+                    sHeight = canvasHeight; sWidth = sHeight * posterRatio; sx = (canvasWidth - sWidth) / 2; sy = 0;
+                } else {
+                    sWidth = canvasWidth; sHeight = sWidth / posterRatio; sx = 0; sy = (canvasHeight - sHeight) / 2;
+                }
+
+                // ===== 核心修复：等比例居中裁剪杜绝拉伸 =====
+                pCtx.drawImage(bgCanvas, sx, sy, sWidth, sHeight, 0, 0, 1080, 1920); 
+            } 
             else { pCtx.fillStyle = '#0a0815'; pCtx.fillRect(0, 0, 1080, 1920); }
 
             pCtx.fillStyle = 'rgba(8, 4, 15, 0.48)'; pCtx.fillRect(0, 0, 1080, 1920);
