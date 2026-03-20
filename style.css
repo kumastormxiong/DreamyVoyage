@@ -102,33 +102,24 @@ body, html {
     font-weight: 300;
     letter-spacing: 4px;
     color: var(--neon-cyan);
-    margin-bottom: 40px;
-    font-size: 1rem;
-    text-transform: uppercase;
-}
-
-#enter-btn {
-    background: transparent;
-    border: 2px solid var(--neon-magenta);
-    color: #fff;
-    padding: 12px 35px;
-    font-family: var(--font-cyber);
+    margin-bottom: 25px;
     font-size: 1.1rem;
-    font-weight: 700;
-    cursor: pointer;
-    border-radius: 4px;
-    box-shadow: 0 0 15px rgba(255, 0, 127, 0.4);
-    transition: all 0.3s ease;
     text-transform: uppercase;
-    letter-spacing: 2px;
 }
 
-#enter-btn:hover {
-    background: var(--neon-magenta);
-    color: #fff;
-    box-shadow: 0 0 25px var(--neon-magenta);
-    transform: translateY(-2px);
+.glow-pulse {
+    font-size: 2.5rem;
+    color: var(--neon-magenta);
+    text-shadow: 0 0 15px var(--neon-magenta);
+    animation: pulse 1.5s infinite ease-in-out;
+    cursor: pointer;
 }
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.1); opacity: 1; text-shadow: 0 0 25px var(--neon-magenta); }
+}
+
 
 /* ==========================================
    主应用容器
