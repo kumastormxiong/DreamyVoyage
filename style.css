@@ -681,3 +681,7 @@ body, html {
 
 .progress-fill, .progress-handle { transition: width 0.15s linear, left 0.15s linear; }
 body.dragging .progress-fill, body.dragging .progress-handle { transition: none !important; }
+
+.progress-bar-wrapper { display: flex; align-items: center; gap: 12px; }
+#current-time { display: inline-block; width: 45px; text-align: right; font-variant-numeric: tabular-nums; }
+#duration-time { display: inline-block; width: 45px; text-align: left; font-variant-numeric: tabular-nums; }
