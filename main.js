@@ -421,8 +421,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const qrSize = 250; const qrX = (1080 - qrSize) / 2; const qrY = 1060; 
                 pCtx.save(); pCtx.shadowBlur = 35; pCtx.shadowColor = '#b53cff'; pCtx.drawImage(imgQR, qrX, qrY, qrSize, qrSize); pCtx.restore();
 
-                pCtx.font = "24px 'Orbitron', sans-serif"; pCtx.fillStyle = "rgba(0, 242, 255, 0.5)"; pCtx.fillText("长 按 保存 ，扫 码 进 入 幻 梦 腔 体", 1080/2, 1360);
-
                 pCtx.font = "bold 46px 'PingFang SC', 'Microsoft YaHei', sans-serif"; pCtx.fillStyle = "rgba(255, 255, 255, 0.85)"; pCtx.fillText("幻 梦 之 旅", 1080/2, 1650);
                 pCtx.font = "italic bold 30px 'Orbitron', sans-serif"; pCtx.fillStyle = "#ff007f"; pCtx.fillText("DreamyVoyage", 1080/2, 1710);
 
