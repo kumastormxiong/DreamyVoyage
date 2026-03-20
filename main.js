@@ -1,5 +1,5 @@
 /**
- * DreamyVoyage - 炫酷音乐播放网页核心逻辑 (高级分享 & 路由加载版)
+ * DreamyVoyage - 炫酷音乐播放网页逻辑 (梦幻模糊极光版)
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('webgl-canvas'); 
     const ctx = canvas.getContext('2d');
 
-    // 播放状态变量
+    // 播放状态
     let songList = [];
     let currentSongIndex = 0;
     let isPlaying = false;
@@ -41,7 +41,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let analyser = null;
     let dataArray = null;
 
-    // 1. 初始化及自适应尺寸
     function resizeCanvas() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -49,35 +48,30 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // 解析 URL 参数助手
     function getQueryParam(name) {
         const urlParams = new URLSearchParams(window.location.search);
         return urlParams.get(name);
     }
 
-    // 2. 加载歌曲列表 (直连 song-list.js)
     async function loadSongs() {
         if (window.songList && window.songList.length > 0) {
             songList = window.songList;
             renderSongList();
 
-            // 检查 URL 是否带了 ?song= 路由参数
             const songParam = getQueryParam('song');
             if (songParam !== null) {
                 const index = parseInt(songParam);
                 if (!isNaN(index) && index >= 0 && index < songList.length) {
-                    currentSongIndex = index; // 跳转至对应歌曲
+                    currentSongIndex = index;
                 }
             }
-
             loadSong(currentSongIndex);
         } else {
             console.error('加载歌单失败: window.songList 未找到');
-            songTitle.innerText = "歌单文件未找到";
+            songTitle.innerText = "歌单加载失败";
         }
     }
 
-    // 渲染抽屉列表
     function renderSongList() {
         songListContainer.innerHTML = '';
         songList.forEach((songPath, index) => {
@@ -89,7 +83,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const item = document.createElement('div');
             item.className = 'song-item';
             if (index === currentSongIndex) item.className += ' active';
-            
             item.innerHTML = `
                 <span class="song-index">${String(index + 1).padStart(2, '0')}</span>
                 <span class="song-item-title">${displayTitle}</span>
@@ -107,7 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 加载单首歌曲
     function loadSong(index) {
         currentSongIndex = index;
         const songPath = songList[index];
@@ -130,7 +122,6 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTimeEl.innerText = "0:00";
     }
 
-    // 3. 进入页面：全屏任意点击解锁
     function startExperience() {
         introOverlay.style.opacity = '0';
         setTimeout(() => introOverlay.style.display = 'none', 800);
@@ -157,7 +148,6 @@ document.addEventListener('DOMContentLoaded', () => {
         dataArray = new Uint8Array(analyser.frequencyBinCount);
     }
 
-    // 4. 播放器控制
     function playAudio() {
         if (audioContext && audioContext.state === 'suspended') {
             audioContext.resume();
@@ -226,115 +216,96 @@ document.addEventListener('DOMContentLoaded', () => {
     closeDrawerBtn.addEventListener('click', (e) => { e.stopPropagation(); drawer.classList.remove('open'); });
 
     // ==========================================
-    // 5. 纯 2D Canvas 高阶动态背景 & 频带粒子流
+    // 5. 纯 2D Canvas 液态梦幻极光背景
     // ==========================================
     let hue = 280; 
-    let particles = [];
-
-    class Particle {
-        constructor() { this.reset(); }
-        reset() {
-            this.x = Math.random() * canvas.width;
-            this.y = Math.random() * canvas.height;
-            this.vx = (Math.random() - 0.5) * 3;
-            this.vy = (Math.random() - 0.5) * 3;
-            this.size = Math.random() * 3 + 1;
-            this.opacity = Math.random() * 0.5 + 0.3;
-            this.color = `hsla(${260 + Math.random() * 60}, 100%, 65%, ${this.opacity})`;
-        }
-        update(speedMult) {
-            this.x += this.vx * speedMult;
-            this.y += this.vy * speedMult;
-            if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
-                this.reset();
-            }
-        }
-        draw() {
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = 'rgba(0, 242, 255, 0.4)';
-            ctx.fillStyle = this.color;
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.shadowBlur = 0; 
-        }
-    }
-
-    for (let i = 0; i < 180; i++) particles.push(new Particle());
 
     function startVisualizer() {
         function renderLoop() {
             requestAnimationFrame(renderLoop);
 
-            ctx.fillStyle = 'rgba(5, 4, 10, 0.2)'; 
+            // A. 水墨微透叠加，制造液体流动 & 极其模棚的感觉
+            ctx.fillStyle = 'rgba(5, 4, 10, 0.15)'; 
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             let audioIntensity = 1; 
+            let lowFreqValue = 0;
+            
             if (analyser && dataArray) {
                 analyser.getByteFrequencyData(dataArray);
                 let sum = 0;
                 for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
                 audioIntensity = (sum / dataArray.length / 30) + 1; 
+                lowFreqValue = dataArray[3] || 0; // 低频
             }
 
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
+            const time = Date.now() * 0.0008;
 
-            if (isPlaying && analyser) {
-                const baseRadius = window.innerWidth < 480 ? 95 : 120; 
-                const lineCount = dataArray.length;
-                const angleStep = (Math.PI * 2) / lineCount;
+            // B. 绘制液态极光晕染叠加 (不再使用小球粒子)
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen'; // 颜色亮化叠加，产生爆炸视觉通透感
 
-                ctx.save();
-                ctx.translate(centerX, centerY);
-                
-                for (let i = 0; i < lineCount; i++) {
-                    const value = dataArray[i];
-                    const barHeight = value * 0.45 + (10 * Math.sin(Date.now() * 0.002 + i)); 
-                    const angle = i * angleStep;
+            // 极光 1：左上
+            const rad1 = (canvas.width * 0.45) + (lowFreqValue * 0.8);
+            const x1 = canvas.width * 0.3 + 100 * Math.sin(time * 0.7);
+            const y1 = canvas.height * 0.3 + 80 * Math.cos(time * 0.5);
+            const grad1 = ctx.createRadialGradient(x1, y1, 0, x1, y1, rad1);
+            grad1.addColorStop(0, `hsla(${(hue) % 360}, 100%, 65%, 0.4)`);
+            grad1.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad1;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                    const x1 = Math.cos(angle) * baseRadius;
-                    const y1 = Math.sin(angle) * baseRadius;
-                    const x2 = Math.cos(angle) * (baseRadius + barHeight);
-                    const y2 = Math.sin(angle) * (baseRadius + barHeight);
+            // 极光 2：右下
+            const rad2 = (canvas.width * 0.5) + (lowFreqValue * 1.2);
+            const x2 = canvas.width * 0.7 + 120 * Math.cos(time * 0.6);
+            const y2 = canvas.height * 0.7 + 90 * Math.sin(time * 0.8);
+            const grad2 = ctx.createRadialGradient(x2, y2, 0, x2, y2, rad2);
+            grad2.addColorStop(0, `hsla(${(hue + 120) % 360}, 100%, 60%, 0.35)`);
+            grad2.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad2;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                    ctx.shadowBlur = 15;
-                    ctx.shadowColor = `hsl(${(hue + i * 2) % 360}, 100%, 60%)`;
-                    ctx.strokeStyle = `hsl(${(hue + i) % 360}, 100%, 65%)`;
-                    ctx.lineWidth = window.innerWidth < 480 ? 3 : 5;
-                    ctx.beginPath();
-                    ctx.moveTo(x1, y1);
-                    ctx.lineTo(x2, y2);
-                    ctx.stroke();
-                }
-                ctx.restore();
-                ctx.shadowBlur = 0; 
-            }
+            // 极光 3：中心大背板脉冲板
+            const rad3 = (canvas.width * 0.6) + (lowFreqValue * 0.5);
+            const grad3 = ctx.createRadialGradient(centerX, centerY, 50, centerX, centerY, rad3);
+            grad3.addColorStop(0, `hsla(${(hue + 240) % 360}, 100%, 55%, 0.25)`);
+            grad3.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad3;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+            ctx.restore();
+
+            // C. 水波极光环脉冲 (范围加大)
             if (isPlaying && dataArray) {
-                const lowFreqValue = dataArray[3] || 0; 
                 ctx.save();
-                ctx.shadowBlur = 30;
-                ctx.shadowColor = 'rgba(181, 60, 255, 0.4)';
-                ctx.strokeStyle = `hsla(${hue}, 100%, 70%, 0.3)`;
-                ctx.lineWidth = 4;
+                ctx.shadowBlur = 40;
+                ctx.shadowColor = `hsla(${hue}, 100%, 65%, 0.6)`;
+                ctx.strokeStyle = `hsla(${hue}, 100%, 75%, 0.4)`;
+                ctx.lineWidth = 6;
                 ctx.beginPath();
-                ctx.arc(centerX, centerY, 130 + lowFreqValue * 0.3, 0, Math.PI * 2);
+                // 膨胀系数大幅度增加
+                ctx.arc(centerX, centerY, 140 + lowFreqValue * 0.6, 0, Math.PI * 2);
                 ctx.stroke();
+                
+                // 第二层极光环，更远
+                ctx.shadowColor = `hsla(${(hue + 60) % 360}, 100%, 65%, 0.4)`;
+                ctx.strokeStyle = `hsla(${(hue + 60) % 360}, 100%, 75%, 0.2)`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, 200 + lowFreqValue * 0.9, 0, Math.PI * 2);
+                ctx.stroke();
+
                 ctx.restore();
             }
 
-            particles.forEach(p => {
-                p.update(audioIntensity * 0.8);
-                p.draw();
-            });
-
-            hue = (hue + 0.15) % 360; 
+            hue = (hue + 0.12) % 360; 
         }
         renderLoop();
     }
 
-    // 6. 高级一键分享生成 & 调用系统 SharePanel 算法
+    // 6. 系统 SharePanel 与海报生成板并存
     btnShare.addEventListener('click', (e) => {
         e.stopPropagation();
         posterContainer.innerHTML = '<p style="color:var(--neon-cyan)">正在初始化分享...</p>';
@@ -350,9 +321,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         imgCover.onload = () => {
             const gradient = pCtx.createLinearGradient(0, 0, 0, 1920);
-            gradient.addColorStop(0, '#0d0722');
-            gradient.addColorStop(0.5, '#160a22');
-            gradient.addColorStop(1, '#080510');
+            gradient.addColorStop(0, '#0a0815');
+            gradient.addColorStop(0.5, '#12071a');
+            gradient.addColorStop(1, '#050308');
             pCtx.fillStyle = gradient;
             pCtx.fillRect(0, 0, 1080, 1920);
 
@@ -365,7 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const coverSize = 650;
             const coverX = (1080 - coverSize) / 2;
-            const coverY = 280;
+            const coverY = 250;
             
             pCtx.save();
             pCtx.shadowBlur = 60;
@@ -373,24 +344,28 @@ document.addEventListener('DOMContentLoaded', () => {
             pCtx.drawImage(imgCover, coverX, coverY, coverSize, coverSize);
             pCtx.restore();
 
-            // A. 海报增加分享时的歌曲名与标识板
             pCtx.font = "italic 36px 'Orbitron', sans-serif";
             pCtx.fillStyle = "#ff007f";
             pCtx.textAlign = "center";
-            pCtx.fillText("Now Listening", 1080/2, 980);
+            pCtx.fillText("Now Playing Tracks", 1080/2, 950);
 
-            pCtx.font = "bold 68px 'Orbitron', 'PingFang SC', sans-serif";
+            // 歌曲标题
+            pCtx.font = "bold 66px 'Orbitron', 'PingFang SC', sans-serif";
             pCtx.fillStyle = "#ffffff";
             pCtx.shadowColor = "rgba(0, 242, 255, 0.8)";
-            pCtx.shadowBlur = 10;
-            pCtx.fillText(songTitle.innerText, 1080/2, 1060);
+            pCtx.shadowBlur = 12;
+            pCtx.fillText(songTitle.innerText, 1080/2, 1030);
             pCtx.shadowBlur = 0;
 
-            pCtx.font = "32px 'Orbitron', sans-serif";
-            pCtx.fillStyle = "rgba(255,255,255,0.6)";
-            pCtx.fillText("Album: DreamyVoyage", 1080/2, 1130);
+            // ===== 追加专辑中英文名称 =====
+            pCtx.font = "bold 46px 'PingFang SC', 'Microsoft YaHei', sans-serif";
+            pCtx.fillStyle = "rgba(255, 255, 255, 0.9)";
+            pCtx.fillText("幻 梦 之 旅", 1080/2, 1110);
 
-            // B. 动态 URL 的二维码
+            pCtx.font = "italic bold 32px 'Orbitron', sans-serif";
+            pCtx.fillStyle = "#ff007f";
+            pCtx.fillText("DreamyVoyage", 1080/2, 1165);
+
             const shareUrl = `https://dreamy.voyage/?song=${currentSongIndex}`;
             const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&color=ffffff&bgcolor=000000&data=${encodeURIComponent(shareUrl)}`;
 
@@ -399,44 +374,39 @@ document.addEventListener('DOMContentLoaded', () => {
             imgQR.src = qrUrl;
 
             imgQR.onload = () => {
-                const qrSize = 260;
+                const qrSize = 250;
                 const qrX = (1080 - qrSize) / 2;
-                const qrY = 1350;
+                const qrY = 1320;
 
                 pCtx.save();
-                pCtx.shadowBlur = 30;
-                pCtx.shadowColor = '#00f2ff';
+                pCtx.shadowBlur = 35;
+                pCtx.shadowColor = '#b53cff';
                 pCtx.drawImage(imgQR, qrX, qrY, qrSize, qrSize);
                 pCtx.restore();
 
                 pCtx.font = "26px 'Orbitron', sans-serif";
                 pCtx.fillStyle = "rgba(0, 242, 255, 0.6)";
-                pCtx.fillText("长 按 保存 ，扫 码 进 入 幻 梦 腔 体", 1080/2, 1680);
+                pCtx.fillText("长 按 保存 ，扫 码 进 入 幻 梦 腔 体", 1080/2, 1630);
 
-                // C. 尝试调用系统原生 SharePanel
                 posterCanvas.toBlob((blob) => {
                     const file = new File([blob], 'dreamy_share.png', { type: 'image/png' });
 
-                    // 检查浏览器是否能分享这个文件文件
                     if (navigator.canShare && navigator.canShare({ files: [file] })) {
                         navigator.share({
                             files: [file],
                             title: `DreamyVoyage - ${songTitle.innerText}`,
-                            text: '一起潜入幻梦腔体的声音吧 🎧',
+                            text: '一起潜入幻梦腔体的声色流吧 🎧',
                         }).catch((err) => {
-                            console.log('系统分享取消或失败:', err);
-                            // 失败降级强制展示弹窗
+                            console.log('系统分享取消:', err);
                             fallbackToShowPoster(posterCanvas);
                         });
                     } else if (navigator.share) {
-                        // 如果只能分享网址，不能分享图片
                         navigator.share({
                             title: `DreamyVoyage - ${songTitle.innerText}`,
-                            text: `我在听：${songTitle.innerText}`,
+                            text: `正在听：${songTitle.innerText}`,
                             url: shareUrl
                         }).catch(() => fallbackToShowPoster(posterCanvas));
                     } else {
-                        // 降级使用之前的弹窗给离线长按保存
                         fallbackToShowPoster(posterCanvas);
                     }
                 }, 'image/png');
@@ -452,11 +422,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             imgQR.onerror = () => { posterContainer.innerHTML = '<p style="color:#ff007f">二维码加载失败</p>'; };
         };
-        imgCover.onerror = () => { posterContainer.innerHTML = '<p style="color:#ff007f">海报生成出错</p>'; };
+        imgCover.onerror = () => { posterContainer.innerHTML = '<p style="color:#ff007f">海报加载出错</p>'; };
     });
 
     closeModalBtn.addEventListener('click', (e) => { e.stopPropagation(); shareModal.classList.add('hidden-modal'); });
 
-    // 启动初始加载
     loadSongs();
 });
