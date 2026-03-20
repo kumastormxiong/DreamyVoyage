@@ -368,6 +368,10 @@ body, html {
     font-family: var(--font-sub);
 }
 
+.progress-fill, .progress-handle {
+    transition: none !important; /* 强制依靠 JS 的 60fps 阻尼缓动 */
+}
+
 .social-icon.netease:hover {
     color: #e60026;
     text-shadow: 0 0 10px #e60026;

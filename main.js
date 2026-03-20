@@ -1,5 +1,5 @@
 /**
- * DreamyVoyage - 炫酷音乐播放网页 (全景 WebGL 液态 FBM Shader & 2D 圆弧频谱 & 进度条防抖版)
+ * DreamyVoyage - 炫酷音乐播放网页 (全景 WebGL 液态 FBM Shader & 2D 圆弧频谱 & 60fps 阻尼缓动进度条版)
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -43,10 +43,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let analyser = null;
     let dataArray = null;
 
-    // 进度条拖拽与防抖性能锁
+    // 进度条拖拽与 60fps 阻尼缓动控制器
     let isDragging = false; 
     let pendingTime = 0; 
-    let lastProgress = 0; // 防止在 timeupdate 里因缓冲导致微小倒车颠簸
+    let visualProgress = 0; // 视觉渲染进度
 
     function resizeCanvas() {
         bgCanvas.width = spCanvas.width = window.innerWidth;
@@ -111,9 +111,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const items = document.querySelectorAll('.song-item');
         items.forEach((item, i) => { i === index ? item.classList.add('active') : item.classList.remove('active'); });
         
-        // 切歌重温进度线浮点值
         progressFill.style.width = '0%'; progressHandle.style.left = '0%'; currentTimeEl.innerText = "0:00";
-        lastProgress = 0; 
+        visualProgress = 0; 
     }
 
     function startExperience() {
@@ -134,6 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
         playAudio(); 
         initWebGL(); 
         startVisualizer(); 
+        startProgressLoop(); // 开启 60fps 阻尼平滑动画
     }
 
     introOverlay.addEventListener('click', startExperience);
@@ -164,19 +164,37 @@ document.addEventListener('DOMContentLoaded', () => {
     btnNext.addEventListener('click', (e) => { e.stopPropagation(); currentSongIndex = (currentSongIndex + 1) % songList.length; loadSong(currentSongIndex); playAudio(); });
     btnPrev.addEventListener('click', (e) => { e.stopPropagation(); currentSongIndex = (currentSongIndex - 1 + songList.length) % songList.length; loadSong(currentSongIndex); playAudio(); });
 
-    // 自动时间进度更新（仅在未拖动时生效）
+    // 只用来更新文本时间，不直接触碰进度线位置更新（架空 timeupdate 的粗化拉扯）
     audio.addEventListener('timeupdate', () => {
         if (audio.duration && !isDragging) {
-            const progress = (audio.currentTime / audio.duration) * 100;
-            
-            // ===== 核心防抖：只有递增推进，或者是大幅度跳转（切歌/切进度）才更新视觉渲染，防止微幅回跳的颠簸 =====
-            if (progress >= lastProgress || Math.abs(progress - lastProgress) > 5) {
-                progressFill.style.width = `${progress}%`; progressHandle.style.left = `${progress}%`;
-                lastProgress = progress;
-            }
             currentTimeEl.innerText = formatTime(audio.currentTime); durationTimeEl.innerText = formatTime(audio.duration);
         }
     });
+
+    // ==========================================
+    // 进度条完全重构方案：60fps 阻尼线性逼近（德芙极其顺滑）
+    // ==========================================
+    function startProgressLoop() {
+        function loop() {
+            requestAnimationFrame(loop);
+            if (audio.duration && !isDragging) {
+                const target = (audio.currentTime / audio.duration) * 100;
+                const diff = target - visualProgress;
+
+                // 大幅度跳转（如切歌、循环复位），直接拼合防止回拉滞后
+                if (Math.abs(diff) > 5) {
+                    visualProgress = target;
+                } else {
+                    // 数学阻尼 Lerp，逼近匀速前进，彻底平滑物理缺陷
+                    visualProgress += diff * 0.12; 
+                }
+
+                progressFill.style.width = `${visualProgress}%`;
+                progressHandle.style.left = `${visualProgress}%`;
+            }
+        }
+        loop();
+    }
 
     function updateProgress(clientX) {
         if (!audio.duration) return;
@@ -188,35 +206,24 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTimeEl.innerText = formatTime(percentage * audio.duration);
         
         pendingTime = percentage * audio.duration; 
+        visualProgress = percentage * 100; // 拖动时同步视觉锚点
     }
 
-    progressTrack.addEventListener('mousedown', (e) => { 
-        e.stopPropagation(); isDragging = true; 
-        document.body.classList.add('dragging'); 
-        updateProgress(e.clientX); 
-    });
+    progressTrack.addEventListener('mousedown', (e) => { e.stopPropagation(); isDragging = true; updateProgress(e.clientX); });
     window.addEventListener('mousemove', (e) => { if (isDragging) { e.preventDefault(); updateProgress(e.clientX); } });
     window.addEventListener('mouseup', (e) => { 
         if (isDragging) { 
             e.stopPropagation(); isDragging = false; 
-            document.body.classList.remove('dragging');
             audio.currentTime = pendingTime; 
-            lastProgress = (pendingTime / audio.duration) * 100; // 同步锁线
         } 
     });
 
-    progressTrack.addEventListener('touchstart', (e) => { 
-        e.stopPropagation(); isDragging = true; 
-        document.body.classList.add('dragging');
-        updateProgress(e.touches[0].clientX); 
-    }, { passive: false });
+    progressTrack.addEventListener('touchstart', (e) => { e.stopPropagation(); isDragging = true; updateProgress(e.touches[0].clientX); }, { passive: false });
     window.addEventListener('touchmove', (e) => { if (isDragging) { e.preventDefault(); updateProgress(e.touches[0].clientX); } }, { passive: false });
     window.addEventListener('touchend', (e) => { 
         if (isDragging) { 
             e.stopPropagation(); isDragging = false; 
-            document.body.classList.remove('dragging');
             audio.currentTime = pendingTime; 
-            lastProgress = (pendingTime / audio.duration) * 100;
         } 
     });
 
@@ -246,17 +253,16 @@ document.addEventListener('DOMContentLoaded', () => {
         void main() { vUv = position * 0.5 + 0.5; gl_Position = vec4(position, 0.0, 1.0); }
     `;
 
-    // ===== 倒车：退回 FBM 计算，在 CSS 50px 模糊下，霓虹极光绝对流畅且 0 撕裂度 =====
     const fsSource = `
         precision highp float;
         uniform vec2 iResolution;
         uniform float iTime;
         varying vec2 vUv;
 
-        vec3 uColorA = vec3(0.06, 0.01, 0.12); // 深沉暗紫
-        vec3 uColorB = vec3(1.0, 0.05, 0.65);  // 高闪霓虹粉
-        vec3 uColorC = vec3(0.0, 0.85, 1.0);   // 高亮赛博蓝
-        vec3 uColorD = vec3(0.65, 1.0, 0.0);   // 亮荧光黄绿
+        vec3 uColorA = vec3(0.06, 0.01, 0.12); 
+        vec3 uColorB = vec3(1.0, 0.05, 0.65);  
+        vec3 uColorC = vec3(0.0, 0.85, 1.0);   
+        vec3 uColorD = vec3(0.65, 1.0, 0.0);   
 
         float hash21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
         float noise(vec2 p) {
@@ -367,7 +373,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderLoop();
     }
 
-    // 6. 系统海报生成 (动态背景 + 疏朗重排)
     btnShare.addEventListener('click', (e) => {
         e.stopPropagation(); posterContainer.innerHTML = '<p style="color:var(--neon-cyan)">正在初始化分享...</p>';
         const posterCanvas = document.createElement('canvas'); const pCtx = posterCanvas.getContext('2d');
