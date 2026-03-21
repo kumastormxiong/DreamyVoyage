@@ -687,3 +687,48 @@ body.dragging .progress-fill, body.dragging .progress-handle { transition: none 
 #duration-time { display: inline-block; width: 45px; text-align: left; font-variant-numeric: tabular-nums; }
 
 #album-title { font-family: 'Orbitron', 'PingFang SC', sans-serif !important; font-size: 0.82rem !important; color: #00f2ff !important; text-shadow: 0 0 8px rgba(0, 242, 255, 0.45); opacity: 0.88; letter-spacing: 0.04em; margin-top: 4px; }
+
+/* 方案 B: 邮箱胶囊徽章 */
+.footer-email-badge {
+    margin: 15px auto 8px;
+    display: inline-block;
+    padding: 5px 14px;
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    border: 1px solid rgba(0, 242, 255, 0.25);
+    border-radius: 20px;
+    font-size: 0.72rem;
+    box-shadow: 0 0 12px rgba(0, 242, 255, 0.08);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.footer-email-badge a {
+    color: rgba(0, 242, 255, 0.85);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    letter-spacing: 0.04em;
+    font-weight: 400;
+}
+
+.footer-email-badge i {
+    font-size: 0.78rem;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 6px rgba(0, 242, 255, 0.5);
+}
+
+.footer-email-badge:hover {
+    background: rgba(0, 242, 255, 0.08);
+    border-color: rgba(0, 242, 255, 0.6);
+    box-shadow: 0 0 18px rgba(0, 242, 255, 0.4),
+                inset 0 0 4px rgba(0, 242, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.footer-email-badge a:hover {
+    color: #ffffff;
+    text-shadow: 0 0 10px rgba(0, 242, 255, 0.8);
+}
+
