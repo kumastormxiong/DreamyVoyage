@@ -666,13 +666,15 @@
         initWebAudio();
         initButterchurnVisualizer();
 
-        // 检查 URL 是否带参 ?song=X
+        // 检查 URL 是否带参 ?song=X，若未带参则随机播放一首音乐
         const urlParams = new URLSearchParams(window.location.search);
         const songParam = urlParams.get('song');
         let initialIndex = 0;
         if (songParam !== null) {
             const idx = parseInt(songParam, 10);
             if (!isNaN(idx) && idx >= 0 && idx < songList.length) initialIndex = idx;
+        } else if (songList.length > 0) {
+            initialIndex = Math.floor(Math.random() * songList.length);
         }
 
         const firstSong = songList[initialIndex] || songList[0];
