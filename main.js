@@ -477,12 +477,12 @@
     // ==========================================
     function showPauseModal() {
         updatePauseModalUI();
-        pauseModal.classList.remove('hidden');
+        pauseModal.classList.add('visible');
         if (topStatusBar) topStatusBar.classList.add('visible');
     }
 
     function hidePauseModal() {
-        pauseModal.classList.add('hidden');
+        pauseModal.classList.remove('visible');
         if (topStatusBar) topStatusBar.classList.remove('visible');
     }
 
@@ -719,7 +719,7 @@
         tapTimer = setTimeout(() => {
             tapTimer = null;
             if (!hasStarted) return;
-            if (pauseModal.classList.contains('hidden')) {
+            if (!pauseModal.classList.contains('visible')) {
                 showPauseModal();
             } else {
                 hidePauseModal();
