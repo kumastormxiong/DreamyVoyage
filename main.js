@@ -482,21 +482,28 @@
 
     function initButterchurnVisualizer() {
         if (visualizer) return;
-        if (!window.butterchurn) {
-            console.error('Butterchurn 核心库未载入');
+
+        const bc = (window.butterchurn && typeof window.butterchurn.createVisualizer === 'function')
+            ? window.butterchurn
+            : ((window.butterchurn && window.butterchurn.default && typeof window.butterchurn.default.createVisualizer === 'function')
+                ? window.butterchurn.default
+                : null);
+
+        if (!bc || typeof bc.createVisualizer !== 'function') {
+            console.error('[Echosfall] Butterchurn 核心库未载入或未找到 createVisualizer 构造函数');
             return;
         }
 
         const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth < 768;
-        const width = window.innerWidth;
-        const height = window.innerHeight;
+        const width = Math.max(window.innerWidth || 0, 320);
+        const height = Math.max(window.innerHeight || 0, 320);
 
         // 根据移动端设备限制 DPR 与纹理尺寸，确保 60fps 丝滑流畅
         const pixelRatio = isMobile ? Math.min(window.devicePixelRatio || 1, 1.25) : Math.min(window.devicePixelRatio || 1, 2.0);
         const textureRatio = isMobile ? 0.68 : 1.0;
 
         try {
-            visualizer = window.butterchurn.createVisualizer(audioContext, canvas, {
+            visualizer = bc.createVisualizer(audioContext, canvas, {
                 width,
                 height,
                 pixelRatio,
@@ -507,8 +514,14 @@
             visualizer.connectAudio(gainNode || sourceNode);
             resizeVisualizer();
             startRenderLoop();
+            console.log('[Echosfall] Butterchurn Visualizer 成功创建并开启渲染');
+
+            // 如果当前已有正在播放项，立即同步加载预设
+            if (currentItem && currentItem.presetName) {
+                loadPresetIntoVisualizer(currentItem.presetName);
+            }
         } catch (err) {
-            console.error('Butterchurn 创建失败:', err);
+            console.error('[Echosfall] Butterchurn 创建失败:', err);
         }
     }
 
