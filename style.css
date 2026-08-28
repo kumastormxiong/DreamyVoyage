@@ -418,6 +418,17 @@ html, body {
     background: rgba(244, 63, 94, 0.22);
 }
 
+.btn-outline-purple {
+    background: rgba(168, 85, 247, 0.14);
+    border: 1px solid rgba(168, 85, 247, 0.32);
+    color: #f3e8ff;
+    box-shadow: 0 0 25px rgba(168, 85, 247, 0.16);
+}
+
+.btn-outline-purple:hover {
+    background: rgba(168, 85, 247, 0.22);
+}
+
 .pause-hint {
     margin-top: 1.6rem;
     font-size: 0.78rem;

@@ -14,7 +14,8 @@
     const SWIPE_AXIS_RATIO = 1.18;
     const TAP_DISTANCE = 16;
     const DOUBLE_TAP_MS = 280;
-    const PRESET_BLEND_DURATION_SECONDS = 2.5;
+    const PRESET_BLEND_DURATION_SECONDS = 2.7; // butterchurn 官方推荐软切换混合时长
+    const PRESET_AUTO_CYCLE_SECONDS = 30; // 默认每个预设播放 30s 后自动软切换下一个随机预设
     const MAX_HISTORY_STACK = 40;
 
     // DOM 元素引用
@@ -38,6 +39,7 @@
     const btnToggleFavorite = document.getElementById('btn-toggle-favorite');
     const favoriteStatusIcon = document.getElementById('favorite-status-icon');
     const favoriteStatusText = document.getElementById('favorite-status-text');
+    const btnNextPreset = document.getElementById('btn-next-preset');
 
     // 顶部状态栏按钮
     const btnTopCatalog = document.getElementById('btn-top-catalog');
@@ -73,6 +75,7 @@
     let sourceNode = null;
     let gainNode = null;
     let renderAnimationFrameId = null;
+    let presetAutoCycleTimer = null;
 
     // 手势状态
     let pointerState = null;
@@ -88,15 +91,16 @@
             songList = window.songList;
         }
 
-        if (window.echosfallPresets && typeof window.echosfallPresets === 'object') {
-            presets = window.echosfallPresets;
-            presetNames = Object.keys(presets);
+        // 优先载入 1754 组全量预设名称列表
+        if (window.echosfallPresetNames && Array.isArray(window.echosfallPresetNames) && window.echosfallPresetNames.length > 0) {
+            presetNames = window.echosfallPresetNames;
+            console.log(`[Echosfall] 成功载入完整移植的 ${presetNames.length} 组预设列表`);
+        } else if (window.echosfallPresets && typeof window.echosfallPresets === 'object') {
+            presetNames = Object.keys(window.echosfallPresets);
         }
 
-        // 如果未加载到预设，尝试从 butterchurnPresets (若有) 或内置基础预设填充
-        if (presetNames.length === 0 && window.butterchurnPresets) {
-            presets = window.butterchurnPresets.getPresets();
-            presetNames = Object.keys(presets);
+        if (window.echosfallPresets && typeof window.echosfallPresets === 'object') {
+            presets = Object.assign({}, window.echosfallPresets);
         }
 
         renderCatalog();
@@ -256,6 +260,7 @@
             fadeInAudio();
             isPaused = false;
             hidePauseModal();
+            startPresetAutoCycle(); // 启动 30s 自动轮播计时器
         } catch (err) {
             console.warn('[Echosfall] 音乐播放失败，等待手势激活:', err);
         }
@@ -275,21 +280,66 @@
         titleCard.classList.add('title-animate');
     }
 
-    function loadPresetIntoVisualizer(presetName) {
+    function updatePresetTitle(presetName) {
+        presetNameEl.innerText = (presetName || 'REVERIE SPECTRUM').replace(/\.json$/i, '');
+        // 软切换预设时，触发卡片展示动效
+        titleCard.classList.remove('title-animate');
+        void titleCard.offsetWidth;
+        titleCard.classList.add('title-animate');
+    }
+
+    // 随机预设软切换 (采用 Butterchurn 官方推荐 2.7s 软过渡混合)
+    async function switchRandomPreset(soft = true) {
+        if (presetNames.length === 0) return;
+        const currentPName = (currentItem && currentItem.presetName) ? currentItem.presetName : '';
+        const candidatePool = presetNames.filter(p => p !== currentPName);
+        const pool = candidatePool.length > 0 ? candidatePool : presetNames;
+        const nextPName = pool[Math.floor(Math.random() * pool.length)];
+
+        console.log(`[Echosfall] 软切换至新预设: ${nextPName} (blendTime: ${soft ? PRESET_BLEND_DURATION_SECONDS : 0}s)`);
+        await loadPresetIntoVisualizer(nextPName, soft ? PRESET_BLEND_DURATION_SECONDS : 0);
+        startPresetAutoCycle(); // 切换后重新计时 30 秒
+    }
+
+    // 30s 自动轮播计时器
+    function startPresetAutoCycle() {
+        stopPresetAutoCycle();
+        if (isPaused || !hasStarted) return;
+        presetAutoCycleTimer = setTimeout(() => {
+            console.log('[Echosfall] 30秒预设播放到期，自动软切换至下一个随机预设');
+            switchRandomPreset(true);
+        }, PRESET_AUTO_CYCLE_SECONDS * 1000);
+    }
+
+    function stopPresetAutoCycle() {
+        if (presetAutoCycleTimer !== null) {
+            clearTimeout(presetAutoCycleTimer);
+            presetAutoCycleTimer = null;
+        }
+    }
+
+    async function loadPresetIntoVisualizer(presetName, blendTime = PRESET_BLEND_DURATION_SECONDS) {
         if (!visualizer) return;
         try {
             let presetData = presets[presetName];
+            if (!presetData) {
+                // 如果是按需从 1754 组预设库异步拉取
+                const res = await fetch(`./presets/${encodeURIComponent(presetName)}.json`);
+                if (res.ok) {
+                    presetData = await res.json();
+                    presets[presetName] = presetData; // 内存高速缓存
+                } else {
+                    console.warn(`[Echosfall] 预设文件请求未响应: ${presetName}`);
+                    return;
+                }
+            }
+
             if (presetData) {
-                visualizer.loadPreset(presetData, PRESET_BLEND_DURATION_SECONDS);
-            } else {
-                // 如果是按需加载
-                fetch(`./presets/${encodeURIComponent(presetName)}.json`)
-                    .then(res => res.json())
-                    .then(data => {
-                        presets[presetName] = data;
-                        visualizer.loadPreset(data, PRESET_BLEND_DURATION_SECONDS);
-                    })
-                    .catch(e => console.warn('[Echosfall] 加载预设文件异常:', e));
+                visualizer.loadPreset(presetData, blendTime);
+                if (currentItem) {
+                    currentItem.presetName = presetName;
+                }
+                updatePresetTitle(presetName);
             }
         } catch (e) {
             console.warn('[Echosfall] visualizer.loadPreset 异常:', e);
@@ -325,6 +375,7 @@
     function pausePlayback() {
         if (isPaused) return;
         isPaused = true;
+        stopPresetAutoCycle();
         fadeOutAudioAndPause(0.65);
         updatePauseModalUI();
         showPauseModal();
@@ -341,6 +392,7 @@
 
         audio.play().catch(e => console.warn('恢复播放拦截:', e));
         fadeInAudio(0.5);
+        startPresetAutoCycle();
     }
 
     // 预加载前瞻项
@@ -632,9 +684,17 @@
         }, DOUBLE_TAP_MS);
     }
 
-    // 键盘切歌监听
+    // 键盘监听 (空格键软切换随机预设，方向键切歌)
     function handleKeyDown(e) {
         if (isInteractiveTarget(e.target)) return;
+
+        // 空格键：采用 Butterchurn 官方推荐软切换方式 (2.7s 平滑混合)，切换至下一个随机预设
+        if (e.key === ' ' || e.code === 'Space') {
+            e.preventDefault();
+            console.log('[Echosfall] 按下空格键：触发预设官方推荐软切换 (2.7s 软过渡)');
+            switchRandomPreset(true);
+            return;
+        }
 
         if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
             e.preventDefault();
@@ -644,13 +704,6 @@
             e.preventDefault();
             if (isPaused) resumePlayback();
             goPrevious();
-        } else if (e.key === ' ' || e.code === 'Space') {
-            e.preventDefault();
-            if (isPaused) {
-                resumePlayback();
-            } else {
-                pausePlayback();
-            }
         }
     }
 
@@ -763,6 +816,14 @@
             e.stopPropagation();
             toggleFavorite();
         });
+
+        if (btnNextPreset) {
+            btnNextPreset.addEventListener('click', (e) => {
+                e.stopPropagation();
+                switchRandomPreset(true);
+                resumePlayback();
+            });
+        }
 
         // 顶部按钮
         btnTopCatalog.addEventListener('click', (e) => {

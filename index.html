@@ -108,9 +108,13 @@
                     <i id="favorite-status-icon" class="fa-regular fa-heart"></i>
                     <span id="favorite-status-text">收藏当前预设</span>
                 </button>
+                <button id="btn-next-preset" type="button" class="btn-pause-action btn-outline-purple" data-echosfall-control="true">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>换个预设 (空格键)</span>
+                </button>
             </div>
             <div class="pause-hint" data-echosfall-control="true">
-                上下滑动切歌 · 双击屏幕收藏
+                上下滑动切歌 · 空格键软切换预设 (每30s自动轮播) · 双击屏幕收藏
             </div>
         </div>
     </div>
@@ -142,6 +146,7 @@
 
     <!-- 静态资源与逻辑依赖 -->
     <script src="./lib/butterchurn.min.js"></script>
+    <script src="./presets/preset-names.js"></script>
     <script src="./presets/presets-data.js"></script>
     <script src="./song-list.js"></script>
     <script src="./main.js"></script>
