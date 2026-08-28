@@ -42,8 +42,16 @@ html, body {
     height: 100dvh;
     display: block;
     z-index: 1;
-    object-fit: cover;
     pointer-events: none;
+    background-color: #000000;
+    transform-origin: center center;
+}
+
+/* 手机竖屏时横向宽屏模型旋转 90 度填充竖屏，与 PC 横向显示对齐且完全不拉伸 */
+#butterchurn-canvas.portrait-rotated {
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) rotate(90deg) !important;
 }
 
 /* 暗角与遮罩层 */

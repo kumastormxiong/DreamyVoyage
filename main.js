@@ -564,6 +564,42 @@
         }
     }
 
+    function getVisualizerDimensions() {
+        const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth < 768;
+        const screenW = Math.max(window.innerWidth || 0, 320);
+        const screenH = Math.max(window.innerHeight || 0, 320);
+        const isPortrait = isMobile && screenH > screenW;
+
+        // 全面提高显示精度：原生 DPR 结合高清 1.0 纹理，杜绝低清与锯齿模糊
+        const pixelRatio = Math.min(window.devicePixelRatio || 1, 2.0);
+        const textureRatio = 1.0;
+
+        let renderW = screenW;
+        let renderH = screenH;
+
+        if (isPortrait) {
+            // 手机竖屏状态：横向宽屏模型渲染尺寸 (长边为宽，短边为高)，对齐 PC 端横屏方向且零拉伸
+            renderW = Math.max(screenW, screenH);
+            renderH = Math.min(screenW, screenH);
+
+            canvas.classList.add('portrait-rotated');
+            canvas.style.width = `${screenH}px`;
+            canvas.style.height = `${screenW}px`;
+        } else {
+            canvas.classList.remove('portrait-rotated');
+            canvas.style.width = '100vw';
+            canvas.style.height = '100dvh';
+        }
+
+        return {
+            renderW,
+            renderH,
+            pixelRatio,
+            textureRatio,
+            isPortrait
+        };
+    }
+
     function initButterchurnVisualizer() {
         if (visualizer) return;
 
@@ -578,27 +614,24 @@
             return;
         }
 
-        const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth < 768;
-        const width = Math.max(window.innerWidth || 0, 320);
-        const height = Math.max(window.innerHeight || 0, 320);
-
-        // 根据移动端设备限制 DPR 与纹理尺寸，确保 60fps 丝滑流畅
-        const pixelRatio = isMobile ? Math.min(window.devicePixelRatio || 1, 1.25) : Math.min(window.devicePixelRatio || 1, 2.0);
-        const textureRatio = isMobile ? 0.68 : 1.0;
+        const dims = getVisualizerDimensions();
 
         try {
             visualizer = bc.createVisualizer(audioContext, canvas, {
-                width,
-                height,
-                pixelRatio,
-                textureRatio
+                width: dims.renderW,
+                height: dims.renderH,
+                pixelRatio: dims.pixelRatio,
+                textureRatio: dims.textureRatio
             });
+
+            // 显式保证 WebGL 画布绘图缓冲高清分辨率
+            canvas.width = Math.floor(dims.renderW * dims.pixelRatio);
+            canvas.height = Math.floor(dims.renderH * dims.pixelRatio);
 
             // 将 gainNode 频域数据连接到 visualizer
             visualizer.connectAudio(gainNode || sourceNode);
-            resizeVisualizer();
             startRenderLoop();
-            console.log('[Echosfall] Butterchurn Visualizer 成功创建并开启渲染');
+            console.log(`[Echosfall] Butterchurn Visualizer 开启高清渲染: ${dims.renderW}x${dims.renderH} @ ${dims.pixelRatio}x DPR (竖屏旋转对齐: ${dims.isPortrait})`);
 
             // 如果当前已有正在播放项，立即同步加载预设
             if (currentItem && currentItem.presetName) {
@@ -611,11 +644,16 @@
 
     function resizeVisualizer() {
         if (!visualizer) return;
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        canvas.width = w;
-        canvas.height = h;
-        visualizer.setRendererSize(w, h);
+        const dims = getVisualizerDimensions();
+
+        canvas.width = Math.floor(dims.renderW * dims.pixelRatio);
+        canvas.height = Math.floor(dims.renderH * dims.pixelRatio);
+
+        visualizer.setRendererSize(dims.renderW, dims.renderH, {
+            pixelRatio: dims.pixelRatio,
+            textureRatio: dims.textureRatio
+        });
+        console.log(`[Echosfall] Visualizer 适配更新高清尺寸: ${dims.renderW}x${dims.renderH} @ ${dims.pixelRatio}x (竖屏旋转对齐: ${dims.isPortrait})`);
     }
 
     function startRenderLoop() {
