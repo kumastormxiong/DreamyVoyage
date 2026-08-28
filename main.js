@@ -662,12 +662,18 @@
             renderH = Math.min(screenW, screenH);
 
             canvas.classList.add('portrait-rotated');
+            canvas.style.top = '50%';
+            canvas.style.left = '50%';
             canvas.style.width = `${screenH}px`;
             canvas.style.height = `${screenW}px`;
+            canvas.style.transform = 'translate(-50%, -50%) rotate(90deg)';
         } else {
             canvas.classList.remove('portrait-rotated');
+            canvas.style.top = '0';
+            canvas.style.left = '0';
             canvas.style.width = '100vw';
             canvas.style.height = '100dvh';
+            canvas.style.transform = 'none';
         }
 
         return {
@@ -694,23 +700,28 @@
         }
 
         const dims = getVisualizerDimensions();
+        const bufferW = Math.floor(dims.renderW * dims.pixelRatio);
+        const bufferH = Math.floor(dims.renderH * dims.pixelRatio);
+
+        // 显式保证 WebGL 画布绘图物理缓冲全屏高清分辨率
+        canvas.width = bufferW;
+        canvas.height = bufferH;
 
         try {
+            // 注意：Butterchurn 的 renderToScreen 会直接以传入的 width/height 作为 WebGL 视口尺寸 (gl.viewport)
+            // 因此必须将 width/height 设定为实际的 canvas 绘图物理缓冲像素尺寸 (bufferW/bufferH)，配合 pixelRatio=1，
+            // 才能确保着色器 100% 铺满整个画布，杜绝只渲染左下角 1/4 屏幕导致无法全屏的缺陷！
             visualizer = bc.createVisualizer(audioContext, canvas, {
-                width: dims.renderW,
-                height: dims.renderH,
-                pixelRatio: dims.pixelRatio,
-                textureRatio: dims.textureRatio
+                width: bufferW,
+                height: bufferH,
+                pixelRatio: 1,
+                textureRatio: 1
             });
-
-            // 显式保证 WebGL 画布绘图缓冲高清分辨率
-            canvas.width = Math.floor(dims.renderW * dims.pixelRatio);
-            canvas.height = Math.floor(dims.renderH * dims.pixelRatio);
 
             // 将 gainNode 频域数据连接到 visualizer
             visualizer.connectAudio(gainNode || sourceNode);
             startRenderLoop();
-            console.log(`[Echosfall] Butterchurn Visualizer 开启高清渲染: ${dims.renderW}x${dims.renderH} @ ${dims.pixelRatio}x DPR (竖屏旋转对齐: ${dims.isPortrait})`);
+            console.log(`[Echosfall] Butterchurn Visualizer 开启全屏高清渲染: ${bufferW}x${bufferH} (竖屏旋转对齐: ${dims.isPortrait})`);
 
             // 如果当前已有正在播放项，立即同步加载预设
             if (currentItem && currentItem.presetName) {
@@ -724,15 +735,17 @@
     function resizeVisualizer() {
         if (!visualizer) return;
         const dims = getVisualizerDimensions();
+        const bufferW = Math.floor(dims.renderW * dims.pixelRatio);
+        const bufferH = Math.floor(dims.renderH * dims.pixelRatio);
 
-        canvas.width = Math.floor(dims.renderW * dims.pixelRatio);
-        canvas.height = Math.floor(dims.renderH * dims.pixelRatio);
+        canvas.width = bufferW;
+        canvas.height = bufferH;
 
-        visualizer.setRendererSize(dims.renderW, dims.renderH, {
-            pixelRatio: dims.pixelRatio,
-            textureRatio: dims.textureRatio
+        visualizer.setRendererSize(bufferW, bufferH, {
+            pixelRatio: 1,
+            textureRatio: 1
         });
-        console.log(`[Echosfall] Visualizer 适配更新高清尺寸: ${dims.renderW}x${dims.renderH} @ ${dims.pixelRatio}x (竖屏旋转对齐: ${dims.isPortrait})`);
+        console.log(`[Echosfall] Visualizer 适配更新全屏高清尺寸: ${bufferW}x${bufferH} (竖屏旋转对齐: ${dims.isPortrait})`);
     }
 
     function startRenderLoop() {
