@@ -2,13 +2,16 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DreamyVoyage - 幻梦之旅</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#000000">
+    <title>Dreamy Voyage - Echosfall Butterchurn</title>
     
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -24,6 +27,7 @@
         gtag('js', new Date());
         gtag('config', 'G-QKJ6LKDFCD');
     </script>
+
     <!-- PWA 支持 -->
     <link rel="manifest" href="./manifest.json">
     <script>
@@ -37,102 +41,114 @@
     </script>
 </head>
 <body>
-    <!-- Shader 动态背景 Canvas -->
-    <canvas id="webgl-canvas"></canvas>
-    <!-- 2D 圆形音频频谱 Canvas -->
-    <canvas id="spectre-canvas"></canvas>
+    <!-- 核心 WebGL2 Butterchurn 画布 -->
+    <canvas id="butterchurn-canvas"></canvas>
 
-    <!-- 进场遮罩 / 全屏解锁 AudioContext -->
-    <div id="intro-overlay">
+    <!-- 暗角与下部暗色渐变遮罩 -->
+    <div class="vignette-radial"></div>
+    <div class="vignette-bottom"></div>
+
+    <!-- 顶部极简状态栏 -->
+    <div class="top-status-bar" data-echosfall-control="true">
+        <div class="brand-badge" data-echosfall-control="true">
+            <span class="brand-dot"></span>
+            <span class="brand-text">ECHOSFALL</span>
+        </div>
+        <div class="top-actions" data-echosfall-control="true">
+            <button id="btn-top-catalog" class="icon-btn-pill" title="歌单目录" data-echosfall-control="true">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+            <button id="btn-top-fullscreen" class="icon-btn-pill" title="全屏沉浸" data-echosfall-control="true">
+                <i class="fa-solid fa-expand"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- 加载缓冲旋转器 -->
+    <div id="loading-indicator" class="loading-indicator hidden">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- 底部歌曲名称展示卡片 (对齐 Echosfall 原生规格与动画) -->
+    <div id="echosfall-title-container" class="echosfall-title-container">
+        <div id="echosfall-title-card" class="echosfall-title-card">
+            <div id="track-name" class="track-name">载入中...</div>
+            <div id="preset-name" class="preset-name">BUTTERCHURN REVERIE</div>
+        </div>
+    </div>
+
+    <!-- 双击点赞/收藏脉冲粒子红心 (Echosfall 原生) -->
+    <div id="heart-pop-container" class="heart-pop-container hidden">
+        <div id="heart-pop-bubble" class="heart-pop-bubble">
+            <i class="fa-solid fa-heart"></i>
+        </div>
+    </div>
+
+    <!-- 单击暂停控制浮层 (ECHOSFALL Pause Modal) -->
+    <div id="echosfall-pause-modal" class="echosfall-pause-modal hidden" data-echosfall-control="true">
+        <div class="pause-content" data-echosfall-control="true">
+            <div class="pause-logo-wrap" data-echosfall-control="true">
+                <div class="pause-logo-glow"></div>
+                <h1 class="pause-logo-text">ECHOSFALL</h1>
+            </div>
+            <div class="pause-buttons" data-echosfall-control="true">
+                <button id="btn-resume" type="button" class="btn-pause-action btn-primary" data-echosfall-control="true">
+                    <i class="fa-solid fa-play"></i>
+                    <span>继续</span>
+                </button>
+                <button id="btn-mode-toggle" type="button" class="btn-pause-action btn-secondary" data-echosfall-control="true">
+                    <i id="mode-icon" class="fa-solid fa-shuffle"></i>
+                    <span id="mode-text">随机播放</span>
+                </button>
+                <button id="btn-open-catalog" type="button" class="btn-pause-action btn-outline-cyan" data-echosfall-control="true">
+                    <i class="fa-solid fa-compact-disc"></i>
+                    <span>Dreamy 歌单</span>
+                </button>
+                <button id="btn-toggle-favorite" type="button" class="btn-pause-action btn-outline-rose" data-echosfall-control="true">
+                    <i id="favorite-status-icon" class="fa-regular fa-heart"></i>
+                    <span id="favorite-status-text">收藏当前预设</span>
+                </button>
+            </div>
+            <div class="pause-hint" data-echosfall-control="true">
+                上下滑动切歌 · 双击屏幕收藏
+            </div>
+        </div>
+    </div>
+
+    <!-- 侧边歌曲目录抽屉 -->
+    <div id="catalog-drawer-overlay" class="catalog-drawer-overlay hidden" data-echosfall-control="true"></div>
+    <div id="catalog-drawer" class="catalog-drawer" data-echosfall-control="true">
+        <div class="drawer-header" data-echosfall-control="true">
+            <h3><i class="fa-solid fa-compact-disc"></i> 幻梦曲库 (50 首)</h3>
+            <button id="btn-close-catalog" type="button" class="btn-close-drawer" data-echosfall-control="true">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div id="catalog-list" class="catalog-list" data-echosfall-control="true">
+            <!-- 动态渲染列表 -->
+        </div>
+    </div>
+
+    <!-- 首屏入场与手势解锁 Web Audio -->
+    <div id="intro-overlay" class="intro-overlay">
         <div class="intro-content">
-            <h1 class="glitch-text" data-text="DREAMY VOYAGE">DREAMY VOYAGE</h1>
-            <div class="glow-pulse"><i class="fa-solid fa-hand-point-up"></i></div>
+            <div class="intro-badge">DREAMY VOYAGE × ECHOSFALL</div>
+            <h1 class="intro-title">ECHOSFALL</h1>
+            <p class="intro-subtitle">Butterchurn 幻梦视界 · 音乐可视化</p>
+            <div class="glow-pulse-circle">
+                <i class="fa-solid fa-play"></i>
+            </div>
+            <span class="intro-hint">轻触屏幕开启沉浸视听</span>
         </div>
     </div>
 
+    <!-- 核心音频对象 -->
+    <audio id="audio-core" preload="auto" playsinline webkit-playsinline crossorigin="anonymous"></audio>
 
-    <!-- 主容器 -->
-    <div id="app" class="hidden">
-        <!-- 侧边歌单抽屉 -->
-        <div id="drawer-overlay"></div>
-        <div id="songs-drawer">
-            <div class="drawer-header">
-                <h3><i class="fa-solid fa-list-music"></i> 歌单目录</h3>
-                <button id="close-drawer-btn"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div id="song-list" class="song-list-container">
-                <!-- 歌曲列表动态渲染 -->
-            </div>
-        </div>
-
-        <!-- 卡片式播放器核心 -->
-        <main id="player-container">
-            <div class="player-card">
-                <!-- 专辑封面区域 -->
-                <div class="cover-wrapper">
-                    <img id="cover-img" src="./cover.png" alt="DreamyVoyage Cover">
-                    <div class="glow-ring"></div>
-                </div>
-
-                <!-- 歌曲信息区 -->
-                <div class="song-info">
-                    <h2 id="song-title">载入中...</h2>
-                    <p id="album-title">Album: DreamyVoyage</p>
-                </div>
-
-                <!-- 进度条区 -->
-                <div class="progress-bar-wrapper">
-                    <span id="current-time">0:00</span>
-                    <div class="progress-track" id="progress-track">
-                        <div class="progress-fill" id="progress-fill"></div>
-                        <div class="progress-handle"></div>
-                    </div>
-                    <span id="duration-time">0:00</span>
-                </div>
-
-                <!-- 操控功能区 -->
-                <div class="controls">
-                    <button class="btn-ctrl" id="btn-list" title="歌单"><i class="fa-solid fa-bars"></i></button>
-                    <button class="btn-ctrl" id="btn-prev" title="上一首"><i class="fa-solid fa-backward-step"></i></button>
-                    <button class="btn-ctrl btn-play" id="btn-play-pause" title="播放"><i class="fa-solid fa-play"></i></button>
-                    <button class="btn-ctrl" id="btn-next" title="下一首"><i class="fa-solid fa-forward-step"></i></button>
-                    <button class="btn-ctrl" id="btn-share" title="分享海报"><i class="fa-solid fa-arrow-up-from-bracket"></i></button>
-                </div>
-
-                <!-- 社交平台直达及页脚 -->
-                <div class="social-links">
-                    <a href="https://music.163.com/#/artist/album?id=98388237" target="_blank" class="social-icon netease" title="网易云音乐">
-                        <i class="fa-solid fa-cloud"></i>
-                    </a>
-                    <a href="https://open.spotify.com/album/5PZ8atoSio9I3XfTgNFSDI" target="_blank" class="social-icon spotify" title="Spotify">
-                        <i class="fa-brands fa-spotify"></i>
-                    </a>
-                    <a href="mailto:Echos@Dreamy.Voyage" class="social-icon mail" title="Email: Echos@Dreamy.Voyage">
-                        <i class="fa-solid fa-envelope"></i>
-                    </a>
-                </div>
-                <div class="footer-copyright">
-                    &copy; 2026 虚空造物 (FFTV). All Rights Reserved.
-                </div>
-            </div>
-        </main>
-
-        <!-- 微信分享海报弹窗 Overlay -->
-        <div id="share-modal" class="hidden-modal">
-            <div class="modal-backdrop"></div>
-            <div class="modal-box">
-                <button id="close-modal-btn"><i class="fa-solid fa-circle-xmark"></i></button>
-                <div id="poster-container">
-                    <!-- 这里动态插入生成的带二维码的海报 <img> 供用户长按保存 -->
-                </div>
-                <p class="share-hint">↑ 长按图片保存或分享至微信 ↑</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- 基础音频 & 脚本引入 -->
+    <!-- 静态资源与逻辑依赖 -->
+    <script src="./lib/butterchurn.min.js"></script>
+    <script src="./presets/presets-data.js"></script>
     <script src="./song-list.js"></script>
-    <audio id="audio-core" preload="auto"></audio>
     <script src="./main.js"></script>
 </body>
 </html>

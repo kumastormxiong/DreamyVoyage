@@ -1,443 +1,774 @@
 /**
- * DreamyVoyage - 炫酷音乐播放网页 (全景 WebGL 液态 FBM Shader & 2D 圆弧频谱 & 60fps 阻尼缓动 & 等比例裁剪版)
+ * ECHOSFALL x DREAMY VOYAGE
+ * Butterchurn 全屏音乐可视化流引擎
+ * 移植自 Labyrinth-of-Echoes Echosfall 功能
  */
 
-document.addEventListener('DOMContentLoaded', () => {
-    // DOM 元素
+(() => {
+    'use strict';
+
+    // ==========================================
+    // 常量与手势阈值配置 (与 Echosfall 完全一致)
+    // ==========================================
+    const SWIPE_DISTANCE = 64;
+    const SWIPE_AXIS_RATIO = 1.18;
+    const TAP_DISTANCE = 16;
+    const DOUBLE_TAP_MS = 280;
+    const PRESET_BLEND_DURATION_SECONDS = 2.5;
+    const MAX_HISTORY_STACK = 40;
+
+    // DOM 元素引用
+    const canvas = document.getElementById('butterchurn-canvas');
     const introOverlay = document.getElementById('intro-overlay');
-    const app = document.getElementById('app');
-    
     const audio = document.getElementById('audio-core');
-    const coverImg = document.getElementById('cover-img');
-    const songTitle = document.getElementById('song-title');
-    const progressTrack = document.getElementById('progress-track');
-    const progressFill = document.getElementById('progress-fill');
-    const progressHandle = document.querySelector('.progress-handle');
-    const currentTimeEl = document.getElementById('current-time');
-    const durationTimeEl = document.getElementById('duration-time');
+    const titleCard = document.getElementById('echosfall-title-card');
+    const trackNameEl = document.getElementById('track-name');
+    const presetNameEl = document.getElementById('preset-name');
+    const heartPopContainer = document.getElementById('heart-pop-container');
+    const heartPopBubble = document.querySelector('.heart-pop-bubble');
+    const pauseModal = document.getElementById('echosfall-pause-modal');
+    const loadingIndicator = document.getElementById('loading-indicator');
 
-    const btnPlayPause = document.getElementById('btn-play-pause');
-    const btnPrev = document.getElementById('btn-prev');
-    const btnNext = document.getElementById('btn-next');
-    const btnList = document.getElementById('btn-list');
-    const btnShare = document.getElementById('btn-share');
+    // 暂停菜单按键
+    const btnResume = document.getElementById('btn-resume');
+    const btnModeToggle = document.getElementById('btn-mode-toggle');
+    const modeIcon = document.getElementById('mode-icon');
+    const modeText = document.getElementById('mode-text');
+    const btnOpenCatalog = document.getElementById('btn-open-catalog');
+    const btnToggleFavorite = document.getElementById('btn-toggle-favorite');
+    const favoriteStatusIcon = document.getElementById('favorite-status-icon');
+    const favoriteStatusText = document.getElementById('favorite-status-text');
 
-    const drawer = document.getElementById('songs-drawer');
-    const drawerOverlay = document.getElementById('drawer-overlay');
-    const closeDrawerBtn = document.getElementById('close-drawer-btn');
-    const songListContainer = document.getElementById('song-list');
+    // 顶部状态栏按钮
+    const btnTopCatalog = document.getElementById('btn-top-catalog');
+    const btnTopFullscreen = document.getElementById('btn-top-fullscreen');
 
-    const shareModal = document.getElementById('share-modal');
-    const closeModalBtn = document.getElementById('close-modal-btn');
-    const posterContainer = document.getElementById('poster-container');
+    // 歌单抽屉
+    const catalogDrawer = document.getElementById('catalog-drawer');
+    const catalogOverlay = document.getElementById('catalog-drawer-overlay');
+    const btnCloseCatalog = document.getElementById('btn-close-catalog');
+    const catalogList = document.getElementById('catalog-list');
 
-    const bgCanvas = document.getElementById('webgl-canvas'); 
-    const spCanvas = document.getElementById('spectre-canvas'); 
-    const spCtx = spCanvas.getContext('2d');
-    const gl = bgCanvas.getContext('webgl', { preserveDrawingBuffer: true });
-
+    // ==========================================
+    // 运行时状态
+    // ==========================================
     let songList = [];
-    let currentSongIndex = 0;
-    let isPlaying = false;
+    let presets = {};
+    let presetNames = [];
+    let historyStack = [];
+    let currentItem = null;
+    let playbackMode = localStorage.getItem('echosfall_playback_mode') || 'random'; // 'random' | 'sequence'
+    let favorites = new Set();
+    try {
+        const savedFavs = JSON.parse(localStorage.getItem('echosfall_favorites') || '[]');
+        if (Array.isArray(savedFavs)) favorites = new Set(savedFavs);
+    } catch (e) {
+        console.warn('读取收藏记录失败:', e);
+    }
+
+    let isPaused = false;
+    let hasStarted = false;
+    let visualizer = null;
     let audioContext = null;
-    let analyser = null;
-    let dataArray = null;
+    let sourceNode = null;
+    let gainNode = null;
+    let renderAnimationFrameId = null;
 
-    let isDragging = false; 
-    let pendingTime = 0; 
-    let visualProgress = 0; 
+    // 手势状态
+    let pointerState = null;
+    let lastTapAt = 0;
+    let tapTimer = null;
+    let titleTimer = null;
 
-    function resizeCanvas() {
-        bgCanvas.width = spCanvas.width = window.innerWidth;
-        bgCanvas.height = spCanvas.height = window.innerHeight;
-    }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
-
-    function getQueryParam(name) {
-        const urlParams = new URLSearchParams(window.location.search);
-        return urlParams.get(name);
-    }
-
-    async function loadSongs() {
-        if (window.songList && window.songList.length > 0) {
+    // ==========================================
+    // 初始化数据源 (Dreamy Voyage 音乐与预设)
+    // ==========================================
+    function initData() {
+        if (window.songList && Array.isArray(window.songList)) {
             songList = window.songList;
-            renderSongList();
-            const songParam = getQueryParam('song');
-            if (songParam !== null) {
-                const index = parseInt(songParam);
-                if (!isNaN(index) && index >= 0 && index < songList.length) currentSongIndex = index;
-            }
-            loadSong(currentSongIndex);
         }
+
+        if (window.echosfallPresets && typeof window.echosfallPresets === 'object') {
+            presets = window.echosfallPresets;
+            presetNames = Object.keys(presets);
+        }
+
+        // 如果未加载到预设，尝试从 butterchurnPresets (若有) 或内置基础预设填充
+        if (presetNames.length === 0 && window.butterchurnPresets) {
+            presets = window.butterchurnPresets.getPresets();
+            presetNames = Object.keys(presets);
+        }
+
+        renderCatalog();
+        updateModeButtonUI();
     }
 
-    function renderSongList() {
-        songListContainer.innerHTML = '';
-        songList.forEach((songPath, index) => {
-            let displayTitle = songPath.replace('.mp3', '');
-            if (displayTitle.includes('-')) displayTitle = displayTitle.split('-')[1];
+    // 格式化歌曲展示标题
+    function formatTrackTitle(rawName) {
+        if (!rawName) return 'Dreamy Voyage Track';
+        let title = rawName.replace(/\.mp3$/i, '');
+        return title;
+    }
 
+    // 提取简略显示标题
+    function formatShortTitle(rawName) {
+        let title = formatTrackTitle(rawName);
+        if (title.includes('-')) {
+            const parts = title.split('-');
+            if (parts.length >= 2) return parts.slice(1).join(' - ').trim();
+        }
+        return title;
+    }
+
+    // 渲染歌单抽屉列表
+    function renderCatalog() {
+        catalogList.innerHTML = '';
+        songList.forEach((song, index) => {
             const item = document.createElement('div');
-            item.className = 'song-item';
-            if (index === currentSongIndex) item.className += ' active';
-            item.style.setProperty('--delay', index);
+            item.className = 'catalog-item';
+            if (currentItem && currentItem.song === song) {
+                item.classList.add('active');
+            }
 
             item.innerHTML = `
-                <span class="song-index">${String(index + 1).padStart(2, '0')}</span>
-                <span class="song-item-title">${displayTitle}</span>
+                <span class="catalog-item-index">${String(index + 1).padStart(2, '0')}</span>
+                <span class="catalog-item-title">${formatTrackTitle(song)}</span>
             `;
 
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
-                closeDrawer();
-                currentSongIndex = index;
-                loadSong(index);
-                playAudio();
+                closeCatalog();
+                const selectedPreset = pickPresetForSong(song, index);
+                playItem({ song, presetName: selectedPreset }, true);
+                if (isPaused) {
+                    resumePlayback();
+                }
             });
-            songListContainer.appendChild(item);
+
+            catalogList.appendChild(item);
         });
     }
 
-    function loadSong(index) {
-        currentSongIndex = index;
-        const songPath = songList[index];
-        audio.src = `./mp3s/${songPath}`;
-        let displayTitle = songPath.replace('.mp3', '');
-        if (displayTitle.includes('-')) displayTitle = displayTitle.split('-')[1];
-        songTitle.innerText = displayTitle;
-
-        const items = document.querySelectorAll('.song-item');
-        items.forEach((item, i) => { i === index ? item.classList.add('active') : item.classList.remove('active'); });
-        
-        progressFill.style.width = '0%'; progressHandle.style.left = '0%'; currentTimeEl.innerText = "0:00";
-        visualProgress = 0; 
-    }
-
-    function startExperience() {
-        introOverlay.style.opacity = '0';
-        setTimeout(() => introOverlay.style.display = 'none', 800);
-        app.classList.remove('hidden');
-
-        if (document.documentElement.requestFullscreen) {
-            document.documentElement.requestFullscreen().catch(e => console.log('Fullscreen被阻：', e));
-        } else if (document.documentElement.webkitRequestFullscreen) {
-            document.documentElement.webkitRequestFullscreen();
-        }
-
-        if (!audioContext) {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            setupAudioAnalyser();
-        }
-        playAudio(); 
-        initWebGL(); 
-        startVisualizer(); 
-        startProgressLoop(); 
-    }
-
-    introOverlay.addEventListener('click', startExperience);
-    introOverlay.addEventListener('touchstart', startExperience);
-
-    function setupAudioAnalyser() {
-        analyser = audioContext.createAnalyser(); analyser.fftSize = 256; 
-        const source = audioContext.createMediaElementSource(audio);
-        source.connect(analyser); analyser.connect(audioContext.destination);
-        dataArray = new Uint8Array(analyser.frequencyBinCount);
-    }
-
-    function playAudio() {
-        if (audioContext && audioContext.state === 'suspended') audioContext.resume();
-        audio.play().catch(e => console.log('自动播放锁：', e));
-        isPlaying = true;
-        btnPlayPause.innerHTML = '<i class="fa-solid fa-pause"></i>';
-        document.querySelector('.player-card').classList.add('playing');
-    }
-
-    function pauseAudio() {
-        audio.pause(); isPlaying = false;
-        btnPlayPause.innerHTML = '<i class="fa-solid fa-play"></i>';
-        document.querySelector('.player-card').classList.remove('playing');
-    }
-
-    btnPlayPause.addEventListener('click', (e) => { e.stopPropagation(); isPlaying ? pauseAudio() : playAudio(); });
-    btnNext.addEventListener('click', (e) => { e.stopPropagation(); currentSongIndex = (currentSongIndex + 1) % songList.length; loadSong(currentSongIndex); playAudio(); });
-    btnPrev.addEventListener('click', (e) => { e.stopPropagation(); currentSongIndex = (currentSongIndex - 1 + songList.length) % songList.length; loadSong(currentSongIndex); playAudio(); });
-
-    audio.addEventListener('timeupdate', () => {
-        if (audio.duration && !isDragging) {
-            currentTimeEl.innerText = formatTime(audio.currentTime); durationTimeEl.innerText = formatTime(audio.duration);
-        }
-    });
-
-    function startProgressLoop() {
-        function loop() {
-            requestAnimationFrame(loop);
-            if (audio.duration && !isDragging) {
-                const target = (audio.currentTime / audio.duration) * 100;
-                const diff = target - visualProgress;
-
-                if (Math.abs(diff) > 5) {
-                    visualProgress = target;
-                } else {
-                    visualProgress += diff * 0.12; 
-                }
-
-                progressFill.style.width = `${visualProgress}%`;
-                progressHandle.style.left = `${visualProgress}%`;
+    function updateCatalogActive() {
+        const items = catalogList.querySelectorAll('.catalog-item');
+        items.forEach((el, idx) => {
+            if (currentItem && songList[idx] === currentItem.song) {
+                el.classList.add('active');
+            } else {
+                el.classList.remove('active');
             }
+        });
+    }
+
+    // ==========================================
+    // 预设选择与匹配策略
+    // ==========================================
+    function pickPresetForSong(song, index) {
+        if (presetNames.length === 0) return 'Default Visualizer';
+        if (playbackMode === 'sequence') {
+            return presetNames[index % presetNames.length];
+        }
+        // 随机模式：挑选与上一个不同的预设
+        const currentPreset = currentItem ? currentItem.presetName : '';
+        const candidatePool = presetNames.filter(p => p !== currentPreset);
+        const pool = candidatePool.length > 0 ? candidatePool : presetNames;
+        return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    // ==========================================
+    // 队列控制 (下一首 / 上一首)
+    // ==========================================
+    function getNextItem() {
+        if (songList.length === 0) return null;
+
+        let nextSong = '';
+        let nextPreset = '';
+
+        if (playbackMode === 'sequence') {
+            const currentSongIndex = currentItem ? songList.indexOf(currentItem.song) : -1;
+            const nextIndex = (currentSongIndex + 1) % songList.length;
+            nextSong = songList[nextIndex];
+            nextPreset = pickPresetForSong(nextSong, nextIndex);
+        } else {
+            // 随机模式：避免与当前曲目连续相同
+            const currentSong = currentItem ? currentItem.song : '';
+            const available = songList.filter(s => s !== currentSong);
+            const pool = available.length > 0 ? available : songList;
+            nextSong = pool[Math.floor(Math.random() * pool.length)];
+            nextPreset = pickPresetForSong(nextSong, Math.floor(Math.random() * presetNames.length));
+        }
+
+        return { song: nextSong, presetName: nextPreset };
+    }
+
+    function goNext() {
+        const next = getNextItem();
+        if (!next) return;
+
+        if (currentItem) {
+            historyStack.push(currentItem);
+            if (historyStack.length > MAX_HISTORY_STACK) {
+                historyStack.shift();
+            }
+        }
+
+        playItem(next, true);
+    }
+
+    function goPrevious() {
+        if (historyStack.length > 0) {
+            const prev = historyStack.pop();
+            playItem(prev, false);
+        } else {
+            // 没有历史栈时，如果是顺序播放则切上一首，随机则重随机
+            if (songList.length === 0) return;
+            const currentIndex = currentItem ? songList.indexOf(currentItem.song) : 0;
+            const prevIndex = (currentIndex - 1 + songList.length) % songList.length;
+            const prevSong = songList[prevIndex];
+            const prevPreset = pickPresetForSong(prevSong, prevIndex);
+            playItem({ song: prevSong, presetName: prevPreset }, false);
+        }
+    }
+
+    // ==========================================
+    // 播放核心与可视化切换
+    // ==========================================
+    async function playItem(item, isForward = true) {
+        if (!item || !item.song) return;
+        currentItem = item;
+        updateCatalogActive();
+
+        // 1. 触发曲名卡片动画 (与 Echosfall 原生规格一致: 7秒模糊进退动效)
+        showTrackTitle(item.song, item.presetName);
+
+        // 2. 加载并平滑过渡 Butterchurn 预设
+        loadPresetIntoVisualizer(item.presetName);
+
+        // 3. 切换音频并淡入
+        const songUrl = `./mp3s/${encodeURIComponent(item.song)}`;
+        audio.src = songUrl;
+
+        try {
+            if (audioContext && audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+            await audio.play();
+            fadeInAudio();
+            isPaused = false;
+            hidePauseModal();
+        } catch (err) {
+            console.warn('[Echosfall] 音乐播放失败，等待手势激活:', err);
+        }
+
+        // 4. 后台预加载下一首歌曲与预设
+        preloadNext();
+    }
+
+    function showTrackTitle(songName, presetName) {
+        trackNameEl.innerText = formatTrackTitle(songName);
+        presetNameEl.innerText = (presetName || 'REVERIE SPECTRUM').replace(/\.json$/i, '');
+
+        // 重新挂载动画类
+        titleCard.classList.remove('title-animate');
+        // 强制重绘
+        void titleCard.offsetWidth;
+        titleCard.classList.add('title-animate');
+    }
+
+    function loadPresetIntoVisualizer(presetName) {
+        if (!visualizer) return;
+        try {
+            let presetData = presets[presetName];
+            if (presetData) {
+                visualizer.loadPreset(presetData, PRESET_BLEND_DURATION_SECONDS);
+            } else {
+                // 如果是按需加载
+                fetch(`./presets/${encodeURIComponent(presetName)}.json`)
+                    .then(res => res.json())
+                    .then(data => {
+                        presets[presetName] = data;
+                        visualizer.loadPreset(data, PRESET_BLEND_DURATION_SECONDS);
+                    })
+                    .catch(e => console.warn('[Echosfall] 加载预设文件异常:', e));
+            }
+        } catch (e) {
+            console.warn('[Echosfall] visualizer.loadPreset 异常:', e);
+        }
+    }
+
+    // 音量平滑淡入
+    function fadeInAudio(duration = 0.55) {
+        if (!gainNode || !audioContext) return;
+        const now = audioContext.currentTime;
+        gainNode.gain.cancelScheduledValues(now);
+        gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+        gainNode.gain.linearRampToValueAtTime(1.0, now + duration);
+    }
+
+    // 音量平滑淡出并暂停
+    function fadeOutAudioAndPause(duration = 0.65) {
+        if (!gainNode || !audioContext) {
+            audio.pause();
+            return;
+        }
+        const now = audioContext.currentTime;
+        gainNode.gain.cancelScheduledValues(now);
+        gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+        gainNode.gain.linearRampToValueAtTime(0.001, now + duration);
+        setTimeout(() => {
+            if (isPaused) {
+                audio.pause();
+            }
+        }, duration * 1000);
+    }
+
+    function pausePlayback() {
+        if (isPaused) return;
+        isPaused = true;
+        fadeOutAudioAndPause(0.65);
+        updatePauseModalUI();
+        showPauseModal();
+    }
+
+    function resumePlayback() {
+        if (!isPaused && hasStarted) return;
+        isPaused = false;
+        hidePauseModal();
+
+        if (audioContext && audioContext.state === 'suspended') {
+            audioContext.resume().catch(() => undefined);
+        }
+
+        audio.play().catch(e => console.warn('恢复播放拦截:', e));
+        fadeInAudio(0.5);
+    }
+
+    // 预加载前瞻项
+    function preloadNext() {
+        const next = getNextItem();
+        if (!next) return;
+
+        // 预加载音频
+        const preAudio = new Audio();
+        preAudio.preload = 'metadata';
+        preAudio.src = `./mp3s/${encodeURIComponent(next.song)}`;
+
+        // 预加载预设
+        if (!presets[next.presetName]) {
+            fetch(`./presets/${encodeURIComponent(next.presetName)}.json`)
+                .then(r => r.json())
+                .then(json => { presets[next.presetName] = json; })
+                .catch(() => undefined);
+        }
+    }
+
+    // ==========================================
+    // 收藏功能与心形跳动动效 (Double Tap)
+    // ==========================================
+    function toggleFavorite() {
+        if (!currentItem || !currentItem.presetName) return;
+        const pName = currentItem.presetName;
+        const isFav = favorites.has(pName);
+
+        if (isFav) {
+            favorites.delete(pName);
+        } else {
+            favorites.add(pName);
+        }
+
+        try {
+            localStorage.setItem('echosfall_favorites', JSON.stringify(Array.from(favorites)));
+        } catch (e) {
+            console.warn('写入收藏失败:', e);
+        }
+
+        // 触发 Echosfall 专属脉冲心形动效
+        triggerHeartAnimation(!isFav);
+        updatePauseModalUI();
+    }
+
+    function triggerHeartAnimation(isFavNow) {
+        if (isFavNow) {
+            heartPopBubble.classList.remove('unfavorited');
+        } else {
+            heartPopBubble.classList.add('unfavorited');
+        }
+
+        heartPopContainer.classList.remove('hidden');
+
+        // 重新应用动画
+        heartPopBubble.style.animation = 'none';
+        void heartPopBubble.offsetWidth;
+        heartPopBubble.style.animation = 'echosfallHeartPop 720ms ease-out both';
+
+        setTimeout(() => {
+            heartPopContainer.classList.add('hidden');
+        }, 720);
+    }
+
+    // ==========================================
+    // 暂停菜单与模式切换 UI
+    // ==========================================
+    function showPauseModal() {
+        pauseModal.classList.remove('hidden');
+    }
+
+    function hidePauseModal() {
+        pauseModal.classList.add('hidden');
+    }
+
+    function updateModeButtonUI() {
+        if (playbackMode === 'random') {
+            modeIcon.className = 'fa-solid fa-shuffle';
+            modeText.innerText = '随机播放';
+        } else {
+            modeIcon.className = 'fa-solid fa-arrow-down-1-9';
+            modeText.innerText = '顺序播放';
+        }
+    }
+
+    function togglePlaybackMode() {
+        playbackMode = (playbackMode === 'random') ? 'sequence' : 'random';
+        localStorage.setItem('echosfall_playback_mode', playbackMode);
+        updateModeButtonUI();
+    }
+
+    function updatePauseModalUI() {
+        updateModeButtonUI();
+        if (currentItem && currentItem.presetName) {
+            const isFav = favorites.has(currentItem.presetName);
+            if (isFav) {
+                favoriteStatusIcon.className = 'fa-solid fa-heart';
+                favoriteStatusText.innerText = '已收藏预设';
+                btnToggleFavorite.style.color = '#fda4af';
+                btnToggleFavorite.style.borderColor = 'rgba(244, 63, 94, 0.6)';
+            } else {
+                favoriteStatusIcon.className = 'fa-regular fa-heart';
+                favoriteStatusText.innerText = '收藏当前预设';
+                btnToggleFavorite.style.color = '#ffe4e6';
+                btnToggleFavorite.style.borderColor = 'rgba(244, 63, 94, 0.32)';
+            }
+        }
+    }
+
+    // ==========================================
+    // 抽屉控制
+    // ==========================================
+    function openCatalog() {
+        catalogDrawer.classList.add('open');
+        catalogOverlay.classList.remove('hidden');
+    }
+
+    function closeCatalog() {
+        catalogDrawer.classList.remove('open');
+        catalogOverlay.classList.add('hidden');
+    }
+
+    // ==========================================
+    // Butterchurn 与 Web Audio 初始化
+    // ==========================================
+    function initWebAudio() {
+        if (audioContext) return;
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        audioContext = new AudioContextClass();
+
+        sourceNode = audioContext.createMediaElementSource(audio);
+        gainNode = audioContext.createGain();
+        gainNode.gain.setValueAtTime(1.0, audioContext.currentTime);
+
+        sourceNode.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+    }
+
+    function initButterchurnVisualizer() {
+        if (visualizer) return;
+        if (!window.butterchurn) {
+            console.error('Butterchurn 核心库未载入');
+            return;
+        }
+
+        const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth < 768;
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+
+        // 根据移动端设备限制 DPR 与纹理尺寸，确保 60fps 丝滑流畅
+        const pixelRatio = isMobile ? Math.min(window.devicePixelRatio || 1, 1.25) : Math.min(window.devicePixelRatio || 1, 2.0);
+        const textureRatio = isMobile ? 0.68 : 1.0;
+
+        try {
+            visualizer = window.butterchurn.createVisualizer(audioContext, canvas, {
+                width,
+                height,
+                pixelRatio,
+                textureRatio
+            });
+
+            // 将 gainNode 频域数据连接到 visualizer
+            visualizer.connectAudio(gainNode || sourceNode);
+            resizeVisualizer();
+            startRenderLoop();
+        } catch (err) {
+            console.error('Butterchurn 创建失败:', err);
+        }
+    }
+
+    function resizeVisualizer() {
+        if (!visualizer) return;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        canvas.width = w;
+        canvas.height = h;
+        visualizer.setRendererSize(w, h);
+    }
+
+    function startRenderLoop() {
+        if (renderAnimationFrameId) cancelAnimationFrame(renderAnimationFrameId);
+        function loop() {
+            if (visualizer) {
+                visualizer.render();
+            }
+            renderAnimationFrameId = requestAnimationFrame(loop);
         }
         loop();
     }
 
-    function updateProgress(clientX) {
-        if (!audio.duration) return;
-        const rect = progressTrack.getBoundingClientRect();
-        const percentage = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
-        
-        progressFill.style.width = `${percentage * 100}%`;
-        progressHandle.style.left = `${percentage * 100}%`;
-        currentTimeEl.innerText = formatTime(percentage * audio.duration);
-        
-        pendingTime = percentage * audio.duration; 
-        visualProgress = percentage * 100; 
-    }
-
-    progressTrack.addEventListener('mousedown', (e) => { e.stopPropagation(); isDragging = true; updateProgress(e.clientX); });
-    window.addEventListener('mousemove', (e) => { if (isDragging) { e.preventDefault(); updateProgress(e.clientX); } });
-    window.addEventListener('mouseup', (e) => { 
-        if (isDragging) { 
-            e.stopPropagation(); isDragging = false; 
-            audio.currentTime = pendingTime; 
-        } 
-    });
-
-    progressTrack.addEventListener('touchstart', (e) => { e.stopPropagation(); isDragging = true; updateProgress(e.touches[0].clientX); }, { passive: false });
-    window.addEventListener('touchmove', (e) => { if (isDragging) { e.preventDefault(); updateProgress(e.touches[0].clientX); } }, { passive: false });
-    window.addEventListener('touchend', (e) => { 
-        if (isDragging) { 
-            e.stopPropagation(); isDragging = false; 
-            audio.currentTime = pendingTime; 
-        } 
-    });
-
-    audio.addEventListener('ended', () => btnNext.click());
-
-    function formatTime(seconds) {
-        if (isNaN(seconds)) return "0:00";
-        const m = Math.floor(seconds / 60); const s = Math.floor(seconds % 60);
-        return `${m}:${s < 10 ? '0' : ''}${s}`;
-    }
-
-    function openDrawer() { drawer.classList.add('open'); drawerOverlay.classList.add('active'); }
-    function closeDrawer() { drawer.classList.remove('open'); drawerOverlay.classList.remove('active'); }
-
-    btnList.addEventListener('click', (e) => { e.stopPropagation(); openDrawer(); });
-    closeDrawerBtn.addEventListener('click', (e) => { e.stopPropagation(); closeDrawer(); });
-    drawerOverlay.addEventListener('click', (e) => { e.stopPropagation(); closeDrawer(); });
-
     // ==========================================
-    // 5.1 底层：全景 WebGL 梦幻 FBM 极光 Shader 
+    // 手势与触控状态机 (对齐 EchosfallFeed)
     // ==========================================
-    let glProgram;
-
-    const vsSource = `
-        attribute vec2 position;
-        varying vec2 vUv;
-        void main() { vUv = position * 0.5 + 0.5; gl_Position = vec4(position, 0.0, 1.0); }
-    `;
-
-    const fsSource = `
-        precision highp float;
-        uniform vec2 iResolution;
-        uniform float iTime;
-        varying vec2 vUv;
-
-        vec3 uColorA = vec3(0.06, 0.01, 0.12); 
-        vec3 uColorB = vec3(1.0, 0.05, 0.65);  
-        vec3 uColorC = vec3(0.0, 0.85, 1.0);   
-        vec3 uColorD = vec3(0.65, 1.0, 0.0);   
-
-        float hash21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
-        float noise(vec2 p) {
-            vec2 i = floor(p); vec2 f = fract(p);
-            float a = hash21(i); float b = hash21(i + vec2(1.0, 0.0));
-            float c = hash21(i + vec2(0.0, 1.0)); float d = hash21(i + vec2(1.0, 1.0));
-            vec2 u = f * f * (3.0 - 2.0 * f);
-            return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+    function isInteractiveTarget(target) {
+        if (!target) return false;
+        if (target.closest && target.closest('[data-echosfall-control="true"]')) {
+            return true;
         }
-
-        float fbm(vec2 p) {
-            float value = 0.0; float amplitude = 0.5;
-            for (int i = 0; i < 3; i += 1) { 
-                value += amplitude * noise(p); p *= 2.1; amplitude *= 0.5;
-            }
-            return value;
-        }
-
-        void main() {
-            vec2 p = (vUv * 2.0 - 1.0);
-            p.x *= iResolution.x / iResolution.y;
-
-            float t = iTime * 0.42; 
-
-            float auroraA = sin(p.x * 2.1 + t * 0.35 + fbm(p * 1.2) * 3.0);
-            float auroraB = sin(p.y * 3.4 - t * 0.3 + fbm(p * 1.5) * 2.5);
-            float curtain = smoothstep(0.0, 1.0, fbm(p * 1.3 + vec2(0.0, t * 0.08)));
-
-            vec3 base = mix(uColorA, uColorB, clamp(vUv.y * 0.6 + 0.4, 0.0, 1.0));
-            base = mix(base, uColorC, 0.5 + 0.5 * auroraA * auroraB);
-            base += uColorD * (0.2 + curtain * 0.35) * smoothstep(0.2, 0.9, auroraA * 0.5 + 0.5);
-
-            vec3 neonColor = base * 1.25 - 0.08;
-            gl_FragColor = vec4(clamp(neonColor * 0.95, 0.0, 1.0), 1.0);
-        }
-    `;
-
-    function createShader(gl, type, source) {
-        const shader = gl.createShader(type); gl.shaderSource(shader, source); gl.compileShader(shader);
-        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) { console.error(gl.getShaderInfoLog(shader)); gl.deleteShader(shader); return null; }
-        return shader;
+        const tag = target.tagName;
+        return tag === 'BUTTON' || tag === 'INPUT' || tag === 'A' || tag === 'SELECT';
     }
 
-    function initWebGL() {
-        if (!gl) return;
-        const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
-        const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
-        if (!vs || !fs) return;
-
-        glProgram = gl.createProgram(); gl.attachShader(glProgram, vs); gl.attachShader(glProgram, fs); gl.linkProgram(glProgram);
-
-        const positionBuffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
-
-        const posLocation = gl.getAttribLocation(glProgram, 'position'); gl.enableVertexAttribArray(posLocation); gl.vertexAttribPointer(posLocation, 2, gl.FLOAT, false, 0, 0);
-
-        requestAnimationFrame(bgRenderLoop);
-    }
-
-    function bgRenderLoop(now) {
-        requestAnimationFrame(bgRenderLoop); if (!gl || !glProgram) return;
-        gl.viewport(0, 0, bgCanvas.width, bgCanvas.height); gl.useProgram(glProgram);
-        gl.uniform2f(gl.getUniformLocation(glProgram, 'iResolution'), bgCanvas.width, bgCanvas.height);
-        gl.uniform1f(gl.getUniformLocation(glProgram, 'iTime'), now * 0.001);
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
-    }
-
-    // ==========================================
-    // 5.2 上层：2D Circular Music Visualizer 
-    // ==========================================
-    let hue = 280;
-
-    function startVisualizer() {
-        function renderLoop() {
-            requestAnimationFrame(renderLoop);
-            spCtx.clearRect(0, 0, spCanvas.width, spCanvas.height);
-
-            let lowFreqValue = 0;
-            if (analyser && dataArray) { analyser.getByteFrequencyData(dataArray); lowFreqValue = dataArray[3] || 0; }
-
-            const centerX = spCanvas.width / 2;
-            const centerY = spCanvas.height / 2;
-
-            if (isPlaying && analyser) {
-                const baseRadius = window.innerWidth < 480 ? 95 : 120; 
-                const lineCount = dataArray.length; const angleStep = (Math.PI * 2) / lineCount;
-
-                spCtx.save(); spCtx.translate(centerX, centerY);
-                for (let i = 0; i < lineCount; i++) {
-                    const value = dataArray[i]; const barHeight = value * 0.5 + (10 * Math.sin(Date.now() * 0.002 + i)); const angle = i * angleStep;
-                    const x1 = Math.cos(angle) * baseRadius; const y1 = Math.sin(angle) * baseRadius;
-                    const x2 = Math.cos(angle) * (barHeight + baseRadius); const y2 = Math.sin(angle) * (barHeight + baseRadius);
-
-                    spCtx.shadowBlur = 10; spCtx.shadowColor = `hsl(${(hue + i * 2) % 360}, 100%, 60%)`;
-                    spCtx.strokeStyle = `hsl(${(hue + i) % 360}, 100%, 65%)`; spCtx.lineWidth = window.innerWidth < 480 ? 3 : 5;
-                    spCtx.beginPath(); spCtx.moveTo(x1, y1); spCtx.lineTo(x2, y2); spCtx.stroke();
-                }
-                spCtx.restore(); spCtx.shadowBlur = 0; 
-            }
-
-            if (isPlaying && dataArray) {
-                spCtx.save(); spCtx.shadowBlur = 12; spCtx.shadowColor = `hsla(${hue}, 100%, 65%, 0.4)`;
-                spCtx.strokeStyle = `hsla(${hue}, 100%, 75%, 0.4)`; spCtx.lineWidth = 4;
-                spCtx.beginPath(); spCtx.arc(centerX, centerY, 135 + lowFreqValue * 0.4, 0, Math.PI * 2); spCtx.stroke(); spCtx.restore();
-            }
-            hue = (hue + 0.12) % 360; 
-        }
-        renderLoop();
-    }
-
-    // 6. 系统海报生成 (等比例居中裁剪背景)
-    btnShare.addEventListener('click', (e) => {
-        e.stopPropagation(); posterContainer.innerHTML = '<p style="color:var(--neon-cyan)">正在初始化分享...</p>';
-        const posterCanvas = document.createElement('canvas'); const pCtx = posterCanvas.getContext('2d');
-        posterCanvas.width = 1080; posterCanvas.height = 1920;
-
-        const imgCover = new Image(); imgCover.crossOrigin = "anonymous"; imgCover.src = coverImg.src;
-
-        imgCover.onload = () => {
-            if (gl) { 
-                const canvasWidth = bgCanvas.width; const canvasHeight = bgCanvas.height;
-                const canvasRatio = canvasWidth / canvasHeight; const posterRatio = 1080 / 1920;
-
-                let sx, sy, sWidth, sHeight;
-                if (canvasRatio > posterRatio) {
-                    sHeight = canvasHeight; sWidth = sHeight * posterRatio; sx = (canvasWidth - sWidth) / 2; sy = 0;
-                } else {
-                    sWidth = canvasWidth; sHeight = sWidth / posterRatio; sx = 0; sy = (canvasHeight - sHeight) / 2;
-                }
-
-                // 在海报 2D Canvas 通道施加模糊，消除 WebGL 裸帧的 FBM 撕裂边缘
-                // 同时稍微放大绘制区域，防止模糊边缘出现黑框
-                const blurPx = 22;
-                pCtx.save();
-                pCtx.filter = `blur(${blurPx}px) saturate(1.4)`;
-                pCtx.drawImage(bgCanvas, sx, sy, sWidth, sHeight, -blurPx * 2, -blurPx * 2, 1080 + blurPx * 4, 1920 + blurPx * 4);
-                pCtx.filter = 'none';
-                pCtx.restore();
-            } 
-            else { pCtx.fillStyle = '#0a0815'; pCtx.fillRect(0, 0, 1080, 1920); }
-
-            pCtx.fillStyle = 'rgba(8, 4, 15, 0.48)'; pCtx.fillRect(0, 0, 1080, 1920);
-
-            pCtx.strokeStyle = 'rgba(0, 242, 255, 0.05)'; pCtx.lineWidth = 1;
-            for(let i=0; i<1080; i+=60) { pCtx.moveTo(i, 0); pCtx.lineTo(i, 1920); }
-            for(let i=0; i<1920; i+=60) { pCtx.moveTo(0, i); pCtx.lineTo(1080, i); }
-            pCtx.stroke();
-
-            const coverSize = 580; const coverX = (1080 - coverSize) / 2; const coverY = 170;
-            pCtx.save(); pCtx.shadowBlur = 60; pCtx.shadowColor = '#00f2ff'; pCtx.drawImage(imgCover, coverX, coverY, coverSize, coverSize); pCtx.restore();
-
-            pCtx.font = "italic 32px 'Orbitron', sans-serif"; pCtx.fillStyle = "#ff007f"; pCtx.textAlign = "center"; pCtx.fillText("Now Playing Tracks", 1080/2, 820);
-
-            pCtx.font = "bold 66px 'Orbitron', 'PingFang SC', sans-serif"; pCtx.fillStyle = "#ffffff"; pCtx.shadowBlur = 12; pCtx.shadowColor = "rgba(0, 242, 255, 0.8)"; 
-            pCtx.fillText(songTitle.innerText, 1080/2, 900); pCtx.shadowBlur = 0;
-
-            const shareUrl = `https://dreamy.voyage/?song=${currentSongIndex}`;
-            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=260x260&color=ffffff&bgcolor=000000&data=${encodeURIComponent(shareUrl)}`;
-
-            const imgQR = new Image(); imgQR.crossOrigin = "anonymous"; imgQR.src = qrUrl;
-
-            imgQR.onload = () => {
-                const qrSize = 250; const qrX = (1080 - qrSize) / 2; const qrY = 1060; 
-                pCtx.save(); pCtx.shadowBlur = 35; pCtx.shadowColor = '#b53cff'; pCtx.drawImage(imgQR, qrX, qrY, qrSize, qrSize); pCtx.restore();
-
-                pCtx.font = "bold 46px 'PingFang SC', 'Microsoft YaHei', sans-serif"; pCtx.fillStyle = "rgba(255, 255, 255, 0.85)"; pCtx.fillText("幻 梦 之 旅", 1080/2, 1650);
-                pCtx.font = "italic bold 30px 'Orbitron', sans-serif"; pCtx.fillStyle = "#ff007f"; pCtx.fillText("DreamyVoyage", 1080/2, 1710);
-
-                posterCanvas.toBlob((blob) => {
-                    const file = new File([blob], 'dreamy_share.png', { type: 'image/png' });
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        navigator.share({ files: [file], title: `DreamyVoyage - ${songTitle.innerText}` }).catch(() => fallbackToShowPoster(posterCanvas));
-                    } else if (navigator.share) {
-                        navigator.share({ title: `DreamyVoyage - ${songTitle.innerText}`, url: shareUrl }).catch(() => fallbackToShowPoster(posterCanvas));
-                    } else { fallbackToShowPoster(posterCanvas); }
-                }, 'image/png');
-            };
-            function fallbackToShowPoster(canvas) { const finalPoster = new Image(); finalPoster.src = canvas.toDataURL('image/png'); posterContainer.innerHTML = ''; posterContainer.appendChild(finalPoster); shareModal.classList.remove('hidden-modal'); }
+    function handlePointerDown(e) {
+        if (isInteractiveTarget(e.target)) return;
+        pointerState = {
+            startX: e.clientX,
+            startY: e.clientY
         };
+    }
+
+    function handlePointerUp(e) {
+        if (isInteractiveTarget(e.target)) {
+            pointerState = null;
+            return;
+        }
+
+        const pointer = pointerState;
+        pointerState = null;
+        if (!pointer) return;
+
+        const deltaX = e.clientX - pointer.startX;
+        const deltaY = e.clientY - pointer.startY;
+        const absX = Math.abs(deltaX);
+        const absY = Math.abs(deltaY);
+
+        const isVerticalSwipe = absY >= SWIPE_DISTANCE && absY >= absX * SWIPE_AXIS_RATIO;
+        const isHorizontalSwipe = absX >= SWIPE_DISTANCE && absX >= absY * SWIPE_AXIS_RATIO;
+
+        // 滑动切歌判定
+        if (isVerticalSwipe || isHorizontalSwipe) {
+            if (isPaused) {
+                // 如果在暂停界面滑动，直接切歌并恢复播放
+                resumePlayback();
+            }
+
+            // 竖向滑动：下划 (deltaY > 0) 或横向右滑 (deltaX > 0) 切下一首
+            // 上划 (deltaY < 0) 或横向左滑 (deltaX < 0) 切上一首
+            const goForward = isVerticalSwipe ? deltaY > 0 : deltaX > 0;
+            if (goForward) {
+                goNext();
+            } else {
+                goPrevious();
+            }
+            return;
+        }
+
+        // 点击判定
+        if (Math.hypot(deltaX, deltaY) <= TAP_DISTANCE) {
+            handleTap();
+        }
+    }
+
+    function handleTap() {
+        const now = Date.now();
+        if (now - lastTapAt <= DOUBLE_TAP_MS) {
+            // 双击：取消待触发的单击，执行收藏脉冲
+            lastTapAt = 0;
+            if (tapTimer !== null) {
+                clearTimeout(tapTimer);
+                tapTimer = null;
+            }
+            toggleFavorite();
+            return;
+        }
+
+        // 单击：等待防抖，如果在此时间内没有第二次点击则打开暂停菜单
+        lastTapAt = now;
+        tapTimer = setTimeout(() => {
+            tapTimer = null;
+            if (isPaused) {
+                resumePlayback();
+            } else {
+                pausePlayback();
+            }
+        }, DOUBLE_TAP_MS);
+    }
+
+    // 键盘切歌监听
+    function handleKeyDown(e) {
+        if (isInteractiveTarget(e.target)) return;
+
+        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            if (isPaused) resumePlayback();
+            goNext();
+        } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+            e.preventDefault();
+            if (isPaused) resumePlayback();
+            goPrevious();
+        } else if (e.key === ' ' || e.code === 'Space') {
+            e.preventDefault();
+            if (isPaused) {
+                resumePlayback();
+            } else {
+                pausePlayback();
+            }
+        }
+    }
+
+    // ==========================================
+    // 入场体验开启 (手势解锁 Web Audio & 全屏)
+    // ==========================================
+    function startExperience() {
+        if (hasStarted) return;
+        hasStarted = true;
+
+        introOverlay.style.opacity = '0';
+        setTimeout(() => {
+            introOverlay.style.display = 'none';
+        }, 750);
+
+        // 尝试触发全屏 (手机浏览器体验最佳)
+        try {
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(() => undefined);
+            } else if (document.documentElement.webkitRequestFullscreen) {
+                document.documentElement.webkitRequestFullscreen();
+            }
+        } catch (e) {}
+
+        // 初始化音频与 Butterchurn
+        initWebAudio();
+        initButterchurnVisualizer();
+
+        // 检查 URL 是否带参 ?song=X
+        const urlParams = new URLSearchParams(window.location.search);
+        const songParam = urlParams.get('song');
+        let initialIndex = 0;
+        if (songParam !== null) {
+            const idx = parseInt(songParam, 10);
+            if (!isNaN(idx) && idx >= 0 && idx < songList.length) initialIndex = idx;
+        }
+
+        const firstSong = songList[initialIndex] || songList[0];
+        const firstPreset = pickPresetForSong(firstSong, initialIndex);
+        playItem({ song: firstSong, presetName: firstPreset }, true);
+    }
+
+    // 全屏切换
+    function toggleFullscreen() {
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(() => undefined);
+            } else if (document.documentElement.webkitRequestFullscreen) {
+                document.documentElement.webkitRequestFullscreen();
+            }
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen().catch(() => undefined);
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+        }
+    }
+
+    // ==========================================
+    // 事件挂载
+    // ==========================================
+    document.addEventListener('DOMContentLoaded', () => {
+        initData();
+
+        // 首屏解锁
+        introOverlay.addEventListener('click', startExperience);
+        introOverlay.addEventListener('touchend', startExperience);
+
+        // 全局手势
+        window.addEventListener('pointerdown', handlePointerDown);
+        window.addEventListener('pointerup', handlePointerUp);
+        window.addEventListener('pointercancel', () => { pointerState = null; });
+        window.addEventListener('keydown', handleKeyDown);
+
+        // 视口与缩放变化
+        window.addEventListener('resize', resizeVisualizer);
+        window.addEventListener('orientationchange', () => setTimeout(resizeVisualizer, 120));
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', resizeVisualizer);
+        }
+
+        // 音频播放结束自动切下一首
+        audio.addEventListener('ended', () => {
+            if (!isPaused) {
+                goNext();
+            }
+        });
+
+        // 暂停菜单按键
+        btnResume.addEventListener('click', (e) => {
+            e.stopPropagation();
+            resumePlayback();
+        });
+
+        btnModeToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            togglePlaybackMode();
+        });
+
+        btnOpenCatalog.addEventListener('click', (e) => {
+            e.stopPropagation();
+            hidePauseModal();
+            openCatalog();
+        });
+
+        btnToggleFavorite.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleFavorite();
+        });
+
+        // 顶部按钮
+        btnTopCatalog.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openCatalog();
+        });
+
+        btnTopFullscreen.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleFullscreen();
+        });
+
+        // 歌单抽屉按键
+        btnCloseCatalog.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeCatalog();
+        });
+
+        catalogOverlay.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeCatalog();
+        });
     });
-
-    closeModalBtn.addEventListener('click', (e) => { e.stopPropagation(); shareModal.classList.add('hidden-modal'); });
-
-    loadSongs();
-});
+})();
