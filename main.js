@@ -251,18 +251,31 @@
         // 3. 切换音频并淡入
         const songUrl = `./mp3s/${encodeURIComponent(item.song)}`;
         audio.src = songUrl;
+        audio.load();
+
+        if (audioContext && audioContext.state === 'suspended') {
+            audioContext.resume().catch(() => undefined);
+        }
 
         try {
-            if (audioContext && audioContext.state === 'suspended') {
-                await audioContext.resume();
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    fadeInAudio();
+                    isPaused = false;
+                    hidePauseModal();
+                    startPresetAutoCycle();
+                }).catch(err => {
+                    console.warn('[Echosfall] 音乐播放等待手势激活:', err);
+                });
+            } else {
+                fadeInAudio();
+                isPaused = false;
+                hidePauseModal();
+                startPresetAutoCycle();
             }
-            await audio.play();
-            fadeInAudio();
-            isPaused = false;
-            hidePauseModal();
-            startPresetAutoCycle(); // 启动 30s 自动轮播计时器
         } catch (err) {
-            console.warn('[Echosfall] 音乐播放失败，等待手势激活:', err);
+            console.warn('[Echosfall] 音乐播放启动异常:', err);
         }
 
         // 4. 后台预加载下一首歌曲与预设
@@ -520,16 +533,31 @@
     // Butterchurn 与 Web Audio 初始化
     // ==========================================
     function initWebAudio() {
-        if (audioContext) return;
+        if (audioContext) {
+            if (audioContext.state === 'suspended') {
+                audioContext.resume().catch(() => undefined);
+            }
+            return;
+        }
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        audioContext = new AudioContextClass();
+        if (!AudioContextClass) return;
 
-        sourceNode = audioContext.createMediaElementSource(audio);
-        gainNode = audioContext.createGain();
-        gainNode.gain.setValueAtTime(1.0, audioContext.currentTime);
+        try {
+            audioContext = new AudioContextClass();
+            if (audioContext.state === 'suspended') {
+                audioContext.resume().catch(() => undefined);
+            }
+            if (!sourceNode) {
+                sourceNode = audioContext.createMediaElementSource(audio);
+                gainNode = audioContext.createGain();
+                gainNode.gain.setValueAtTime(1.0, audioContext.currentTime);
 
-        sourceNode.connect(gainNode);
-        gainNode.connect(audioContext.destination);
+                sourceNode.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+            }
+        } catch (e) {
+            console.warn('[Echosfall] Web Audio 初始化注意:', e);
+        }
     }
 
     function initButterchurnVisualizer() {
@@ -610,6 +638,7 @@
     }
 
     function handlePointerDown(e) {
+        if (!hasStarted) return;
         if (isInteractiveTarget(e.target)) return;
         pointerState = {
             startX: e.clientX,
@@ -618,6 +647,10 @@
     }
 
     function handlePointerUp(e) {
+        if (!hasStarted) {
+            pointerState = null;
+            return;
+        }
         if (isInteractiveTarget(e.target)) {
             pointerState = null;
             return;
@@ -660,6 +693,7 @@
     }
 
     function handleTap() {
+        if (!hasStarted) return;
         const now = Date.now();
         if (now - lastTapAt <= DOUBLE_TAP_MS) {
             // 双击：取消待触发的单击，执行收藏脉冲
@@ -676,6 +710,7 @@
         lastTapAt = now;
         tapTimer = setTimeout(() => {
             tapTimer = null;
+            if (!hasStarted) return;
             if (isPaused) {
                 resumePlayback();
             } else {
@@ -714,17 +749,21 @@
         if (hasStarted) return;
         hasStarted = true;
 
+        introOverlay.style.pointerEvents = 'none';
         introOverlay.style.opacity = '0';
         setTimeout(() => {
             introOverlay.style.display = 'none';
-        }, 750);
+        }, 600);
 
         // 尝试触发全屏 (手机浏览器体验最佳)
         try {
             if (document.documentElement.requestFullscreen) {
                 document.documentElement.requestFullscreen().catch(() => undefined);
             } else if (document.documentElement.webkitRequestFullscreen) {
-                document.documentElement.webkitRequestFullscreen();
+                try {
+                    const res = document.documentElement.webkitRequestFullscreen();
+                    if (res && res.catch) res.catch(() => undefined);
+                } catch (e) {}
             }
         } catch (e) {}
 
@@ -771,9 +810,32 @@
     document.addEventListener('DOMContentLoaded', () => {
         initData();
 
-        // 首屏解锁
-        introOverlay.addEventListener('click', startExperience);
-        introOverlay.addEventListener('touchend', startExperience);
+        // 首屏解锁：严格采用移动端标准用户激活手势 (touchend / pointerup / click)
+        // 注意：绝不能监听 touchstart，因移动端 WebKit/Blink 在 touchstart 阶段尚未授予媒体播放权限
+        const triggerStart = (e) => {
+            if (e) {
+                e.stopPropagation();
+            }
+            startExperience();
+        };
+
+        introOverlay.addEventListener('click', triggerStart);
+        introOverlay.addEventListener('touchend', triggerStart);
+        introOverlay.addEventListener('pointerup', triggerStart);
+
+        // 移动端音频自动重试保障：任何后续触摸自动 resume 并启动播放
+        const ensureMobileAudioPlayback = () => {
+            if (hasStarted && audio.paused && !isPaused) {
+                if (audioContext && audioContext.state === 'suspended') {
+                    audioContext.resume().catch(() => undefined);
+                }
+                audio.play().then(() => {
+                    fadeInAudio();
+                }).catch(() => undefined);
+            }
+        };
+        window.addEventListener('touchend', ensureMobileAudioPlayback, { passive: true });
+        window.addEventListener('click', ensureMobileAudioPlayback);
 
         // 全局手势
         window.addEventListener('pointerdown', handlePointerDown);
