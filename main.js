@@ -30,8 +30,10 @@
     const pauseModal = document.getElementById('echosfall-pause-modal');
     const loadingIndicator = document.getElementById('loading-indicator');
 
-    // 暂停菜单按键
+    // 菜单按键与控件
     const btnResume = document.getElementById('btn-resume');
+    const resumeIcon = document.getElementById('resume-icon');
+    const resumeText = document.getElementById('resume-text');
     const btnModeToggle = document.getElementById('btn-mode-toggle');
     const modeIcon = document.getElementById('mode-icon');
     const modeText = document.getElementById('mode-text');
@@ -238,18 +240,33 @@
     // ==========================================
     // 播放核心与可视化切换
     // ==========================================
+    let isSongSwitching = false;
+
     async function playItem(item, isForward = true) {
         if (!item || !item.song) return;
+        if (isSongSwitching) return;
+        isSongSwitching = true;
+
         currentItem = item;
         updateCatalogActive();
 
         // 1. 触发曲名卡片动画 (与 Echosfall 原生规格一致: 7秒模糊进退动效)
         showTrackTitle(item.song, item.presetName);
 
-        // 2. 加载并平滑过渡 Butterchurn 预设
+        // 2. 加载并平滑过渡 Butterchurn 预设 (2.7s 官方推荐软切换)
         loadPresetIntoVisualizer(item.presetName);
 
-        // 3. 切换音频并淡入
+        // 3. 切歌音量平滑渐变切换：
+        // 若当前已有音乐正在播放，先执行 0.4s 优雅渐隐，消除生硬切歌与杂音
+        if (!audio.paused && audio.src && gainNode && audioContext) {
+            const fadeOutDuration = 0.4;
+            const now = audioContext.currentTime;
+            gainNode.gain.cancelScheduledValues(now);
+            gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+            gainNode.gain.linearRampToValueAtTime(0.0001, now + fadeOutDuration);
+            await new Promise(r => setTimeout(r, fadeOutDuration * 1000));
+        }
+
         const songUrl = `./mp3s/${encodeURIComponent(item.song)}`;
         audio.src = songUrl;
         audio.load();
@@ -258,25 +275,34 @@
             audioContext.resume().catch(() => undefined);
         }
 
+        // 新歌曲起步音量置零，随后 0.6s 优雅渐入
+        if (gainNode && audioContext) {
+            const now = audioContext.currentTime;
+            gainNode.gain.cancelScheduledValues(now);
+            gainNode.gain.setValueAtTime(0.0001, now);
+        }
+
         try {
             const playPromise = audio.play();
             if (playPromise !== undefined) {
                 playPromise.then(() => {
-                    fadeInAudio();
+                    fadeInAudio(0.6);
                     isPaused = false;
-                    hidePauseModal();
                     startPresetAutoCycle();
+                    updatePlayPauseButtonUI();
                 }).catch(err => {
                     console.warn('[Echosfall] 音乐播放等待手势激活:', err);
                 });
             } else {
-                fadeInAudio();
+                fadeInAudio(0.6);
                 isPaused = false;
-                hidePauseModal();
                 startPresetAutoCycle();
+                updatePlayPauseButtonUI();
             }
         } catch (err) {
             console.warn('[Echosfall] 音乐播放启动异常:', err);
+        } finally {
+            isSongSwitching = false;
         }
 
         // 4. 后台预加载下一首歌曲与预设
@@ -360,8 +386,8 @@
         }
     }
 
-    // 音量平滑淡入
-    function fadeInAudio(duration = 0.55) {
+    // 音量平滑淡入 (默认 1.0s)
+    function fadeInAudio(duration = 1.0) {
         if (!gainNode || !audioContext) return;
         const now = audioContext.currentTime;
         gainNode.gain.cancelScheduledValues(now);
@@ -369,8 +395,8 @@
         gainNode.gain.linearRampToValueAtTime(1.0, now + duration);
     }
 
-    // 音量平滑淡出并暂停
-    function fadeOutAudioAndPause(duration = 0.65) {
+    // 音量平滑淡出并暂停 (默认 1.0s)
+    function fadeOutAudioAndPause(duration = 1.0) {
         if (!gainNode || !audioContext) {
             audio.pause();
             return;
@@ -378,19 +404,65 @@
         const now = audioContext.currentTime;
         gainNode.gain.cancelScheduledValues(now);
         gainNode.gain.setValueAtTime(gainNode.gain.value, now);
-        gainNode.gain.linearRampToValueAtTime(0.001, now + duration);
+        gainNode.gain.linearRampToValueAtTime(0.0001, now + duration);
         setTimeout(() => {
-            if (isPaused) {
+            if (isPaused || audio.paused) {
                 audio.pause();
             }
         }, duration * 1000);
+    }
+
+    // 同步控制菜单播放/暂停按键的图标与文案
+    function updatePlayPauseButtonUI() {
+        const isAudioPlaying = !audio.paused && !isPaused;
+        if (resumeIcon && resumeText) {
+            if (isAudioPlaying) {
+                resumeIcon.className = 'fa-solid fa-pause';
+                resumeText.innerText = '暂停';
+                btnResume.title = '暂停播放 (1s 平滑淡出)';
+            } else {
+                resumeIcon.className = 'fa-solid fa-play';
+                resumeText.innerText = '播放';
+                btnResume.title = '继续播放 (1s 平滑淡入)';
+            }
+        }
+    }
+
+    // 切换播放 / 暂停 (1s 音量平滑渐变)
+    function togglePlayPause() {
+        const isAudioPlaying = !audio.paused && !isPaused;
+        if (isAudioPlaying) {
+            // 正在播放中：点击后 1s 内音量平滑变小，暂停播放音乐
+            isPaused = true;
+            stopPresetAutoCycle();
+            fadeOutAudioAndPause(1.0);
+            updatePlayPauseButtonUI();
+        } else {
+            // 处于暂停状态：再次点击，1s 内音量平滑变大，继续播放音乐
+            isPaused = false;
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume().catch(() => undefined);
+            }
+            if (gainNode && audioContext) {
+                gainNode.gain.cancelScheduledValues(audioContext.currentTime);
+                gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
+            }
+            audio.play().then(() => {
+                fadeInAudio(1.0);
+                startPresetAutoCycle();
+                updatePlayPauseButtonUI();
+            }).catch(e => {
+                console.warn('[Echosfall] 恢复播放拦截:', e);
+            });
+            updatePlayPauseButtonUI();
+        }
     }
 
     function pausePlayback() {
         if (isPaused) return;
         isPaused = true;
         stopPresetAutoCycle();
-        fadeOutAudioAndPause(0.65);
+        fadeOutAudioAndPause(1.0);
         updatePauseModalUI();
         showPauseModal();
     }
@@ -404,9 +476,15 @@
             audioContext.resume().catch(() => undefined);
         }
 
+        if (gainNode && audioContext) {
+            gainNode.gain.cancelScheduledValues(audioContext.currentTime);
+            gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
+        }
+
         audio.play().catch(e => console.warn('恢复播放拦截:', e));
-        fadeInAudio(0.5);
+        fadeInAudio(1.0);
         startPresetAutoCycle();
+        updatePlayPauseButtonUI();
     }
 
     // 预加载前瞻项
@@ -504,6 +582,7 @@
 
     function updatePauseModalUI() {
         updateModeButtonUI();
+        updatePlayPauseButtonUI();
         if (currentItem && currentItem.presetName) {
             const isFav = favorites.has(currentItem.presetName);
             if (isFav) {
@@ -923,10 +1002,10 @@
             hidePauseModal();
         });
 
-        // 菜单界面按键
+        // 菜单界面按键：暂停 / 播放切换 (1s 音量平滑渐变)
         btnResume.addEventListener('click', (e) => {
             e.stopPropagation();
-            hidePauseModal();
+            togglePlayPause();
         });
 
         btnModeToggle.addEventListener('click', (e) => {
