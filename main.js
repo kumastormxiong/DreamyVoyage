@@ -473,9 +473,10 @@
     }
 
     // ==========================================
-    // 暂停菜单与模式切换 UI
+    // 菜单浮层与模式切换 UI (呼出菜单时音乐持续播放)
     // ==========================================
     function showPauseModal() {
+        updatePauseModalUI();
         pauseModal.classList.remove('hidden');
         if (topStatusBar) topStatusBar.classList.add('visible');
     }
@@ -713,15 +714,15 @@
             return;
         }
 
-        // 单击：等待防抖，如果在此时间内没有第二次点击则打开暂停菜单
+        // 单击：打开或关闭菜单（音乐持续播放不停止）
         lastTapAt = now;
         tapTimer = setTimeout(() => {
             tapTimer = null;
             if (!hasStarted) return;
-            if (isPaused) {
-                resumePlayback();
+            if (pauseModal.classList.contains('hidden')) {
+                showPauseModal();
             } else {
-                pausePlayback();
+                hidePauseModal();
             }
         }, DOUBLE_TAP_MS);
     }
@@ -875,10 +876,19 @@
             }
         });
 
-        // 暂停菜单按键
+        // 菜单浮层背景点击：点击各个功能按键之外的区域，关闭界面，继续播放音乐
+        pauseModal.addEventListener('click', (e) => {
+            if (e.target.closest('button, a')) {
+                return;
+            }
+            e.stopPropagation();
+            hidePauseModal();
+        });
+
+        // 菜单界面按键
         btnResume.addEventListener('click', (e) => {
             e.stopPropagation();
-            resumePlayback();
+            hidePauseModal();
         });
 
         btnModeToggle.addEventListener('click', (e) => {
@@ -901,7 +911,6 @@
             btnNextPreset.addEventListener('click', (e) => {
                 e.stopPropagation();
                 switchRandomPreset(true);
-                resumePlayback();
             });
         }
 

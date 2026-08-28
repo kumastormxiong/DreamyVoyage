@@ -440,11 +440,57 @@ html, body {
 }
 
 .pause-hint {
-    margin-top: 1.6rem;
+    margin-top: 1.5rem;
     font-size: 0.78rem;
     letter-spacing: 0.08em;
     color: rgba(255, 255, 255, 0.45);
     text-align: center;
+}
+
+/* Spotify 绿色图标跳转按钮 */
+.spotify-link-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    margin-top: 1.15rem;
+    padding: 0.6rem 1.4rem;
+    border-radius: 9999px;
+    background: rgba(30, 215, 96, 0.12);
+    border: 1px solid rgba(30, 215, 96, 0.45);
+    color: #1ed760;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    box-shadow: 0 0 20px rgba(30, 215, 96, 0.22);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.spotify-link-btn i {
+    font-size: 1.25rem;
+    color: #1ed760;
+    filter: drop-shadow(0 0 6px rgba(30, 215, 96, 0.65));
+    transition: transform 0.25s ease;
+}
+
+.spotify-link-btn:hover {
+    background: rgba(30, 215, 96, 0.24);
+    border-color: rgba(30, 215, 96, 0.85);
+    color: #ffffff;
+    box-shadow: 0 0 30px rgba(30, 215, 96, 0.5);
+    transform: translateY(-2px);
+}
+
+.spotify-link-btn:hover i {
+    transform: scale(1.15);
+    color: #ffffff;
+}
+
+.spotify-link-btn:active {
+    transform: scale(0.96);
 }
 
 /* 侧边歌单抽屉 (Drawer) */
