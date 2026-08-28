@@ -41,7 +41,8 @@
     const favoriteStatusText = document.getElementById('favorite-status-text');
     const btnNextPreset = document.getElementById('btn-next-preset');
 
-    // 顶部状态栏按钮
+    // 顶部状态栏与按钮
+    const topStatusBar = document.getElementById('top-status-bar');
     const btnTopCatalog = document.getElementById('btn-top-catalog');
     const btnTopFullscreen = document.getElementById('btn-top-fullscreen');
 
@@ -476,10 +477,12 @@
     // ==========================================
     function showPauseModal() {
         pauseModal.classList.remove('hidden');
+        if (topStatusBar) topStatusBar.classList.add('visible');
     }
 
     function hidePauseModal() {
         pauseModal.classList.add('hidden');
+        if (topStatusBar) topStatusBar.classList.remove('visible');
     }
 
     function updateModeButtonUI() {
@@ -668,21 +671,25 @@
         const isVerticalSwipe = absY >= SWIPE_DISTANCE && absY >= absX * SWIPE_AXIS_RATIO;
         const isHorizontalSwipe = absX >= SWIPE_DISTANCE && absX >= absY * SWIPE_AXIS_RATIO;
 
-        // 滑动切歌判定
-        if (isVerticalSwipe || isHorizontalSwipe) {
+        // 手势交互判定：
+        // 1. 手机上下滑动：切换音乐 (下滑切下一首，上滑切上一首)
+        if (isVerticalSwipe) {
             if (isPaused) {
-                // 如果在暂停界面滑动，直接切歌并恢复播放
                 resumePlayback();
             }
-
-            // 竖向滑动：下划 (deltaY > 0) 或横向右滑 (deltaX > 0) 切下一首
-            // 上划 (deltaY < 0) 或横向左滑 (deltaX < 0) 切上一首
-            const goForward = isVerticalSwipe ? deltaY > 0 : deltaX > 0;
+            const goForward = deltaY > 0;
             if (goForward) {
                 goNext();
             } else {
                 goPrevious();
             }
+            return;
+        }
+
+        // 2. 手机左右滑动：随机渐渐软切换一个新的 Butterchurn 预设 (2.7s 官方推荐平滑过渡)
+        if (isHorizontalSwipe) {
+            console.log('[Echosfall] 移动端左右滑动触发：渐渐软切换下一个随机预设');
+            switchRandomPreset(true);
             return;
         }
 
@@ -719,26 +726,37 @@
         }, DOUBLE_TAP_MS);
     }
 
-    // 键盘监听 (空格键软切换随机预设，方向键切歌)
+    // 键盘监听 (PC 端：方向键上下切歌，方向键左右渐渐切换预设，空格键亦支持软切)
     function handleKeyDown(e) {
         if (isInteractiveTarget(e.target)) return;
 
-        // 空格键：采用 Butterchurn 官方推荐软切换方式 (2.7s 平滑混合)，切换至下一个随机预设
-        if (e.key === ' ' || e.code === 'Space') {
+        // 方向键左右：随机渐渐软切换至新预设
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
             e.preventDefault();
-            console.log('[Echosfall] 按下空格键：触发预设官方推荐软切换 (2.7s 软过渡)');
+            console.log(`[Echosfall] 方向键 ${e.key}：渐渐软切换下一个随机预设`);
             switchRandomPreset(true);
             return;
         }
 
-        if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        // 方向键上下：切换音乐 (下 = 下一首，上 = 上一首)
+        if (e.key === 'ArrowDown') {
             e.preventDefault();
             if (isPaused) resumePlayback();
             goNext();
-        } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+            return;
+        } else if (e.key === 'ArrowUp') {
             e.preventDefault();
             if (isPaused) resumePlayback();
             goPrevious();
+            return;
+        }
+
+        // 空格键：亦支持快捷软切换预设
+        if (e.key === ' ' || e.code === 'Space') {
+            e.preventDefault();
+            console.log('[Echosfall] 空格键触发：平滑软切换下一个随机预设');
+            switchRandomPreset(true);
+            return;
         }
     }
 
