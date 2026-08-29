@@ -1,253 +1,58 @@
 {
   "baseVals": {
-    "rating": 5,
-    "gammaadj": 1,
-    "decay": 0.97,
-    "echo_zoom": 1,
-    "echo_alpha": 0,
-    "echo_orient": 0,
-    "wave_mode": 2,
-    "additivewave": 0,
-    "wave_thick": 1,
-    "modwavealphabyvolume": 0,
-    "wave_brighten": 0,
-    "wrap": 0,
-    "wave_a": 0,
-    "wave_scale": 1,
-    "wave_smoothing": 0.5,
-    "modwavealphastart": 0.5,
-    "modwavealphaend": 1,
-    "warpanimspeed": 1,
-    "warpscale": 1,
-    "zoom": 1.02,
-    "warp": 0.02,
-    "sx": 1,
-    "sy": 1,
-    "dx": 0,
-    "dy": 0,
+    "decay": 0.98,
+    "zoom": 1,
     "rot": 0,
-    "cx": 0.5,
-    "cy": 0.5,
-    "wave_r": 1,
-    "wave_g": 1,
-    "wave_b": 1,
-    "ob_size": 0.02,
-    "ob_r": 1,
-    "ob_g": 1,
-    "ob_b": 1,
-    "ob_a": 1,
-    "ib_size": 0.01,
-    "ib_r": 0,
-    "ib_g": 0,
-    "ib_b": 0,
-    "ib_a": 0,
-    "mv_x": 12,
-    "mv_y": 9,
-    "mv_l": 0.9,
-    "mv_r": 1,
-    "mv_g": 1,
-    "mv_b": 1,
-    "mv_a": 0
+    "warp": 0,
+    "wave_a": 0
   },
   "shapes": [
     {
       "baseVals": {
-        "enabled": 1,
-        "sides": 3,
-        "additive": 0,
-        "thickoutline": 1,
-        "textured": 0,
-        "num_inst": 1,
-        "x": 0.5,
-        "y": 0.5,
-        "rad": 0.4,
-        "ang": 0,
-        "r": 0.05,
-        "g": 0.05,
-        "b": 0.05,
-        "a": 0.9,
-        "r2": 0,
-        "g2": 0,
-        "b2": 0,
-        "a2": 0,
-        "border_r": 1,
-        "border_g": 1,
-        "border_b": 1,
-        "border_a": 1
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": "a.ang = Math.sin(a.time * 0.2) * 0.1; a.rad = 0.38 + 0.05 * a.bass;"
+        "enabled": 0
+      }
     },
     {
       "baseVals": {
-        "enabled": 0,
-        "sides": 4,
-        "additive": 0,
-        "thickoutline": 1,
-        "textured": 0,
-        "num_inst": 1,
-        "x": 0.5,
-        "y": 0.5,
-        "rad": 0.3,
-        "ang": 0,
-        "r": 1,
-        "g": 1,
-        "b": 1,
-        "a": 1,
-        "r2": 0,
-        "g2": 0,
-        "b2": 0,
-        "a2": 0,
-        "border_r": 1,
-        "border_g": 1,
-        "border_b": 1,
-        "border_a": 1
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": ""
+        "enabled": 0
+      }
     },
     {
       "baseVals": {
-        "enabled": 0,
-        "sides": 4,
-        "additive": 0,
-        "thickoutline": 1,
-        "textured": 0,
-        "num_inst": 1,
-        "x": 0.5,
-        "y": 0.5,
-        "rad": 0.3,
-        "ang": 0,
-        "r": 1,
-        "g": 1,
-        "b": 1,
-        "a": 1,
-        "r2": 0,
-        "g2": 0,
-        "b2": 0,
-        "a2": 0,
-        "border_r": 1,
-        "border_g": 1,
-        "border_b": 1,
-        "border_a": 1
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": ""
+        "enabled": 0
+      }
     },
     {
       "baseVals": {
-        "enabled": 0,
-        "sides": 4,
-        "additive": 0,
-        "thickoutline": 1,
-        "textured": 0,
-        "num_inst": 1,
-        "x": 0.5,
-        "y": 0.5,
-        "rad": 0.3,
-        "ang": 0,
-        "r": 1,
-        "g": 1,
-        "b": 1,
-        "a": 1,
-        "r2": 0,
-        "g2": 0,
-        "b2": 0,
-        "a2": 0,
-        "border_r": 1,
-        "border_g": 1,
-        "border_b": 1,
-        "border_a": 1
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": ""
+        "enabled": 0
+      }
     }
   ],
   "waves": [
     {
       "baseVals": {
-        "enabled": 1,
-        "samples": 300,
-        "sep": 0,
-        "scaling": 1.3,
-        "smoothing": 0.5,
-        "r": 1,
-        "g": 1,
-        "b": 1,
-        "a": 0.9,
-        "spectrum": 0,
-        "usedots": 0,
-        "thick": 1,
-        "additive": 0
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": "",
-      "point_eqs_str": "a.x = a.sample; a.y = 0.5 + 0.12 * a.value1;"
+        "enabled": 0
+      }
     },
     {
       "baseVals": {
-        "enabled": 0,
-        "samples": 512,
-        "sep": 0,
-        "scaling": 1,
-        "smoothing": 0.5,
-        "r": 1,
-        "g": 1,
-        "b": 1,
-        "a": 1,
-        "spectrum": 0,
-        "usedots": 0,
-        "thick": 0,
-        "additive": 0
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": "",
-      "point_eqs_str": ""
+        "enabled": 0
+      }
     },
     {
       "baseVals": {
-        "enabled": 0,
-        "samples": 512,
-        "sep": 0,
-        "scaling": 1,
-        "smoothing": 0.5,
-        "r": 1,
-        "g": 1,
-        "b": 1,
-        "a": 1,
-        "spectrum": 0,
-        "usedots": 0,
-        "thick": 0,
-        "additive": 0
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": "",
-      "point_eqs_str": ""
+        "enabled": 0
+      }
     },
     {
       "baseVals": {
-        "enabled": 0,
-        "samples": 512,
-        "sep": 0,
-        "scaling": 1,
-        "smoothing": 0.5,
-        "r": 1,
-        "g": 1,
-        "b": 1,
-        "a": 1,
-        "spectrum": 0,
-        "usedots": 0,
-        "thick": 0,
-        "additive": 0
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": "",
-      "point_eqs_str": ""
+        "enabled": 0
+      }
     }
   ],
   "init_eqs_str": "",
-  "frame_eqs_str": "a.zoom = 1.015 + 0.01 * a.bass;",
-  "pixel_eqs_str": "a.rot = 0.01 * Math.sin(a.x * 10.0 + a.time);",
-  "warp": "shader_body {\n    vec2 p = uv - 0.5;\n    vec2 uv_r = 0.5 + p * 0.994;\n    vec2 uv_g = 0.5 + p * 0.99;\n    vec2 uv_b = 0.5 + p * 0.986;\n    float r = texture(sampler_main, uv_r).r;\n    float g = texture(sampler_main, uv_g).g;\n    float b = texture(sampler_main, uv_b).b;\n    ret = vec3(r, g, b) * 0.97 - 0.002;\n  }",
-  "comp": "shader_body {\n    vec3 c = texture(sampler_main, uv).rgb;\n    vec3 b = texture(sampler_blur1, uv).rgb;\n    ret = c + b * 1.2;\n  }"
+  "frame_eqs_str": "",
+  "pixel_eqs_str": "",
+  "warp": "shader_body { ret = texture(sampler_main, uv).rgb * 0.85; }",
+  "comp": "\n    mat2 rot(float a) { float s = sin(a), c = cos(a); return mat2(c, -s, s, c); }\n    float sdPrism(vec3 p, vec2 h) {\n      vec3 q = abs(p);\n      return max(q.z - h.y, max(q.x * 0.866025 + p.y * 0.5, -p.y) - h.x * 0.5);\n    }\n    float map(vec3 p) {\n      p.xz = rot(time * 0.4) * p.xz;\n      p.yz = rot(0.3) * p.yz;\n      return sdPrism(p, vec2(1.8, 0.8));\n    }\n    shader_body {\n      vec2 p = (uv - 0.5) * vec2(aspect.x, 1.0) * 2.0;\n      vec3 ro = vec3(0.0, 0.0, -3.5);\n      vec3 rd = normalize(vec3(p, 1.7));\n      float t = 0.0;\n      for (int i = 0; i < 48; i++) {\n        float d = map(ro + rd * t);\n        if (d < 0.003 || t > 8.0) break;\n        t += d * 0.8;\n      }\n      vec3 col = vec3(0.02, 0.02, 0.03);\n      if (t < 8.0) {\n        vec3 pos = ro + rd * t;\n        vec2 e = vec2(0.004, 0.0);\n        vec3 n = normalize(vec3(\n          map(pos + e.xyy) - map(pos - e.xyy),\n          map(pos + e.yxy) - map(pos - e.yxy),\n          map(pos + e.yyx) - map(pos - e.yyx)\n        ));\n        float fres = pow(1.0 - max(dot(n, -rd), 0.0), 3.0);\n        vec3 rainbow = 0.5 + 0.5 * cos(vec3(0.0, 2.0, 4.0) + pos.x * 3.0 + time);\n        col = vec3(0.05, 0.06, 0.08) + fres * rainbow * 2.0;\n      }\n      ret = col;\n    }\n  "
 }

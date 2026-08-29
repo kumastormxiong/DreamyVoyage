@@ -1,253 +1,58 @@
 {
   "baseVals": {
-    "rating": 5,
-    "gammaadj": 1,
-    "decay": 0.96,
-    "echo_zoom": 1,
-    "echo_alpha": 0,
-    "echo_orient": 0,
-    "wave_mode": 6,
-    "additivewave": 0,
-    "wave_thick": 1,
-    "modwavealphabyvolume": 0,
-    "wave_brighten": 0,
-    "wrap": 0,
-    "wave_a": 0,
-    "wave_scale": 1,
-    "wave_smoothing": 0.5,
-    "modwavealphastart": 0.5,
-    "modwavealphaend": 1,
-    "warpanimspeed": 1,
-    "warpscale": 1,
-    "zoom": 1.012,
-    "warp": 0.02,
-    "sx": 1,
-    "sy": 1,
-    "dx": 0,
-    "dy": 0,
-    "rot": 0.002,
-    "cx": 0.5,
-    "cy": 0.5,
-    "wave_r": 1,
-    "wave_g": 1,
-    "wave_b": 1,
-    "ob_size": 0.03,
-    "ob_r": 0.05,
-    "ob_g": 0.2,
-    "ob_b": 0.8,
-    "ob_a": 1,
-    "ib_size": 0.01,
-    "ib_r": 0,
-    "ib_g": 0,
-    "ib_b": 0,
-    "ib_a": 0,
-    "mv_x": 12,
-    "mv_y": 9,
-    "mv_l": 0.9,
-    "mv_r": 1,
-    "mv_g": 1,
-    "mv_b": 1,
-    "mv_a": 0
+    "decay": 0.98,
+    "zoom": 1,
+    "rot": 0,
+    "warp": 0,
+    "wave_a": 0
   },
   "shapes": [
     {
       "baseVals": {
-        "enabled": 1,
-        "sides": 8,
-        "additive": 0,
-        "thickoutline": 1,
-        "textured": 0,
-        "num_inst": 1,
-        "x": 0.5,
-        "y": 0.5,
-        "rad": 0.35,
-        "ang": 0,
-        "r": 0.02,
-        "g": 0.1,
-        "b": 0.5,
-        "a": 0.95,
-        "r2": 0.1,
-        "g2": 0.5,
-        "b2": 1,
-        "a2": 0.9,
-        "border_r": 0.4,
-        "border_g": 0.8,
-        "border_b": 1,
-        "border_a": 1
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": "a.ang = a.time * 0.25; a.rad = 0.32 + 0.07 * a.bass;"
+        "enabled": 0
+      }
     },
     {
       "baseVals": {
-        "enabled": 1,
-        "sides": 100,
-        "additive": 0,
-        "thickoutline": 1,
-        "textured": 0,
-        "num_inst": 1,
-        "x": 0.5,
-        "y": 0.5,
-        "rad": 0.45,
-        "ang": 0,
-        "r": 0,
-        "g": 0,
-        "b": 0,
-        "a": 0,
-        "r2": 0,
-        "g2": 0,
-        "b2": 0,
-        "a2": 0,
-        "border_r": 0.2,
-        "border_g": 0.6,
-        "border_b": 1,
-        "border_a": 0.9
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": "a.rad = 0.42 + 0.04 * Math.sin(a.time * 2.0);"
+        "enabled": 0
+      }
     },
     {
       "baseVals": {
-        "enabled": 0,
-        "sides": 4,
-        "additive": 0,
-        "thickoutline": 1,
-        "textured": 0,
-        "num_inst": 1,
-        "x": 0.5,
-        "y": 0.5,
-        "rad": 0.3,
-        "ang": 0,
-        "r": 1,
-        "g": 1,
-        "b": 1,
-        "a": 1,
-        "r2": 0,
-        "g2": 0,
-        "b2": 0,
-        "a2": 0,
-        "border_r": 1,
-        "border_g": 1,
-        "border_b": 1,
-        "border_a": 1
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": ""
+        "enabled": 0
+      }
     },
     {
       "baseVals": {
-        "enabled": 0,
-        "sides": 4,
-        "additive": 0,
-        "thickoutline": 1,
-        "textured": 0,
-        "num_inst": 1,
-        "x": 0.5,
-        "y": 0.5,
-        "rad": 0.3,
-        "ang": 0,
-        "r": 1,
-        "g": 1,
-        "b": 1,
-        "a": 1,
-        "r2": 0,
-        "g2": 0,
-        "b2": 0,
-        "a2": 0,
-        "border_r": 1,
-        "border_g": 1,
-        "border_b": 1,
-        "border_a": 1
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": ""
+        "enabled": 0
+      }
     }
   ],
   "waves": [
     {
       "baseVals": {
-        "enabled": 1,
-        "samples": 360,
-        "sep": 0,
-        "scaling": 1.2,
-        "smoothing": 0.7,
-        "r": 0.2,
-        "g": 0.7,
-        "b": 1,
-        "a": 0.9,
-        "spectrum": 0,
-        "usedots": 0,
-        "thick": 1,
-        "additive": 0
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": "",
-      "point_eqs_str": "a.x = 0.5 + 0.38 * Math.sin(a.sample * 6.28) * (1.0 + 0.15 * a.value1); a.y = 0.5 + 0.38 * Math.cos(a.sample * 6.28) * (1.0 + 0.15 * a.value2);"
+        "enabled": 0
+      }
     },
     {
       "baseVals": {
-        "enabled": 0,
-        "samples": 512,
-        "sep": 0,
-        "scaling": 1,
-        "smoothing": 0.5,
-        "r": 1,
-        "g": 1,
-        "b": 1,
-        "a": 1,
-        "spectrum": 0,
-        "usedots": 0,
-        "thick": 0,
-        "additive": 0
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": "",
-      "point_eqs_str": ""
+        "enabled": 0
+      }
     },
     {
       "baseVals": {
-        "enabled": 0,
-        "samples": 512,
-        "sep": 0,
-        "scaling": 1,
-        "smoothing": 0.5,
-        "r": 1,
-        "g": 1,
-        "b": 1,
-        "a": 1,
-        "spectrum": 0,
-        "usedots": 0,
-        "thick": 0,
-        "additive": 0
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": "",
-      "point_eqs_str": ""
+        "enabled": 0
+      }
     },
     {
       "baseVals": {
-        "enabled": 0,
-        "samples": 512,
-        "sep": 0,
-        "scaling": 1,
-        "smoothing": 0.5,
-        "r": 1,
-        "g": 1,
-        "b": 1,
-        "a": 1,
-        "spectrum": 0,
-        "usedots": 0,
-        "thick": 0,
-        "additive": 0
-      },
-      "init_eqs_str": "",
-      "frame_eqs_str": "",
-      "point_eqs_str": ""
+        "enabled": 0
+      }
     }
   ],
   "init_eqs_str": "",
-  "frame_eqs_str": "a.zoom = 1.01 + 0.015 * a.bass; a.rot = 0.003 * Math.cos(a.time * 0.4);",
-  "pixel_eqs_str": "a.rot = a.rot + 0.015 * Math.sin(a.rad * 8.0 + a.time);",
-  "warp": "shader_body {\n    vec2 p = uv - 0.5;\n    vec2 uv2 = 0.5 + p * 0.99;\n    vec3 c = texture(sampler_main, uv2).rgb;\n    ret = c * 0.97 - 0.002;\n  }",
-  "comp": "shader_body {\n    vec3 c = texture(sampler_main, uv).rgb;\n    vec3 b = texture(sampler_blur1, uv).rgb;\n    vec3 sapphire = c * 1.3 + b * vec3(0.1, 0.5, 1.2) * 1.5;\n    ret = sapphire;\n  }"
+  "frame_eqs_str": "",
+  "pixel_eqs_str": "",
+  "warp": "shader_body { ret = texture(sampler_main, uv).rgb * 0.85; }",
+  "comp": "\n    mat2 rot(float a) { float s = sin(a), c = cos(a); return mat2(c, -s, s, c); }\n    float map(vec3 p) {\n      p.xz = rot(time * 0.3) * p.xz;\n      p.yz = rot(time * 0.2) * p.yz;\n      float shell = abs(length(p) - 1.2) - 0.08;\n      float holes = dot(sin(p * 5.0), cos(p.zxy * 5.0)) - 0.3;\n      float outer = max(shell, holes);\n      float star = length(p) - (0.4 + 0.08 * sin(time * 4.0));\n      return min(outer, star);\n    }\n    shader_body {\n      vec2 p = (uv - 0.5) * vec2(aspect.x, 1.0) * 2.0;\n      vec3 ro = vec3(0.0, 0.0, -3.2);\n      vec3 rd = normalize(vec3(p, 1.6));\n      float t = 0.0;\n      float starGlow = 0.0;\n      for (int i = 0; i < 48; i++) {\n        float d = map(ro + rd * t);\n        starGlow += 0.01 / (0.1 + length(ro + rd * t));\n        if (d < 0.003 || t > 7.0) break;\n        t += d * 0.8;\n      }\n      vec3 col = vec3(0.02, 0.03, 0.08) + starGlow * vec3(0.2, 0.6, 1.0) * (1.0 + bass);\n      if (t < 7.0) {\n        vec3 pos = ro + rd * t;\n        vec2 e = vec2(0.004, 0.0);\n        vec3 n = normalize(vec3(\n          map(pos + e.xyy) - map(pos - e.xyy),\n          map(pos + e.yxy) - map(pos - e.yxy),\n          map(pos + e.yyx) - map(pos - e.yyx)\n        ));\n        vec3 l = normalize(vec3(1.0, 1.5, -2.0));\n        float diff = max(dot(n, l), 0.0);\n        float spec = pow(max(dot(reflect(-l, n), -rd), 0.0), 40.0);\n        col += vec3(0.05, 0.1, 0.3) + diff * vec3(0.1, 0.4, 0.9) + spec * vec3(0.8, 0.9, 1.0);\n      }\n      ret = col;\n    }\n  "
 }
