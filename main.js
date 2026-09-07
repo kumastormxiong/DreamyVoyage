@@ -137,9 +137,14 @@
                 item.classList.add('active');
             }
 
+            const isFav = isTrackFavorited(song);
+
             item.innerHTML = `
                 <span class="catalog-item-index">${String(index + 1).padStart(2, '0')}</span>
                 <span class="catalog-item-title">${formatTrackTitle(song)}</span>
+                <button type="button" class="catalog-item-fav ${isFav ? 'active' : ''}" title="${isFav ? 'Remove Favorite' : 'Favorite'}" data-echosfall-control="true">
+                    <i class="${isFav ? 'fa-solid fa-heart' : 'fa-regular fa-heart'}"></i>
+                </button>
             `;
 
             item.addEventListener('click', (e) => {
@@ -152,7 +157,35 @@
                 }
             });
 
+            const btnFav = item.querySelector('.catalog-item-fav');
+            if (btnFav) {
+                btnFav.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleTrackFavorite(song);
+                });
+            }
+
             catalogList.appendChild(item);
+        });
+    }
+
+    function updateCatalogFavorites() {
+        const items = catalogList.querySelectorAll('.catalog-item');
+        items.forEach((item, idx) => {
+            const song = songList[idx];
+            const btnFav = item.querySelector('.catalog-item-fav');
+            if (btnFav && song) {
+                const isFav = isTrackFavorited(song);
+                if (isFav) {
+                    btnFav.classList.add('active');
+                    btnFav.title = 'Remove Favorite';
+                    btnFav.innerHTML = '<i class="fa-solid fa-heart"></i>';
+                } else {
+                    btnFav.classList.remove('active');
+                    btnFav.title = 'Favorite';
+                    btnFav.innerHTML = '<i class="fa-regular fa-heart"></i>';
+                }
+            }
         });
     }
 
@@ -249,6 +282,7 @@
 
         currentItem = item;
         updateCatalogActive();
+        updatePauseModalUI();
 
         // 1. 触发曲名卡片动画 (与 Echosfall 原生规格一致: 7秒模糊进退动效)
         showTrackTitle(item.song, item.presetName);
@@ -507,17 +541,23 @@
     }
 
     // ==========================================
-    // 收藏功能与心形跳动动效 (Double Tap)
+    // 收藏功能与心形跳动动效 (Double Tap / Favorite Button)
     // ==========================================
-    function toggleFavorite() {
-        if (!currentItem || !currentItem.presetName) return;
-        const pName = currentItem.presetName;
-        const isFav = favorites.has(pName);
+    function isTrackFavorited(song) {
+        if (!song) return false;
+        return favorites.has(song) || favorites.has(formatTrackTitle(song));
+    }
+
+    function toggleTrackFavorite(song) {
+        if (!song) return;
+        const trackTitle = formatTrackTitle(song);
+        const isFav = isTrackFavorited(song);
 
         if (isFav) {
-            favorites.delete(pName);
+            favorites.delete(song);
+            favorites.delete(trackTitle);
         } else {
-            favorites.add(pName);
+            favorites.add(song);
         }
 
         try {
@@ -529,6 +569,12 @@
         // 触发 Echosfall 专属脉冲心形动效
         triggerHeartAnimation(!isFav);
         updatePauseModalUI();
+        updateCatalogFavorites();
+    }
+
+    function toggleFavorite() {
+        if (!currentItem || !currentItem.song) return;
+        toggleTrackFavorite(currentItem.song);
     }
 
     function triggerHeartAnimation(isFavNow) {
@@ -583,8 +629,8 @@
     function updatePauseModalUI() {
         updateModeButtonUI();
         updatePlayPauseButtonUI();
-        if (currentItem && currentItem.presetName) {
-            const isFav = favorites.has(currentItem.presetName);
+        if (currentItem && currentItem.song) {
+            const isFav = isTrackFavorited(currentItem.song);
             if (isFav) {
                 favoriteStatusIcon.className = 'fa-solid fa-heart';
                 favoriteStatusText.innerText = 'Favorited';
@@ -592,7 +638,7 @@
                 btnToggleFavorite.style.borderColor = 'rgba(244, 63, 94, 0.6)';
             } else {
                 favoriteStatusIcon.className = 'fa-regular fa-heart';
-                favoriteStatusText.innerText = 'Favorite Preset';
+                favoriteStatusText.innerText = 'Favorite Track';
                 btnToggleFavorite.style.color = '#ffe4e6';
                 btnToggleFavorite.style.borderColor = 'rgba(244, 63, 94, 0.32)';
             }

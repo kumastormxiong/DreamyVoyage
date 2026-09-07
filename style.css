@@ -632,6 +632,8 @@ html, body {
 }
 
 .catalog-item-title {
+    flex: 1;
+    min-width: 0;
     font-size: 0.88rem;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.85);
@@ -643,6 +645,43 @@ html, body {
 .catalog-item.active .catalog-item-title {
     color: #ffffff;
     font-weight: 700;
+}
+
+/* 曲库右侧收藏红心按键 */
+.catalog-item-fav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    margin-left: 0.5rem;
+    flex-shrink: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.22);
+    font-size: 0.95rem;
+    border-radius: 50%;
+    transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+    -webkit-tap-highlight-color: transparent;
+}
+
+.catalog-item-fav:hover {
+    color: #fda4af;
+    background: rgba(244, 63, 94, 0.15);
+    transform: scale(1.18);
+}
+
+.catalog-item-fav.active {
+    color: #f43f5e;
+    filter: drop-shadow(0 0 8px rgba(244, 63, 94, 0.8));
+    animation: heartIconBeat 0.35s ease-out;
+}
+
+@keyframes heartIconBeat {
+    0% { transform: scale(0.8); }
+    50% { transform: scale(1.25); }
+    100% { transform: scale(1); }
 }
 
 /* ==========================================
