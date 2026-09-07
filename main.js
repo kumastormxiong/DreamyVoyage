@@ -418,12 +418,12 @@
         if (resumeIcon && resumeText) {
             if (isAudioPlaying) {
                 resumeIcon.className = 'fa-solid fa-pause';
-                resumeText.innerText = '暂停';
-                btnResume.title = '暂停播放 (1s 平滑淡出)';
+                resumeText.innerText = 'Pause';
+                btnResume.title = 'Pause Playback (1s Fade Out)';
             } else {
                 resumeIcon.className = 'fa-solid fa-play';
-                resumeText.innerText = '播放';
-                btnResume.title = '继续播放 (1s 平滑淡入)';
+                resumeText.innerText = 'Play';
+                btnResume.title = 'Resume Playback (1s Fade In)';
             }
         }
     }
@@ -567,10 +567,10 @@
     function updateModeButtonUI() {
         if (playbackMode === 'random') {
             modeIcon.className = 'fa-solid fa-shuffle';
-            modeText.innerText = '随机播放';
+            modeText.innerText = 'Shuffle';
         } else {
             modeIcon.className = 'fa-solid fa-arrow-down-1-9';
-            modeText.innerText = '顺序播放';
+            modeText.innerText = 'Sequential';
         }
     }
 
@@ -587,12 +587,12 @@
             const isFav = favorites.has(currentItem.presetName);
             if (isFav) {
                 favoriteStatusIcon.className = 'fa-solid fa-heart';
-                favoriteStatusText.innerText = '已收藏预设';
+                favoriteStatusText.innerText = 'Favorited';
                 btnToggleFavorite.style.color = '#fda4af';
                 btnToggleFavorite.style.borderColor = 'rgba(244, 63, 94, 0.6)';
             } else {
                 favoriteStatusIcon.className = 'fa-regular fa-heart';
-                favoriteStatusText.innerText = '收藏当前预设';
+                favoriteStatusText.innerText = 'Favorite Preset';
                 btnToggleFavorite.style.color = '#ffe4e6';
                 btnToggleFavorite.style.borderColor = 'rgba(244, 63, 94, 0.32)';
             }
