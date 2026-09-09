@@ -118,10 +118,14 @@
         updateModeButtonUI();
     }
 
-    // 格式化歌曲展示标题
+    // 格式化歌曲展示标题 (仅保留序号和中英文，去除其后的 -Mastered、-old 等其他后缀)
     function formatTrackTitle(rawName) {
         if (!rawName) return 'Dreamy Voyage Track';
-        let title = rawName.replace(/\.mp3$/i, '');
+        let title = rawName.replace(/\.mp3$/i, '').trim();
+        const parts = title.split('-');
+        if (parts.length >= 3) {
+            return `${parts[0].trim()}-${parts[1].trim()}-${parts[2].trim()}`;
+        }
         return title;
     }
 
@@ -137,6 +141,11 @@
 
     // 渲染歌单抽屉列表
     function renderCatalog() {
+        const drawerH3 = document.querySelector('.drawer-header h3');
+        if (drawerH3) {
+            drawerH3.innerHTML = `<i class="fa-solid fa-compact-disc"></i> Dreamy Tracks (${songList.length})`;
+        }
+
         catalogList.innerHTML = '';
         songList.forEach((song, index) => {
             const item = document.createElement('div');

@@ -8,7 +8,7 @@ json_file = 'song-list.js'
 # 获取mp3s文件夹下所有的mp3文件
 try:
     all_files = os.listdir(mp3_folder)
-    mp3_files = sorted([f for f in all_files if f.lower().endswith('.mp3')])
+    mp3_files = sorted([f for f in all_files if f.lower().endswith('.mp3') and not f.lower().endswith('-old.mp3')])
 except FileNotFoundError:
     print(f"错误：找不到 '{mp3_folder}' 文件夹。")
     exit()
