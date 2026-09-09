@@ -447,6 +447,45 @@ html, body {
     background: rgba(168, 85, 247, 0.22);
 }
 
+.btn-outline-emerald {
+    background: rgba(16, 185, 129, 0.14);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    color: #d1fae5;
+    box-shadow: 0 0 25px rgba(16, 185, 129, 0.16);
+}
+
+.btn-outline-emerald:hover {
+    background: rgba(16, 185, 129, 0.24);
+    border-color: rgba(16, 185, 129, 0.6);
+}
+
+.echosfall-toast {
+    position: fixed;
+    top: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(0);
+    z-index: 100;
+    padding: 0.75rem 1.4rem;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1px solid rgba(16, 185, 129, 0.5);
+    border-radius: 9999px;
+    color: #f8fafc;
+    font-size: 0.88rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(16, 185, 129, 0.3);
+    pointer-events: none;
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity: 1;
+}
+
+.echosfall-toast.hidden {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-12px);
+}
+
 .pause-hint {
     margin-top: 1.5rem;
     font-size: 0.78rem;

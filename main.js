@@ -42,6 +42,8 @@
     const favoriteStatusIcon = document.getElementById('favorite-status-icon');
     const favoriteStatusText = document.getElementById('favorite-status-text');
     const btnNextPreset = document.getElementById('btn-next-preset');
+    const btnShare = document.getElementById('btn-share');
+    const toastEl = document.getElementById('echosfall-toast');
 
     // 顶部状态栏与按钮
     const topStatusBar = document.getElementById('top-status-bar');
@@ -794,15 +796,304 @@
         console.log(`[Echosfall] Visualizer 适配更新全屏高清尺寸: ${bufferW}x${bufferH} (竖屏旋转对齐: ${dims.isPortrait})`);
     }
 
+    let pendingCaptureResolve = null;
+
+    function captureNextRenderFrame() {
+        return new Promise((resolve) => {
+            if (!visualizer) {
+                resolve(null);
+                return;
+            }
+            pendingCaptureResolve = (webglCanvas) => {
+                try {
+                    // 在同一个渲染调用栈内立即同步抓取 WebGL 帧缓冲，杜绝缓冲区交换变黑
+                    const snapCanvas = document.createElement('canvas');
+                    snapCanvas.width = webglCanvas.width;
+                    snapCanvas.height = webglCanvas.height;
+                    const snapCtx = snapCanvas.getContext('2d');
+                    if (snapCtx) {
+                        snapCtx.drawImage(webglCanvas, 0, 0);
+                    }
+                    resolve(snapCanvas);
+                } catch (err) {
+                    console.warn('[Echosfall] Synchronous snapshot copy error:', err);
+                    resolve(null);
+                }
+            };
+            // 兜底超时避免后台标签页 RAF 降频卡住
+            setTimeout(() => {
+                if (pendingCaptureResolve) {
+                    const cb = pendingCaptureResolve;
+                    pendingCaptureResolve = null;
+                    cb(canvas);
+                }
+            }, 600);
+        });
+    }
+
     function startRenderLoop() {
         if (renderAnimationFrameId) cancelAnimationFrame(renderAnimationFrameId);
         function loop() {
             if (visualizer) {
                 visualizer.render();
+                if (pendingCaptureResolve) {
+                    const cb = pendingCaptureResolve;
+                    pendingCaptureResolve = null;
+                    try {
+                        cb(canvas);
+                    } catch (e) {
+                        console.warn('[Echosfall] Frame capture callback error:', e);
+                    }
+                }
             }
             renderAnimationFrameId = requestAnimationFrame(loop);
         }
         loop();
+    }
+
+    // ==========================================
+    // 9:16 手机竖屏视觉快照生成 & 分享系统
+    // ==========================================
+    let toastTimeout = null;
+    function showToast(message, duration = 3000) {
+        if (!toastEl) return;
+        toastEl.innerText = message;
+        toastEl.classList.remove('hidden');
+
+        if (toastTimeout) clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+            toastEl.classList.add('hidden');
+        }, duration);
+    }
+
+    function downloadBlob(blob, filename) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function generateShareUrl() {
+        const songIdx = (currentItem && currentItem.song) ? songList.indexOf(currentItem.song) : 0;
+        const presetIdx = (currentItem && currentItem.presetName) ? presetNames.indexOf(currentItem.presetName) : -1;
+
+        let base = 'https://dreamy.voyage/';
+        if (window.location.hostname && !window.location.hostname.includes('dreamy.voyage') && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+            base = `${window.location.origin}${window.location.pathname}`;
+        }
+
+        const params = new URLSearchParams();
+        if (songIdx >= 0) params.set('s', songIdx);
+        if (presetIdx >= 0) params.set('p', presetIdx);
+
+        return `${base}?${params.toString()}`;
+    }
+
+    async function generateClean916Snapshot() {
+        const snapCanvas = await captureNextRenderFrame();
+        const sourceCanvas = snapCanvas || canvas;
+
+        const offCanvas = document.createElement('canvas');
+        const targetW = 1080;
+        const targetH = 1920;
+        offCanvas.width = targetW;
+        offCanvas.height = targetH;
+        const ctx = offCanvas.getContext('2d');
+        if (!ctx) return null;
+
+        const dims = getVisualizerDimensions();
+
+        // 1. 绘制视觉画布主体
+        ctx.save();
+        if (dims.isPortrait) {
+            // 手机竖屏状态：原 canvas 在屏幕上应用了 rotate(90deg)
+            // 保持一致将其顺时针旋转 90 度以呈现正向竖屏视觉
+            ctx.translate(targetW / 2, targetH / 2);
+            ctx.rotate(90 * Math.PI / 180);
+            const scale = Math.max(targetW / sourceCanvas.height, targetH / sourceCanvas.width);
+            const w = sourceCanvas.width * scale;
+            const h = sourceCanvas.height * scale;
+            ctx.drawImage(sourceCanvas, -w / 2, -h / 2, w, h);
+        } else {
+            // PC 端或横屏：居中裁剪充满 9:16 竖屏手机画幅
+            const scale = Math.max(targetW / sourceCanvas.width, targetH / sourceCanvas.height);
+            const w = sourceCanvas.width * scale;
+            const h = sourceCanvas.height * scale;
+            const ox = (targetW - w) / 2;
+            const oy = (targetH - h) / 2;
+            ctx.drawImage(sourceCanvas, ox, oy, w, h);
+        }
+        ctx.restore();
+
+        // 2. 底部暗色优雅渐变背景衬托文字
+        const grad = ctx.createLinearGradient(0, targetH - 420, 0, targetH);
+        grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        grad.addColorStop(0.35, 'rgba(6, 8, 20, 0.65)');
+        grad.addColorStop(0.7, 'rgba(5, 6, 15, 0.88)');
+        grad.addColorStop(1, 'rgba(3, 4, 10, 0.96)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, targetH - 420, targetW, 420);
+
+        // 细微极光渐变分割线
+        const lineGrad = ctx.createLinearGradient(60, targetH - 240, targetW - 60, targetH - 240);
+        lineGrad.addColorStop(0, 'rgba(56, 189, 248, 0)');
+        lineGrad.addColorStop(0.2, 'rgba(56, 189, 248, 0.6)');
+        lineGrad.addColorStop(0.8, 'rgba(236, 72, 153, 0.6)');
+        lineGrad.addColorStop(1, 'rgba(236, 72, 153, 0)');
+        ctx.strokeStyle = lineGrad;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(60, targetH - 240);
+        ctx.lineTo(targetW - 60, targetH - 240);
+        ctx.stroke();
+
+        // 3. 歌曲名称与视觉预设信息
+        const trackTitle = currentItem ? formatTrackTitle(currentItem.song) : 'Dreamy Voyage';
+        const presetTitle = currentItem ? (currentItem.presetName || 'Reverie Spectrum').replace(/\.json$/i, '') : 'Echosfall';
+
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+        ctx.shadowBlur = 16;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 4;
+
+        // 歌曲名称
+        ctx.font = '700 42px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+
+        const maxTextW = targetW - 140;
+        let displayTrack = trackTitle;
+        if (ctx.measureText(displayTrack).width > maxTextW) {
+            while (displayTrack.length > 3 && ctx.measureText(displayTrack + '...').width > maxTextW) {
+                displayTrack = displayTrack.slice(0, -1);
+            }
+            displayTrack += '...';
+        }
+        ctx.fillText(`🎵  ${displayTrack}`, 70, targetH - 290);
+
+        // 预设名称
+        ctx.font = '500 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillStyle = '#94a3b8';
+        let displayPreset = `Preset: ${presetTitle}`;
+        if (ctx.measureText(displayPreset).width > maxTextW) {
+            while (displayPreset.length > 3 && ctx.measureText(displayPreset + '...').width > maxTextW) {
+                displayPreset = displayPreset.slice(0, -1);
+            }
+            displayPreset += '...';
+        }
+        ctx.fillText(displayPreset, 74, targetH - 195);
+
+        // 底部品牌水印
+        ctx.font = '800 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillText('DREAMY VOYAGE', 74, targetH - 120);
+
+        ctx.font = '500 22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.textAlign = 'right';
+        ctx.fillText('dreamy.voyage', targetW - 74, targetH - 120);
+
+        ctx.restore();
+
+        return new Promise((resolve) => {
+            offCanvas.toBlob((blob) => {
+                resolve(blob);
+            }, 'image/png', 0.95);
+        });
+    }
+
+    let isSharing = false;
+    async function handleShare() {
+        if (isSharing) return;
+        isSharing = true;
+
+        const originalHtml = btnShare ? btnShare.innerHTML : '';
+        if (btnShare) {
+            btnShare.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Generating...</span>';
+        }
+
+        try {
+            const trackTitle = currentItem ? formatTrackTitle(currentItem.song) : 'Dreamy Track';
+            const shareUrl = generateShareUrl();
+            const blob = await generateClean916Snapshot();
+
+            if (!blob) {
+                showToast('Failed to generate snapshot');
+                if (btnShare) btnShare.innerHTML = originalHtml;
+                isSharing = false;
+                return;
+            }
+
+            const fileName = `DreamyVoyage_${trackTitle.replace(/[^a-zA-Z0-9_\-\u4e00-\u9fa5]/g, '_')}.png`;
+            const file = new File([blob], fileName, { type: 'image/png' });
+
+            const shareData = {
+                title: `Dreamy Voyage - ${trackTitle}`,
+                text: `✨ Immerse in "${trackTitle}" on Dreamy Voyage: ${shareUrl}`,
+                url: shareUrl
+            };
+
+            // 快照生成完毕，提前恢复按键状态，防止系统原生分享面板遮挡等待时按键一直停留在转圈中
+            if (btnShare) {
+                btnShare.innerHTML = originalHtml;
+            }
+            isSharing = false;
+
+            let sharedSuccessfully = false;
+
+            // 1. 尝试系统原生分享 (包含 9:16 图片文件)
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share(Object.assign({}, shareData, { files: [file] }));
+                    sharedSuccessfully = true;
+                } catch (shareErr) {
+                    if (shareErr.name === 'AbortError') {
+                        return; // 用户在系统弹窗中主动关闭
+                    }
+                    console.warn('[Echosfall] 携带文件分享未完成，尝试降级分享:', shareErr);
+                }
+            }
+
+            // 2. 降级尝试无文件原生分享 (部分系统平台仅支持文本和 URL)
+            if (!sharedSuccessfully && navigator.share) {
+                try {
+                    downloadBlob(blob, fileName);
+                    await navigator.share(shareData);
+                    sharedSuccessfully = true;
+                } catch (shareErr) {
+                    if (shareErr.name === 'AbortError') return;
+                    console.warn('[Echosfall] 原生文本分享未完成，进入剪贴板降级:', shareErr);
+                }
+            }
+
+            // 3. 桌面端或不支持原生分享环境：自动保存 9:16 手机竖屏高清截图 + 复制定向短链接
+            if (!sharedSuccessfully) {
+                downloadBlob(blob, fileName);
+                try {
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(shareUrl);
+                        showToast('✨ Snapshot saved & link copied to clipboard!');
+                    } else {
+                        showToast('✨ Snapshot saved to downloads!');
+                    }
+                } catch (clipErr) {
+                    showToast('✨ Snapshot saved to downloads!');
+                }
+            }
+        } catch (err) {
+            console.error('[Echosfall] 分享处理异常:', err);
+            showToast('Share failed');
+            if (btnShare) {
+                btnShare.innerHTML = originalHtml;
+            }
+            isSharing = false;
+        }
     }
 
     // ==========================================
@@ -966,19 +1257,46 @@
         initWebAudio();
         initButterchurnVisualizer();
 
-        // 检查 URL 是否带参 ?song=X，若未带参则随机播放一首音乐
+        // 检查 URL 是否带参 ?s=X 或 ?song=X 以及 ?p=Y 或 ?preset=Y
         const urlParams = new URLSearchParams(window.location.search);
-        const songParam = urlParams.get('song');
-        let initialIndex = 0;
-        if (songParam !== null) {
+        const songParam = urlParams.get('s') || urlParams.get('song');
+        const presetParam = urlParams.get('p') || urlParams.get('preset');
+
+        let initialSongIndex = -1;
+        if (songParam !== null && songParam !== '') {
             const idx = parseInt(songParam, 10);
-            if (!isNaN(idx) && idx >= 0 && idx < songList.length) initialIndex = idx;
-        } else if (songList.length > 0) {
-            initialIndex = Math.floor(Math.random() * songList.length);
+            if (!isNaN(idx) && idx >= 0 && idx < songList.length) {
+                initialSongIndex = idx;
+            } else {
+                const decoded = decodeURIComponent(songParam).toLowerCase();
+                const foundIdx = songList.findIndex(s => s.toLowerCase().includes(decoded));
+                if (foundIdx !== -1) initialSongIndex = foundIdx;
+            }
         }
 
-        const firstSong = songList[initialIndex] || songList[0];
-        const firstPreset = pickPresetForSong(firstSong, initialIndex);
+        if (initialSongIndex === -1 && songList.length > 0) {
+            initialSongIndex = Math.floor(Math.random() * songList.length);
+        }
+
+        const firstSong = songList[initialSongIndex] || songList[0];
+
+        let firstPreset = '';
+        if (presetParam !== null && presetParam !== '') {
+            const pIdx = parseInt(presetParam, 10);
+            if (!isNaN(pIdx) && pIdx >= 0 && pIdx < presetNames.length) {
+                firstPreset = presetNames[pIdx];
+            } else {
+                const decodedP = decodeURIComponent(presetParam).toLowerCase();
+                const foundP = presetNames.find(p => p.toLowerCase().includes(decodedP));
+                if (foundP) firstPreset = foundP;
+            }
+        }
+
+        if (!firstPreset) {
+            firstPreset = pickPresetForSong(firstSong, initialSongIndex);
+        }
+
+        console.log(`[Echosfall] 开启首发体验: 歌曲[${initialSongIndex}]="${firstSong}", 预设="${firstPreset}"`);
         playItem({ song: firstSong, presetName: firstPreset }, true);
     }
 
@@ -1087,6 +1405,13 @@
             btnNextPreset.addEventListener('click', (e) => {
                 e.stopPropagation();
                 switchRandomPreset(true);
+            });
+        }
+
+        if (btnShare) {
+            btnShare.addEventListener('click', (e) => {
+                e.stopPropagation();
+                handleShare();
             });
         }
 
