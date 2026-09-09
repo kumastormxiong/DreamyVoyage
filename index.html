@@ -88,6 +88,10 @@
     <div id="echosfall-pause-modal" class="echosfall-pause-modal" data-echosfall-control="true">
         <div class="pause-content" data-echosfall-control="true">
             <div class="pause-logo-wrap" data-echosfall-control="true">
+                <button id="btn-open-about" type="button" class="menu-avatar-btn" title="About Dreamy Voyage" aria-label="About Dreamy Voyage" data-echosfall-control="true">
+                    <div class="menu-avatar-glow" data-echosfall-control="true"></div>
+                    <img src="./favicon_circle.png" alt="Dreamy Voyage" class="menu-avatar-img" data-echosfall-control="true" />
+                </button>
                 <div class="pause-logo-glow"></div>
                 <h1 class="pause-logo-text">ECHOSFALL</h1>
             </div>
@@ -124,6 +128,59 @@
             <a href="https://open.spotify.com/artist/4697UO1twJkVreMzMQIFo0" target="_blank" rel="noopener noreferrer" class="spotify-circle-btn" title="Listen on Spotify" aria-label="Listen on Spotify" data-echosfall-control="true">
                 <i class="fa-brands fa-spotify"></i>
             </a>
+        </div>
+    </div>
+
+    <!-- 关于页面全屏模态 (About Dreamy Voyage Modal) -->
+    <div id="about-modal" class="about-modal hidden" data-echosfall-control="true">
+        <div class="about-modal-backdrop" data-echosfall-control="true"></div>
+        <div class="about-modal-dialog" data-echosfall-control="true">
+            <button id="btn-close-about" type="button" class="btn-close-about" title="Close" aria-label="Close" data-echosfall-control="true">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="about-modal-content" data-echosfall-control="true">
+                <div class="about-header" data-echosfall-control="true">
+                    <div class="about-avatar-wrapper" data-echosfall-control="true">
+                        <img src="./favicon_circle.png" alt="Dreamy Voyage" class="about-avatar-img" data-echosfall-control="true" />
+                        <div class="about-avatar-glow" data-echosfall-control="true"></div>
+                    </div>
+                    <h2 class="about-title" data-echosfall-control="true">About Dreamy Voyage</h2>
+                    <div class="about-tagline" data-echosfall-control="true">Echoes in the Fog · A Pocket of Stillness</div>
+                </div>
+
+                <div class="about-body" data-echosfall-control="true">
+                    <p class="about-para about-lead" data-echosfall-control="true">
+                        Life carries a quiet fragility—like a waking dream that slips through our fingers while we rush to keep up with the world. Somewhere in the noise and the daily demands, we slowly lose sight of the people we once meant to become.
+                    </p>
+
+                    <div class="about-highlight-box" data-echosfall-control="true">
+                        <span class="about-highlight-text" data-echosfall-control="true">That quiet drift is why Dreamy Voyage exists.</span>
+                    </div>
+
+                    <p class="about-para" data-echosfall-control="true">
+                        The melodies begin with AI. I do not think of myself as a producer, but as someone listening for echoes in the fog—keeping only what speaks directly to the chest. What matters is not the process, but the door this music might leave open for you.
+                    </p>
+
+                    <p class="about-para" data-echosfall-control="true">
+                        I hope these tracks feel like stepping into zero gravity: hazy, slow, and weightless enough to soften the edges of the day. When the background noise fades and the defenses quiet down, the things we set aside—early promises, half-remembered hopes, the clear light of our original purpose—can gently drift back into view.
+                    </p>
+
+                    <p class="about-para about-closing" data-echosfall-control="true">
+                        Through all the complications of living, may this sound offer you a small pocket of stillness… and, eventually, guide you back to your own shore.
+                    </p>
+                </div>
+
+                <div class="about-footer" data-echosfall-control="true">
+                    <a href="https://open.spotify.com/artist/4697UO1twJkVreMzMQIFo0" target="_blank" rel="noopener noreferrer" class="about-spotify-btn" title="Listen on Spotify" data-echosfall-control="true">
+                        <i class="fa-brands fa-spotify"></i>
+                        <span>Listen on Spotify</span>
+                    </a>
+                    <button id="btn-back-about" type="button" class="btn-about-back" data-echosfall-control="true">
+                        <i class="fa-solid fa-arrow-left"></i>
+                        <span>Back to Voyage</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 

@@ -45,6 +45,12 @@
     const btnShare = document.getElementById('btn-share');
     const toastEl = document.getElementById('echosfall-toast');
 
+    // 关于 Dreamy Voyage 模态浮层
+    const btnOpenAbout = document.getElementById('btn-open-about');
+    const aboutModal = document.getElementById('about-modal');
+    const btnCloseAbout = document.getElementById('btn-close-about');
+    const btnBackAbout = document.getElementById('btn-back-about');
+
     // 顶部状态栏与按钮
     const topStatusBar = document.getElementById('top-status-bar');
     const btnTopCatalog = document.getElementById('btn-top-catalog');
@@ -661,6 +667,22 @@
     }
 
     // ==========================================
+    // 关于 Dreamy Voyage 模态窗口控制
+    // ==========================================
+    function showAboutModal() {
+        hidePauseModal();
+        if (aboutModal) {
+            aboutModal.classList.remove('hidden');
+        }
+    }
+
+    function hideAboutModal() {
+        if (aboutModal) {
+            aboutModal.classList.add('hidden');
+        }
+    }
+
+    // ==========================================
     // Butterchurn 与 Web Audio 初始化
     // ==========================================
     function initWebAudio() {
@@ -1226,6 +1248,20 @@
             switchRandomPreset(true);
             return;
         }
+
+        // Escape 键：关闭打开的关于页面或暂停菜单
+        if (e.key === 'Escape') {
+            if (aboutModal && !aboutModal.classList.contains('hidden')) {
+                e.preventDefault();
+                hideAboutModal();
+                return;
+            }
+            if (pauseModal && pauseModal.classList.contains('visible')) {
+                e.preventDefault();
+                hidePauseModal();
+                return;
+            }
+        }
     }
 
     // ==========================================
@@ -1412,6 +1448,38 @@
             btnShare.addEventListener('click', (e) => {
                 e.stopPropagation();
                 handleShare();
+            });
+        }
+
+        // 关于页面按键与背景交互
+        if (btnOpenAbout) {
+            btnOpenAbout.addEventListener('click', (e) => {
+                e.stopPropagation();
+                showAboutModal();
+            });
+        }
+
+        if (btnCloseAbout) {
+            btnCloseAbout.addEventListener('click', (e) => {
+                e.stopPropagation();
+                hideAboutModal();
+            });
+        }
+
+        if (btnBackAbout) {
+            btnBackAbout.addEventListener('click', (e) => {
+                e.stopPropagation();
+                hideAboutModal();
+            });
+        }
+
+        if (aboutModal) {
+            aboutModal.addEventListener('click', (e) => {
+                if (e.target.closest('.about-modal-dialog')) {
+                    return;
+                }
+                e.stopPropagation();
+                hideAboutModal();
             });
         }
 
