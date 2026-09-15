@@ -120,6 +120,10 @@
                     <i class="fa-solid fa-arrow-up-from-bracket"></i>
                     <span>Share</span>
                 </button>
+                <button id="btn-open-settings" type="button" class="btn-pause-action btn-outline-amber" title="System Settings" data-echosfall-control="true">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>System Settings</span>
+                </button>
             </div>
             <div class="pause-hint" data-echosfall-control="true">
                 Swipe Up/Down or Arrow Keys ↑↓: Switch Track · Swipe Left/Right or Arrow Keys ←→: Blend Preset
@@ -128,6 +132,156 @@
             <a href="https://open.spotify.com/artist/4697UO1twJkVreMzMQIFo0" target="_blank" rel="noopener noreferrer" class="spotify-circle-btn" title="Listen on Spotify" aria-label="Listen on Spotify" data-echosfall-control="true">
                 <i class="fa-brands fa-spotify"></i>
             </a>
+        </div>
+    </div>
+
+    <!-- 系统设置模态浮层 (System Settings Modal) -->
+    <div id="settings-modal" class="about-modal settings-modal hidden" data-echosfall-control="true">
+        <div class="about-modal-backdrop" data-echosfall-control="true"></div>
+        <div class="about-modal-dialog settings-modal-dialog" data-echosfall-control="true">
+            <button id="btn-close-settings" type="button" class="btn-close-about" title="Close Settings" aria-label="Close Settings" data-echosfall-control="true">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="about-modal-content settings-modal-content" data-echosfall-control="true">
+                <div class="settings-header" data-echosfall-control="true">
+                    <div class="settings-icon-wrapper" data-echosfall-control="true">
+                        <i class="fa-solid fa-sliders"></i>
+                    </div>
+                    <div>
+                        <h2 class="settings-title" data-echosfall-control="true">System Settings</h2>
+                        <div class="settings-subtitle" data-echosfall-control="true">Visualizer, Timing & Cosmic Seed Engine</div>
+                    </div>
+                </div>
+
+                <!-- 1. 画质分档 (7 档，默认 4 档) -->
+                <div class="settings-card" data-echosfall-control="true">
+                    <div class="settings-card-header" data-echosfall-control="true">
+                        <div class="settings-card-title-wrap" data-echosfall-control="true">
+                            <i class="fa-solid fa-display settings-card-icon"></i>
+                            <span class="settings-card-label">Rendering Quality (7 Tiers)</span>
+                        </div>
+                        <span id="quality-tier-badge" class="settings-badge badge-cyan">Tier 4 · 1080P Standard (1.0x)</span>
+                    </div>
+                    <div class="settings-card-desc" data-echosfall-control="true">
+                        Scale WebGL internal buffer resolution. Tier 4 is standard full HD (1.0x). Tier 7 enables cinema 4K supersampling.
+                    </div>
+                    <div class="settings-range-wrap" data-echosfall-control="true">
+                        <input id="quality-range-slider" type="range" min="1" max="7" step="1" value="4" class="settings-range-input" data-echosfall-control="true" />
+                        <div class="settings-tier-labels" data-echosfall-control="true">
+                            <span>1 (540p)</span>
+                            <span>2 (720p)</span>
+                            <span>3 (900p)</span>
+                            <span class="tier-def">4 [Def]</span>
+                            <span>5 (1440p)</span>
+                            <span>6 (1800p)</span>
+                            <span>7 (4K)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. 效果自动播放时长 -->
+                <div class="settings-card" data-echosfall-control="true">
+                    <div class="settings-card-header" data-echosfall-control="true">
+                        <div class="settings-card-title-wrap" data-echosfall-control="true">
+                            <i class="fa-solid fa-clock-rotate-left settings-card-icon"></i>
+                            <span class="settings-card-label">Preset Auto-Cycle Duration</span>
+                        </div>
+                        <span id="cycle-duration-badge" class="settings-badge badge-purple">30s (Default)</span>
+                    </div>
+                    <div class="settings-card-desc" data-echosfall-control="true">
+                        Duration each visual preset plays before automatically blending to the next. Set to 0 to disable auto-cycle.
+                    </div>
+                    <div class="settings-range-wrap" data-echosfall-control="true">
+                        <input id="cycle-range-slider" type="range" min="0" max="120" step="15" value="30" class="settings-range-input" data-echosfall-control="true" />
+                        <div class="settings-tier-labels" data-echosfall-control="true">
+                            <span>Off</span>
+                            <span>15s</span>
+                            <span class="tier-def">30s [Def]</span>
+                            <span>45s</span>
+                            <span>60s</span>
+                            <span>90s</span>
+                            <span>120s</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. 伪随机种子设置 (每日刷新 / 自定义 / 伪随机重排) -->
+                <div class="settings-card" data-echosfall-control="true">
+                    <div class="settings-card-header" data-echosfall-control="true">
+                        <div class="settings-card-title-wrap" data-echosfall-control="true">
+                            <i class="fa-solid fa-dice-d20 settings-card-icon"></i>
+                            <span class="settings-card-label">Cosmic Shuffle Seed</span>
+                        </div>
+                        <span id="seed-mode-badge" class="settings-badge badge-amber">Daily Auto</span>
+                    </div>
+                    <div class="settings-card-desc" data-echosfall-control="true">
+                        A pseudo-random seed deterministically shuffles the playlist & presets. Auto-refreshes daily. Enter any seed or roll a new one.
+                    </div>
+                    <div class="settings-seed-input-row" data-echosfall-control="true">
+                        <input id="seed-input" type="text" maxlength="32" class="settings-seed-input" placeholder="e.g. DV-2026-09-14" spellcheck="false" data-echosfall-control="true" />
+                        <button id="btn-apply-seed" type="button" class="btn-seed-action btn-apply" title="Apply Seed" data-echosfall-control="true">
+                            <i class="fa-solid fa-check"></i> Apply
+                        </button>
+                    </div>
+                    <div class="settings-seed-btns-row" data-echosfall-control="true">
+                        <button id="btn-seed-daily" type="button" class="btn-seed-action" title="Reset to today's daily seed" data-echosfall-control="true">
+                            <i class="fa-solid fa-calendar-day"></i> Today's Seed
+                        </button>
+                        <button id="btn-seed-roll" type="button" class="btn-seed-action" title="Generate random seed" data-echosfall-control="true">
+                            <i class="fa-solid fa-shuffle"></i> Roll Seed
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 4. 预设过渡平滑时长 -->
+                <div class="settings-card" data-echosfall-control="true">
+                    <div class="settings-card-header" data-echosfall-control="true">
+                        <div class="settings-card-title-wrap" data-echosfall-control="true">
+                            <i class="fa-solid fa-wand-magic-sparkles settings-card-icon"></i>
+                            <span class="settings-card-label">Preset Blend Smoothness</span>
+                        </div>
+                        <span id="blend-duration-badge" class="settings-badge badge-cyan">2.7s (Dreamy)</span>
+                    </div>
+                    <div class="settings-segmented-group" id="blend-segmented-group" data-echosfall-control="true">
+                        <button type="button" class="btn-segment" data-blend="0" data-echosfall-control="true">Instant (0s)</button>
+                        <button type="button" class="btn-segment" data-blend="1.5" data-echosfall-control="true">Smooth (1.5s)</button>
+                        <button type="button" class="btn-segment active" data-blend="2.7" data-echosfall-control="true">Dreamy (2.7s)</button>
+                        <button type="button" class="btn-segment" data-blend="4.5" data-echosfall-control="true">Ethereal (4.5s)</button>
+                    </div>
+                </div>
+
+                <!-- 5. 切换效果时信息框显示控制 -->
+                <div class="settings-card" data-echosfall-control="true">
+                    <div class="settings-card-header" data-echosfall-control="true">
+                        <div class="settings-card-title-wrap" data-echosfall-control="true">
+                            <i class="fa-solid fa-message settings-card-icon"></i>
+                            <span class="settings-card-label">HUD Card on Preset Switch</span>
+                        </div>
+                        <span id="preset-hud-badge" class="settings-badge badge-cyan">Show Info Box (Default)</span>
+                    </div>
+                    <div class="settings-card-desc" data-echosfall-control="true">
+                        Choose whether the bottom track/preset floating card pops up when switching effects. Set to "Hide / Pure Visual" to enjoy uninterrupted visuals.
+                    </div>
+                    <div class="settings-segmented-group settings-segmented-2" id="preset-hud-segmented-group" data-echosfall-control="true">
+                        <button type="button" class="btn-segment active" data-hud="show" data-echosfall-control="true">
+                            <i class="fa-solid fa-eye"></i> Show Info Box
+                        </button>
+                        <button type="button" class="btn-segment" data-hud="hide" data-echosfall-control="true">
+                            <i class="fa-solid fa-eye-slash"></i> Hide (Pure Visual)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 6. 底部操作栏 -->
+                <div class="settings-footer" data-echosfall-control="true">
+                    <button id="btn-reset-settings" type="button" class="btn-settings-reset" title="Reset to Defaults" data-echosfall-control="true">
+                        <i class="fa-solid fa-rotate-left"></i> Reset Defaults
+                    </button>
+                    <button id="btn-back-settings" type="button" class="btn-settings-done" title="Done" data-echosfall-control="true">
+                        <i class="fa-solid fa-check"></i> Done
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 

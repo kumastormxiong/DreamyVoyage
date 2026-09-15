@@ -14,9 +14,20 @@
     const SWIPE_AXIS_RATIO = 1.18;
     const TAP_DISTANCE = 16;
     const DOUBLE_TAP_MS = 280;
-    const PRESET_BLEND_DURATION_SECONDS = 2.7; // butterchurn 官方推荐软切换混合时长
-    const PRESET_AUTO_CYCLE_SECONDS = 30; // 默认每个预设播放 30s 后自动软切换下一个随机预设
+    const DEFAULT_PRESET_BLEND_DURATION = 2.7; // butterchurn 官方推荐软切换混合时长
+    const DEFAULT_PRESET_AUTO_CYCLE = 30; // 默认每个预设播放 30s 后自动软切换下一个预设
     const MAX_HISTORY_STACK = 40;
+
+    // 7 档画质水平定义 (默认第 4 档 1080P 标准全高清)
+    const QUALITY_TIERS = [
+        { tier: 1, label: 'Tier 1 · 540P Eco (0.50x)', scale: 0.50, desc: '540P' },
+        { tier: 2, label: 'Tier 2 · 720P Smooth (0.67x)', scale: 0.67, desc: '720P' },
+        { tier: 3, label: 'Tier 3 · 900P Balanced (0.85x)', scale: 0.85, desc: '900P' },
+        { tier: 4, label: 'Tier 4 · 1080P Standard (1.00x)', scale: 1.00, desc: '1080P' },
+        { tier: 5, label: 'Tier 5 · 1440P High (1.25x)', scale: 1.25, desc: '1440P' },
+        { tier: 6, label: 'Tier 6 · 1800P Ultra (1.50x)', scale: 1.50, desc: '1800P' },
+        { tier: 7, label: 'Tier 7 · 4K Cinema (2.00x)', scale: 2.00, desc: '4K' },
+    ];
 
     // DOM 元素引用
     const canvas = document.getElementById('butterchurn-canvas');
@@ -43,7 +54,27 @@
     const favoriteStatusText = document.getElementById('favorite-status-text');
     const btnNextPreset = document.getElementById('btn-next-preset');
     const btnShare = document.getElementById('btn-share');
+    const btnOpenSettings = document.getElementById('btn-open-settings');
     const toastEl = document.getElementById('echosfall-toast');
+
+    // 系统设置模态浮层控件
+    const settingsModal = document.getElementById('settings-modal');
+    const btnCloseSettings = document.getElementById('btn-close-settings');
+    const btnBackSettings = document.getElementById('btn-back-settings');
+    const qualityRangeSlider = document.getElementById('quality-range-slider');
+    const qualityTierBadge = document.getElementById('quality-tier-badge');
+    const cycleRangeSlider = document.getElementById('cycle-range-slider');
+    const cycleDurationBadge = document.getElementById('cycle-duration-badge');
+    const seedModeBadge = document.getElementById('seed-mode-badge');
+    const seedInput = document.getElementById('seed-input');
+    const btnApplySeed = document.getElementById('btn-apply-seed');
+    const btnSeedDaily = document.getElementById('btn-seed-daily');
+    const btnSeedRoll = document.getElementById('btn-seed-roll');
+    const blendSegmentedGroup = document.getElementById('blend-segmented-group');
+    const blendDurationBadge = document.getElementById('blend-duration-badge');
+    const presetHudBadge = document.getElementById('preset-hud-badge');
+    const presetHudSegmentedGroup = document.getElementById('preset-hud-segmented-group');
+    const btnResetSettings = document.getElementById('btn-reset-settings');
 
     // 关于 Dreamy Voyage 模态浮层
     const btnOpenAbout = document.getElementById('btn-open-about');
@@ -63,7 +94,7 @@
     const catalogList = document.getElementById('catalog-list');
 
     // ==========================================
-    // 运行时状态
+    // 运行时状态与系统偏好
     // ==========================================
     let songList = [];
     let presets = {};
@@ -79,6 +110,23 @@
         console.warn('读取收藏记录失败:', e);
     }
 
+    // 系统设置偏好状态
+    let currentQualityTier = parseInt(localStorage.getItem('echosfall_quality_tier') || '4', 10);
+    if (isNaN(currentQualityTier) || currentQualityTier < 1 || currentQualityTier > 7) currentQualityTier = 4;
+    let presetCycleSeconds = parseInt(localStorage.getItem('echosfall_preset_cycle_seconds') || '30', 10);
+    if (isNaN(presetCycleSeconds) || presetCycleSeconds < 0) presetCycleSeconds = 30;
+    let presetBlendSeconds = parseFloat(localStorage.getItem('echosfall_preset_blend_seconds') || '2.7');
+    if (isNaN(presetBlendSeconds) || presetBlendSeconds < 0) presetBlendSeconds = 2.7;
+    let showInfoOnPresetSwitch = localStorage.getItem('echosfall_preset_hud_visible') !== 'false'; // 默认切换预设时显示信息框
+
+    // 确定性随机种子与打乱序列状态
+    let currentSeed = localStorage.getItem('echosfall_custom_seed') || getDailySeedString();
+    let isCustomSeed = Boolean(localStorage.getItem('echosfall_custom_seed'));
+    let shuffledSongList = [];
+    let shuffledPresetList = [];
+    let songSequenceIndex = 0;
+    let presetSequenceIndex = 0;
+
     let isPaused = false;
     let hasStarted = false;
     let visualizer = null;
@@ -93,6 +141,81 @@
     let lastTapAt = 0;
     let tapTimer = null;
     let titleTimer = null;
+
+    // ==========================================
+    // 确定性伪随机数生成 (PRNG) 与种子打乱引擎
+    // ==========================================
+    function getDailySeedString() {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `DV-${year}-${month}-${day}`;
+    }
+
+    function hashStringSeed(str) {
+        let h = 1779033703 ^ str.length;
+        for (let i = 0; i < str.length; i++) {
+            h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+            h = (h << 13) | (h >>> 19);
+        }
+        return function() {
+            h = Math.imul(h ^ (h >>> 16), 2246822507);
+            h = Math.imul(h ^ (h >>> 13), 3266489909);
+            return (h ^= h >>> 16) >>> 0;
+        };
+    }
+
+    function mulberry32(a) {
+        return function() {
+            let t = a += 0x6D2B79F5;
+            t = Math.imul(t ^ (t >>> 15), t | 1);
+            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+    function seededShuffle(array, rng) {
+        const arr = array.slice();
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            const temp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = temp;
+        }
+        return arr;
+    }
+
+    function buildSeededSequences(maintainCurrent = true) {
+        if (songList.length === 0) return;
+
+        const hasher = hashStringSeed(currentSeed);
+        const songRng = mulberry32(hasher());
+        const presetRng = mulberry32(hasher());
+
+        shuffledSongList = seededShuffle(songList, songRng);
+        if (presetNames.length > 0) {
+            shuffledPresetList = seededShuffle(presetNames, presetRng);
+        } else {
+            shuffledPresetList = [];
+        }
+
+        if (maintainCurrent && currentItem && currentItem.song) {
+            const foundSongIdx = shuffledSongList.indexOf(currentItem.song);
+            if (foundSongIdx !== -1) songSequenceIndex = foundSongIdx;
+        } else {
+            songSequenceIndex = 0;
+        }
+
+        if (maintainCurrent && currentItem && currentItem.presetName && shuffledPresetList.length > 0) {
+            const foundPresetIdx = shuffledPresetList.indexOf(currentItem.presetName);
+            if (foundPresetIdx !== -1) presetSequenceIndex = foundPresetIdx;
+        } else {
+            presetSequenceIndex = 0;
+        }
+
+        console.log(`[Echosfall] 种子 "${currentSeed}" 伪随机重排就绪: 曲目=${shuffledSongList.length}首, 预设=${shuffledPresetList.length}组`);
+    }
 
     // ==========================================
     // 初始化数据源 (Dreamy Voyage 音乐与预设)
@@ -114,8 +237,10 @@
             presets = Object.assign({}, window.echosfallPresets);
         }
 
+        buildSeededSequences(false);
         renderCatalog();
         updateModeButtonUI();
+        initSettingsUI();
     }
 
     // 格式化歌曲展示标题 (仅保留序号和中英文，去除其后的 -Mastered、-old 等其他后缀)
@@ -167,7 +292,16 @@
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
                 closeCatalog();
-                const selectedPreset = pickPresetForSong(song, index);
+                const songIdx = shuffledSongList.indexOf(song);
+                if (songIdx !== -1) {
+                    songSequenceIndex = songIdx;
+                }
+                const selectedPreset = (shuffledPresetList.length > 0)
+                    ? shuffledPresetList[songSequenceIndex % shuffledPresetList.length]
+                    : pickPresetForSong(song, index);
+                if (shuffledPresetList.length > 0) {
+                    presetSequenceIndex = songSequenceIndex % shuffledPresetList.length;
+                }
                 playItem({ song, presetName: selectedPreset }, true);
                 if (isPaused) {
                     resumePlayback();
@@ -233,10 +367,10 @@
     }
 
     // ==========================================
-    // 队列控制 (下一首 / 上一首)
+    // 队列控制 (下一首 / 上一首，确定性伪随机双向往返)
     // ==========================================
-    function getNextItem() {
-        if (songList.length === 0) return null;
+    function goNext() {
+        if (songList.length === 0 || isSongSwitching) return;
 
         let nextSong = '';
         let nextPreset = '';
@@ -247,44 +381,52 @@
             nextSong = songList[nextIndex];
             nextPreset = pickPresetForSong(nextSong, nextIndex);
         } else {
-            // 随机模式：避免与当前曲目连续相同
-            const currentSong = currentItem ? currentItem.song : '';
-            const available = songList.filter(s => s !== currentSong);
-            const pool = available.length > 0 ? available : songList;
-            nextSong = pool[Math.floor(Math.random() * pool.length)];
-            nextPreset = pickPresetForSong(nextSong, Math.floor(Math.random() * presetNames.length));
-        }
+            // 种子打乱伪随机模式：按重排顺序平稳切向下一首
+            if (shuffledSongList.length === 0) buildSeededSequences(true);
+            songSequenceIndex = (songSequenceIndex + 1) % shuffledSongList.length;
+            nextSong = shuffledSongList[songSequenceIndex];
 
-        return { song: nextSong, presetName: nextPreset };
-    }
-
-    function goNext() {
-        const next = getNextItem();
-        if (!next) return;
-
-        if (currentItem) {
-            historyStack.push(currentItem);
-            if (historyStack.length > MAX_HISTORY_STACK) {
-                historyStack.shift();
+            // 预设游标同步推进至序列下一项
+            if (shuffledPresetList.length > 0) {
+                presetSequenceIndex = (presetSequenceIndex + 1) % shuffledPresetList.length;
+                nextPreset = shuffledPresetList[presetSequenceIndex];
+            } else {
+                nextPreset = pickPresetForSong(nextSong, songSequenceIndex);
             }
         }
 
-        playItem(next, true);
+        console.log(`[Echosfall] 切换至下一首 [${songSequenceIndex + 1}/${shuffledSongList.length}]: ${nextSong}`);
+        playItem({ song: nextSong, presetName: nextPreset }, true);
     }
 
     function goPrevious() {
-        if (historyStack.length > 0) {
-            const prev = historyStack.pop();
-            playItem(prev, false);
+        if (songList.length === 0 || isSongSwitching) return;
+
+        let prevSong = '';
+        let prevPreset = '';
+
+        if (playbackMode === 'sequence') {
+            const currentSongIndex = currentItem ? songList.indexOf(currentItem.song) : 0;
+            const prevIndex = (currentSongIndex - 1 + songList.length) % songList.length;
+            prevSong = songList[prevIndex];
+            prevPreset = pickPresetForSong(prevSong, prevIndex);
         } else {
-            // 没有历史栈时，如果是顺序播放则切上一首，随机则重随机
-            if (songList.length === 0) return;
-            const currentIndex = currentItem ? songList.indexOf(currentItem.song) : 0;
-            const prevIndex = (currentIndex - 1 + songList.length) % songList.length;
-            const prevSong = songList[prevIndex];
-            const prevPreset = pickPresetForSong(prevSong, prevIndex);
-            playItem({ song: prevSong, presetName: prevPreset }, false);
+            // 种子打乱伪随机模式：回退至刚才播放的上一首 (支持精准双向往返)
+            if (shuffledSongList.length === 0) buildSeededSequences(true);
+            songSequenceIndex = (songSequenceIndex - 1 + shuffledSongList.length) % shuffledSongList.length;
+            prevSong = shuffledSongList[songSequenceIndex];
+
+            // 预设游标同步回退至刚才呈现的上一个效果
+            if (shuffledPresetList.length > 0) {
+                presetSequenceIndex = (presetSequenceIndex - 1 + shuffledPresetList.length) % shuffledPresetList.length;
+                prevPreset = shuffledPresetList[presetSequenceIndex];
+            } else {
+                prevPreset = pickPresetForSong(prevSong, songSequenceIndex);
+            }
         }
+
+        console.log(`[Echosfall] 回退至上一首 [${songSequenceIndex + 1}/${shuffledSongList.length}]: ${prevSong}`);
+        playItem({ song: prevSong, presetName: prevPreset }, false);
     }
 
     // ==========================================
@@ -373,33 +515,55 @@
 
     function updatePresetTitle(presetName) {
         presetNameEl.innerText = (presetName || 'REVERIE SPECTRUM').replace(/\.json$/i, '');
-        // 软切换预设时，触发卡片展示动效
-        titleCard.classList.remove('title-animate');
-        void titleCard.offsetWidth;
-        titleCard.classList.add('title-animate');
+        // 依据系统设置：切换预设时是否展示底部信息卡片 (关闭时纯净呈现流体视觉)
+        if (showInfoOnPresetSwitch) {
+            titleCard.classList.remove('title-animate');
+            void titleCard.offsetWidth;
+            titleCard.classList.add('title-animate');
+        }
     }
 
-    // 随机预设软切换 (采用 Butterchurn 官方推荐 2.7s 软过渡混合)
-    async function switchRandomPreset(soft = true) {
-        if (presetNames.length === 0) return;
-        const currentPName = (currentItem && currentItem.presetName) ? currentItem.presetName : '';
-        const candidatePool = presetNames.filter(p => p !== currentPName);
-        const pool = candidatePool.length > 0 ? candidatePool : presetNames;
-        const nextPName = pool[Math.floor(Math.random() * pool.length)];
-
-        console.log(`[Echosfall] 软切换至新预设: ${nextPName} (blendTime: ${soft ? PRESET_BLEND_DURATION_SECONDS : 0}s)`);
-        await loadPresetIntoVisualizer(nextPName, soft ? PRESET_BLEND_DURATION_SECONDS : 0);
-        startPresetAutoCycle(); // 切换后重新计时 30 秒
+    // 预设效果切换：切换至下一个预设 (向右)
+    async function switchNextPreset(soft = true) {
+        if (shuffledPresetList.length === 0) {
+            if (presetNames.length > 0) buildSeededSequences(true);
+            else return;
+        }
+        presetSequenceIndex = (presetSequenceIndex + 1) % shuffledPresetList.length;
+        const nextPName = shuffledPresetList[presetSequenceIndex];
+        const bTime = soft ? presetBlendSeconds : 0;
+        console.log(`[Echosfall] 切换至下一个预设 [${presetSequenceIndex + 1}/${shuffledPresetList.length}]: ${nextPName} (blendTime: ${bTime}s)`);
+        await loadPresetIntoVisualizer(nextPName, bTime);
+        startPresetAutoCycle();
     }
 
-    // 30s 自动轮播计时器
+    // 预设效果切换：回退至上一个预设 (向左，可回退到刚才看过的效果)
+    async function switchPrevPreset(soft = true) {
+        if (shuffledPresetList.length === 0) {
+            if (presetNames.length > 0) buildSeededSequences(true);
+            else return;
+        }
+        presetSequenceIndex = (presetSequenceIndex - 1 + shuffledPresetList.length) % shuffledPresetList.length;
+        const prevPName = shuffledPresetList[presetSequenceIndex];
+        const bTime = soft ? presetBlendSeconds : 0;
+        console.log(`[Echosfall] 回退至上一个预设 [${presetSequenceIndex + 1}/${shuffledPresetList.length}]: ${prevPName} (blendTime: ${bTime}s)`);
+        await loadPresetIntoVisualizer(prevPName, bTime);
+        startPresetAutoCycle();
+    }
+
+    // 兼容原调用的随机切预设别名
+    function switchRandomPreset(soft = true) {
+        return switchNextPreset(soft);
+    }
+
+    // 预设自动轮播计时器 (支持系统设置中的自定义时长 / 0为关闭)
     function startPresetAutoCycle() {
         stopPresetAutoCycle();
-        if (isPaused || !hasStarted) return;
+        if (isPaused || !hasStarted || presetCycleSeconds <= 0) return;
         presetAutoCycleTimer = setTimeout(() => {
-            console.log('[Echosfall] 30秒预设播放到期，自动软切换至下一个随机预设');
-            switchRandomPreset(true);
-        }, PRESET_AUTO_CYCLE_SECONDS * 1000);
+            console.log(`[Echosfall] 预设播放 ${presetCycleSeconds}s 到期，自动软切换至下一个预设`);
+            switchNextPreset(true);
+        }, presetCycleSeconds * 1000);
     }
 
     function stopPresetAutoCycle() {
@@ -409,7 +573,7 @@
         }
     }
 
-    async function loadPresetIntoVisualizer(presetName, blendTime = PRESET_BLEND_DURATION_SECONDS) {
+    async function loadPresetIntoVisualizer(presetName, blendTime = presetBlendSeconds) {
         if (!visualizer) return;
         try {
             let presetData = presets[presetName];
@@ -728,9 +892,11 @@
         const screenH = Math.max(window.innerHeight || 0, 320);
         const isPortrait = isMobile && screenH > screenW;
 
-        // 全面提高显示精度：原生 DPR 结合高清 1.0 纹理，杜绝低清与锯齿模糊
-        const pixelRatio = Math.min(window.devicePixelRatio || 1, 2.0);
-        const textureRatio = 1.0;
+        // 依据系统设置中 7 档画质精准计算 DPR 缩放倍率 (默认第 4 档 1080P)
+        const tierObj = QUALITY_TIERS.find(t => t.tier === currentQualityTier) || QUALITY_TIERS[3];
+        const baseDpr = window.devicePixelRatio || 1;
+        const pixelRatio = Math.max(0.45, Math.min(baseDpr * tierObj.scale, 3.0));
+        const textureRatio = currentQualityTier >= 5 ? 1.0 : (currentQualityTier <= 2 ? 0.75 : 1.0);
 
         let renderW = screenW;
         let renderH = screenH;
@@ -779,8 +945,8 @@
         }
 
         const dims = getVisualizerDimensions();
-        const bufferW = Math.floor(dims.renderW * dims.pixelRatio);
-        const bufferH = Math.floor(dims.renderH * dims.pixelRatio);
+        const bufferW = Math.max(Math.floor(dims.renderW * dims.pixelRatio), 320);
+        const bufferH = Math.max(Math.floor(dims.renderH * dims.pixelRatio), 240);
 
         // 显式保证 WebGL 画布绘图物理缓冲全屏高清分辨率
         canvas.width = bufferW;
@@ -794,13 +960,13 @@
                 width: bufferW,
                 height: bufferH,
                 pixelRatio: 1,
-                textureRatio: 1
+                textureRatio: dims.textureRatio
             });
 
             // 将 gainNode 频域数据连接到 visualizer
             visualizer.connectAudio(gainNode || sourceNode);
             startRenderLoop();
-            console.log(`[Echosfall] Butterchurn Visualizer 开启全屏高清渲染: ${bufferW}x${bufferH} (竖屏旋转对齐: ${dims.isPortrait})`);
+            console.log(`[Echosfall] Butterchurn Visualizer [画质第 ${currentQualityTier} 档] 开启全屏渲染: ${bufferW}x${bufferH} (竖屏旋转对齐: ${dims.isPortrait})`);
 
             // 如果当前已有正在播放项，立即同步加载预设
             if (currentItem && currentItem.presetName) {
@@ -814,17 +980,17 @@
     function resizeVisualizer() {
         if (!visualizer) return;
         const dims = getVisualizerDimensions();
-        const bufferW = Math.floor(dims.renderW * dims.pixelRatio);
-        const bufferH = Math.floor(dims.renderH * dims.pixelRatio);
+        const bufferW = Math.max(Math.floor(dims.renderW * dims.pixelRatio), 320);
+        const bufferH = Math.max(Math.floor(dims.renderH * dims.pixelRatio), 240);
 
         canvas.width = bufferW;
         canvas.height = bufferH;
 
         visualizer.setRendererSize(bufferW, bufferH, {
             pixelRatio: 1,
-            textureRatio: 1
+            textureRatio: dims.textureRatio
         });
-        console.log(`[Echosfall] Visualizer 适配更新全屏高清尺寸: ${bufferW}x${bufferH} (竖屏旋转对齐: ${dims.isPortrait})`);
+        console.log(`[Echosfall] Visualizer [画质第 ${currentQualityTier} 档] 适配更新: ${bufferW}x${bufferH} (竖屏旋转对齐: ${dims.isPortrait})`);
     }
 
     let pendingCaptureResolve = null;
@@ -1185,10 +1351,16 @@
             return;
         }
 
-        // 2. 手机左右滑动：随机渐渐软切换一个新的 Butterchurn 预设 (2.7s 官方推荐平滑过渡)
+        // 2. 手机左右滑动：双向切换预设 (右滑切下一个，左滑回退至刚才看过的上一个)
         if (isHorizontalSwipe) {
-            console.log('[Echosfall] 移动端左右滑动触发：渐渐软切换下一个随机预设');
-            switchRandomPreset(true);
+            const goForward = deltaX > 0;
+            if (goForward) {
+                console.log('[Echosfall] 移动端右滑触发：切换下一个预设');
+                switchNextPreset(true);
+            } else {
+                console.log('[Echosfall] 移动端左滑触发：回退至上一个预设');
+                switchPrevPreset(true);
+            }
             return;
         }
 
@@ -1225,19 +1397,24 @@
         }, DOUBLE_TAP_MS);
     }
 
-    // 键盘监听 (PC 端：方向键上下切歌，方向键左右渐渐切换预设，空格键亦支持软切)
+    // 键盘监听 (PC 端：方向键上下切歌/回退，方向键左右切换预设/回退，空格键亦支持软切)
     function handleKeyDown(e) {
         if (isInteractiveTarget(e.target)) return;
 
-        // 方向键左右：随机渐渐软切换至新预设
-        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        // 方向键左右：切换与回退预设 (右 = 下一个，左 = 上一个/刚才看过的效果)
+        if (e.key === 'ArrowRight') {
             e.preventDefault();
-            console.log(`[Echosfall] 方向键 ${e.key}：渐渐软切换下一个随机预设`);
-            switchRandomPreset(true);
+            console.log('[Echosfall] 方向键 ArrowRight：切换下一个预设');
+            switchNextPreset(true);
+            return;
+        } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            console.log('[Echosfall] 方向键 ArrowLeft：回退至上一个预设');
+            switchPrevPreset(true);
             return;
         }
 
-        // 方向键上下：切换音乐 (下 = 下一首，上 = 上一首)
+        // 方向键上下：切换与回退音乐 (下 = 下一首，上 = 上一首/刚才听过的歌曲)
         if (e.key === 'ArrowDown') {
             e.preventDefault();
             if (isPaused) resumePlayback();
@@ -1250,16 +1427,21 @@
             return;
         }
 
-        // 空格键：亦支持快捷软切换预设
+        // 空格键：亦支持快捷软切换下一个预设
         if (e.key === ' ' || e.code === 'Space') {
             e.preventDefault();
-            console.log('[Echosfall] 空格键触发：平滑软切换下一个随机预设');
-            switchRandomPreset(true);
+            console.log('[Echosfall] 空格键触发：切换下一个预设');
+            switchNextPreset(true);
             return;
         }
 
-        // Escape 键：关闭打开的关于页面或暂停菜单
+        // Escape 键：关闭打开的设置窗口、关于页面或暂停菜单
         if (e.key === 'Escape') {
+            if (settingsModal && !settingsModal.classList.contains('hidden')) {
+                e.preventDefault();
+                hideSettingsModal();
+                return;
+            }
             if (aboutModal && !aboutModal.classList.contains('hidden')) {
                 e.preventDefault();
                 hideAboutModal();
@@ -1320,10 +1502,17 @@
         }
 
         if (initialSongIndex === -1 && songList.length > 0) {
-            initialSongIndex = Math.floor(Math.random() * songList.length);
+            if (shuffledSongList.length > 0) {
+                songSequenceIndex = 0;
+                initialSongIndex = songList.indexOf(shuffledSongList[0]);
+            } else {
+                initialSongIndex = Math.floor(Math.random() * songList.length);
+            }
         }
 
-        const firstSong = songList[initialSongIndex] || songList[0];
+        const firstSong = (initialSongIndex !== -1 && songList[initialSongIndex])
+            ? songList[initialSongIndex]
+            : (shuffledSongList[0] || songList[0]);
 
         let firstPreset = '';
         if (presetParam !== null && presetParam !== '') {
@@ -1338,7 +1527,12 @@
         }
 
         if (!firstPreset) {
-            firstPreset = pickPresetForSong(firstSong, initialSongIndex);
+            if (shuffledPresetList.length > 0) {
+                presetSequenceIndex = 0;
+                firstPreset = shuffledPresetList[0];
+            } else {
+                firstPreset = pickPresetForSong(firstSong, initialSongIndex);
+            }
         }
 
         console.log(`[Echosfall] 开启首发体验: 歌曲[${initialSongIndex}]="${firstSong}", 预设="${firstPreset}"`);
@@ -1360,6 +1554,180 @@
                 document.webkitExitFullscreen();
             }
         }
+    }
+
+    // ==========================================
+    // 系统设置窗口 (System Settings Modal) 交互控制
+    // ==========================================
+    function setQualityTier(tier) {
+        tier = Math.max(1, Math.min(7, parseInt(tier, 10) || 4));
+        currentQualityTier = tier;
+        localStorage.setItem('echosfall_quality_tier', String(tier));
+        updateQualityUI();
+        resizeVisualizer();
+    }
+
+    function updateQualityUI() {
+        if (!qualityRangeSlider || !qualityTierBadge) return;
+        qualityRangeSlider.value = currentQualityTier;
+        const tierObj = QUALITY_TIERS.find(t => t.tier === currentQualityTier) || QUALITY_TIERS[3];
+        qualityTierBadge.innerText = tierObj.label;
+    }
+
+    function setCycleDuration(seconds) {
+        seconds = Math.max(0, parseInt(seconds, 10) || 0);
+        presetCycleSeconds = seconds;
+        localStorage.setItem('echosfall_preset_cycle_seconds', String(seconds));
+        updateCycleUI();
+        startPresetAutoCycle();
+    }
+
+    function updateCycleUI() {
+        if (!cycleRangeSlider || !cycleDurationBadge) return;
+        cycleRangeSlider.value = presetCycleSeconds;
+        if (presetCycleSeconds === 0) {
+            cycleDurationBadge.innerText = 'Disabled (Manual Only)';
+            cycleDurationBadge.className = 'settings-badge badge-purple';
+        } else if (presetCycleSeconds === 30) {
+            cycleDurationBadge.innerText = '30s (Default)';
+            cycleDurationBadge.className = 'settings-badge badge-purple';
+        } else {
+            cycleDurationBadge.innerText = `${presetCycleSeconds}s`;
+            cycleDurationBadge.className = 'settings-badge badge-purple';
+        }
+    }
+
+    function setPresetBlendDuration(seconds) {
+        presetBlendSeconds = Math.max(0, parseFloat(seconds) || 0);
+        localStorage.setItem('echosfall_preset_blend_seconds', String(presetBlendSeconds));
+        updateBlendUI();
+    }
+
+    function updateBlendUI() {
+        if (!blendDurationBadge) return;
+        let desc = `${presetBlendSeconds}s`;
+        if (presetBlendSeconds === 0) desc = 'Instant (0s)';
+        else if (presetBlendSeconds === 1.5) desc = 'Smooth (1.5s)';
+        else if (presetBlendSeconds === 2.7) desc = '2.7s (Dreamy Default)';
+        else if (presetBlendSeconds === 4.5) desc = 'Ethereal (4.5s)';
+        blendDurationBadge.innerText = desc;
+
+        if (blendSegmentedGroup) {
+            const btns = blendSegmentedGroup.querySelectorAll('.btn-segment');
+            btns.forEach(btn => {
+                const bVal = parseFloat(btn.getAttribute('data-blend'));
+                if (Math.abs(bVal - presetBlendSeconds) < 0.1) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+    }
+
+    function setPresetHudVisibility(visible) {
+        showInfoOnPresetSwitch = Boolean(visible);
+        localStorage.setItem('echosfall_preset_hud_visible', String(showInfoOnPresetSwitch));
+        updatePresetHudUI();
+    }
+
+    function updatePresetHudUI() {
+        if (!presetHudBadge) return;
+        if (showInfoOnPresetSwitch) {
+            presetHudBadge.innerText = 'Show Info Box (Default)';
+            presetHudBadge.className = 'settings-badge badge-cyan';
+        } else {
+            presetHudBadge.innerText = 'Hidden (Pure Visual)';
+            presetHudBadge.className = 'settings-badge badge-purple';
+        }
+
+        if (presetHudSegmentedGroup) {
+            const btns = presetHudSegmentedGroup.querySelectorAll('.btn-segment');
+            btns.forEach(btn => {
+                const val = btn.getAttribute('data-hud');
+                if ((val === 'show' && showInfoOnPresetSwitch) || (val === 'hide' && !showInfoOnPresetSwitch)) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+    }
+
+    function setCustomSeed(newSeed) {
+        const cleanSeed = (newSeed || '').trim();
+        if (!cleanSeed) {
+            localStorage.removeItem('echosfall_custom_seed');
+            currentSeed = getDailySeedString();
+            isCustomSeed = false;
+        } else {
+            currentSeed = cleanSeed;
+            isCustomSeed = true;
+            localStorage.setItem('echosfall_custom_seed', cleanSeed);
+        }
+        buildSeededSequences(true);
+        updateSeedUI();
+    }
+
+    function updateSeedUI() {
+        if (!seedInput || !seedModeBadge) return;
+        seedInput.value = currentSeed;
+        if (isCustomSeed) {
+            seedModeBadge.innerText = 'Custom Seed';
+            seedModeBadge.className = 'settings-badge badge-cyan';
+        } else {
+            seedModeBadge.innerText = 'Daily Auto';
+            seedModeBadge.className = 'settings-badge badge-amber';
+        }
+    }
+
+    function resetAllSettingsToDefaults() {
+        localStorage.removeItem('echosfall_quality_tier');
+        localStorage.removeItem('echosfall_preset_cycle_seconds');
+        localStorage.removeItem('echosfall_preset_blend_seconds');
+        localStorage.removeItem('echosfall_preset_hud_visible');
+        localStorage.removeItem('echosfall_custom_seed');
+
+        currentQualityTier = 4;
+        presetCycleSeconds = DEFAULT_PRESET_AUTO_CYCLE;
+        presetBlendSeconds = DEFAULT_PRESET_BLEND_DURATION;
+        showInfoOnPresetSwitch = true;
+        currentSeed = getDailySeedString();
+        isCustomSeed = false;
+
+        buildSeededSequences(true);
+        updateQualityUI();
+        updateCycleUI();
+        updateBlendUI();
+        updatePresetHudUI();
+        updateSeedUI();
+        resizeVisualizer();
+        startPresetAutoCycle();
+
+        showToast('Settings restored to defaults');
+    }
+
+    function showSettingsModal() {
+        if (!settingsModal) return;
+        updateQualityUI();
+        updateCycleUI();
+        updateBlendUI();
+        updatePresetHudUI();
+        updateSeedUI();
+        settingsModal.classList.remove('hidden');
+    }
+
+    function hideSettingsModal() {
+        if (!settingsModal) return;
+        settingsModal.classList.add('hidden');
+    }
+
+    function initSettingsUI() {
+        updateQualityUI();
+        updateCycleUI();
+        updateBlendUI();
+        updatePresetHudUI();
+        updateSeedUI();
     }
 
     // ==========================================
@@ -1449,7 +1817,7 @@
         if (btnNextPreset) {
             btnNextPreset.addEventListener('click', (e) => {
                 e.stopPropagation();
-                switchRandomPreset(true);
+                switchNextPreset(true);
             });
         }
 
@@ -1457,6 +1825,104 @@
             btnShare.addEventListener('click', (e) => {
                 e.stopPropagation();
                 handleShare();
+            });
+        }
+
+        // 打开系统设置窗口
+        if (btnOpenSettings) {
+            btnOpenSettings.addEventListener('click', (e) => {
+                e.stopPropagation();
+                hidePauseModal();
+                showSettingsModal();
+            });
+        }
+
+        // 系统设置窗口按键与交互
+        if (btnCloseSettings) {
+            btnCloseSettings.addEventListener('click', (e) => {
+                e.stopPropagation();
+                hideSettingsModal();
+            });
+        }
+
+        if (btnBackSettings) {
+            btnBackSettings.addEventListener('click', (e) => {
+                e.stopPropagation();
+                hideSettingsModal();
+            });
+        }
+
+        if (settingsModal) {
+            settingsModal.addEventListener('click', (e) => {
+                if (e.target.closest('.settings-modal-dialog')) {
+                    return;
+                }
+                e.stopPropagation();
+                hideSettingsModal();
+            });
+        }
+
+        if (qualityRangeSlider) {
+            qualityRangeSlider.addEventListener('input', (e) => {
+                setQualityTier(e.target.value);
+            });
+        }
+
+        if (cycleRangeSlider) {
+            cycleRangeSlider.addEventListener('input', (e) => {
+                setCycleDuration(e.target.value);
+            });
+        }
+
+        if (btnApplySeed) {
+            btnApplySeed.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setCustomSeed(seedInput.value);
+                showToast(`Seed applied: ${currentSeed}`);
+            });
+        }
+
+        if (btnSeedDaily) {
+            btnSeedDaily.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setCustomSeed('');
+                showToast(`Daily seed restored: ${currentSeed}`);
+            });
+        }
+
+        if (btnSeedRoll) {
+            btnSeedRoll.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const rndHex = Math.random().toString(36).substring(2, 8).toUpperCase();
+                setCustomSeed(`DV-${rndHex}`);
+                showToast(`New seed rolled: ${currentSeed}`);
+            });
+        }
+
+        if (blendSegmentedGroup) {
+            blendSegmentedGroup.addEventListener('click', (e) => {
+                const segBtn = e.target.closest('.btn-segment');
+                if (!segBtn) return;
+                e.stopPropagation();
+                const bVal = segBtn.getAttribute('data-blend');
+                setPresetBlendDuration(bVal);
+            });
+        }
+
+        if (presetHudSegmentedGroup) {
+            presetHudSegmentedGroup.addEventListener('click', (e) => {
+                const segBtn = e.target.closest('.btn-segment');
+                if (!segBtn) return;
+                e.stopPropagation();
+                const hudMode = segBtn.getAttribute('data-hud');
+                setPresetHudVisibility(hudMode === 'show');
+            });
+        }
+
+        if (btnResetSettings) {
+            btnResetSettings.addEventListener('click', (e) => {
+                e.stopPropagation();
+                resetAllSettingsToDefaults();
             });
         }
 
