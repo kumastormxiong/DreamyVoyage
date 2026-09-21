@@ -106,7 +106,7 @@
                 </button>
                 <button id="btn-open-catalog" type="button" class="btn-pause-action btn-outline-cyan" data-echosfall-control="true">
                     <i class="fa-solid fa-compact-disc"></i>
-                    <span>Dreamy Playlist</span>
+                    <span id="catalog-btn-text">Dreamy Playlist</span>
                 </button>
                 <button id="btn-toggle-favorite" type="button" class="btn-pause-action btn-outline-rose" data-echosfall-control="true">
                     <i id="favorite-status-icon" class="fa-regular fa-heart"></i>
@@ -114,18 +114,18 @@
                 </button>
                 <button id="btn-next-preset" type="button" class="btn-pause-action btn-outline-purple" data-echosfall-control="true">
                     <i class="fa-solid fa-wand-magic-sparkles"></i>
-                    <span>Switch Preset (Space)</span>
+                    <span id="preset-btn-text">Switch Preset (Space)</span>
                 </button>
                 <button id="btn-share" type="button" class="btn-pause-action btn-outline-emerald" title="Share Visual & Music" data-echosfall-control="true">
                     <i class="fa-solid fa-arrow-up-from-bracket"></i>
-                    <span>Share</span>
+                    <span id="share-btn-text">Share</span>
                 </button>
                 <button id="btn-open-settings" type="button" class="btn-pause-action btn-outline-amber" title="System Settings" data-echosfall-control="true">
                     <i class="fa-solid fa-sliders"></i>
-                    <span>System Settings</span>
+                    <span id="settings-btn-text">System Settings</span>
                 </button>
             </div>
-            <div class="pause-hint" data-echosfall-control="true">
+            <div id="pause-hint-text" class="pause-hint" data-echosfall-control="true">
                 Swipe Up/Down or Arrow Keys ↑↓: Switch Track · Swipe Left/Right or Arrow Keys ←→: Blend Preset
             </div>
             <!-- Spotify 绿色圆形图标艺术家跳转链接 -->
@@ -148,8 +148,30 @@
                         <i class="fa-solid fa-sliders"></i>
                     </div>
                     <div>
-                        <h2 class="settings-title" data-echosfall-control="true">System Settings</h2>
-                        <div class="settings-subtitle" data-echosfall-control="true">Visualizer, Timing & Cosmic Seed Engine</div>
+                        <h2 id="settings-title-text" class="settings-title" data-echosfall-control="true">System Settings</h2>
+                        <div id="settings-subtitle-text" class="settings-subtitle" data-echosfall-control="true">Visualizer, Timing & Cosmic Seed Engine</div>
+                    </div>
+                </div>
+
+                <!-- 0. 语言切换 (Language Switch: English default / 简体中文) -->
+                <div class="settings-card" data-echosfall-control="true">
+                    <div class="settings-card-header" data-echosfall-control="true">
+                        <div class="settings-card-title-wrap" data-echosfall-control="true">
+                            <i class="fa-solid fa-language settings-card-icon"></i>
+                            <span id="i18n-lang-title" class="settings-card-label">Interface & Track Language</span>
+                        </div>
+                        <span id="lang-badge" class="settings-badge badge-cyan">English (Default)</span>
+                    </div>
+                    <div id="i18n-lang-desc" class="settings-card-desc" data-echosfall-control="true">
+                        Select display language. English mode displays English-only track names; Chinese mode displays Chinese-only track names in playlist & HUD.
+                    </div>
+                    <div class="settings-segmented-group settings-segmented-2" id="lang-segmented-group" data-echosfall-control="true">
+                        <button type="button" class="btn-segment active" data-lang="en" data-echosfall-control="true">
+                            <i class="fa-solid fa-globe"></i> <span>English (Default)</span>
+                        </button>
+                        <button type="button" class="btn-segment" data-lang="zh" data-echosfall-control="true">
+                            <i class="fa-solid fa-font"></i> <span>简体中文</span>
+                        </button>
                     </div>
                 </div>
 
@@ -158,16 +180,16 @@
                     <div class="settings-card-header" data-echosfall-control="true">
                         <div class="settings-card-title-wrap" data-echosfall-control="true">
                             <i class="fa-solid fa-display settings-card-icon"></i>
-                            <span class="settings-card-label">Rendering Quality (7 Tiers)</span>
+                            <span id="i18n-quality-title" class="settings-card-label">Rendering Quality (7 Tiers)</span>
                         </div>
                         <span id="quality-tier-badge" class="settings-badge badge-cyan">Tier 4 · 1080P Standard (1.0x)</span>
                     </div>
-                    <div class="settings-card-desc" data-echosfall-control="true">
+                    <div id="i18n-quality-desc" class="settings-card-desc" data-echosfall-control="true">
                         Scale WebGL internal buffer resolution. Tier 4 is standard full HD (1.0x). Tier 7 enables cinema 4K supersampling.
                     </div>
                     <div class="settings-range-wrap" data-echosfall-control="true">
                         <input id="quality-range-slider" type="range" min="1" max="7" step="1" value="4" class="settings-range-input" data-echosfall-control="true" />
-                        <div class="settings-tier-labels" data-echosfall-control="true">
+                        <div class="settings-tier-labels" id="quality-tier-labels" data-echosfall-control="true">
                             <span>1 (540p)</span>
                             <span>2 (720p)</span>
                             <span>3 (900p)</span>
@@ -179,21 +201,21 @@
                     </div>
                 </div>
 
-                <!-- 2. 效果自动播放时长 -->
+                <!-- 2. 效果自动播放时长 (7 档物理步进索引：0, 15, 30, 45, 60, 90, 120 秒) -->
                 <div class="settings-card" data-echosfall-control="true">
                     <div class="settings-card-header" data-echosfall-control="true">
                         <div class="settings-card-title-wrap" data-echosfall-control="true">
                             <i class="fa-solid fa-clock-rotate-left settings-card-icon"></i>
-                            <span class="settings-card-label">Preset Auto-Cycle Duration</span>
+                            <span id="i18n-cycle-title" class="settings-card-label">Preset Auto-Cycle Duration</span>
                         </div>
                         <span id="cycle-duration-badge" class="settings-badge badge-purple">30s (Default)</span>
                     </div>
-                    <div class="settings-card-desc" data-echosfall-control="true">
+                    <div id="i18n-cycle-desc" class="settings-card-desc" data-echosfall-control="true">
                         Duration each visual preset plays before automatically blending to the next. Set to 0 to disable auto-cycle.
                     </div>
                     <div class="settings-range-wrap" data-echosfall-control="true">
-                        <input id="cycle-range-slider" type="range" min="0" max="120" step="15" value="30" class="settings-range-input" data-echosfall-control="true" />
-                        <div class="settings-tier-labels" data-echosfall-control="true">
+                        <input id="cycle-range-slider" type="range" min="0" max="6" step="1" value="2" class="settings-range-input" data-echosfall-control="true" />
+                        <div class="settings-tier-labels" id="cycle-tier-labels" data-echosfall-control="true">
                             <span>Off</span>
                             <span>15s</span>
                             <span class="tier-def">30s [Def]</span>
@@ -210,25 +232,25 @@
                     <div class="settings-card-header" data-echosfall-control="true">
                         <div class="settings-card-title-wrap" data-echosfall-control="true">
                             <i class="fa-solid fa-dice-d20 settings-card-icon"></i>
-                            <span class="settings-card-label">Cosmic Shuffle Seed</span>
+                            <span id="i18n-seed-title" class="settings-card-label">Cosmic Shuffle Seed</span>
                         </div>
                         <span id="seed-mode-badge" class="settings-badge badge-amber">Daily Auto</span>
                     </div>
-                    <div class="settings-card-desc" data-echosfall-control="true">
+                    <div id="i18n-seed-desc" class="settings-card-desc" data-echosfall-control="true">
                         A pseudo-random seed deterministically shuffles the playlist & presets. Auto-refreshes daily. Enter any seed or roll a new one.
                     </div>
                     <div class="settings-seed-input-row" data-echosfall-control="true">
                         <input id="seed-input" type="text" maxlength="32" class="settings-seed-input" placeholder="e.g. DV-2026-09-14" spellcheck="false" data-echosfall-control="true" />
                         <button id="btn-apply-seed" type="button" class="btn-seed-action btn-apply" title="Apply Seed" data-echosfall-control="true">
-                            <i class="fa-solid fa-check"></i> Apply
+                            <i class="fa-solid fa-check"></i> <span id="i18n-btn-apply">Apply</span>
                         </button>
                     </div>
                     <div class="settings-seed-btns-row" data-echosfall-control="true">
                         <button id="btn-seed-daily" type="button" class="btn-seed-action" title="Reset to today's daily seed" data-echosfall-control="true">
-                            <i class="fa-solid fa-calendar-day"></i> Today's Seed
+                            <i class="fa-solid fa-calendar-day"></i> <span id="i18n-btn-daily-seed">Today's Seed</span>
                         </button>
                         <button id="btn-seed-roll" type="button" class="btn-seed-action" title="Generate random seed" data-echosfall-control="true">
-                            <i class="fa-solid fa-shuffle"></i> Roll Seed
+                            <i class="fa-solid fa-shuffle"></i> <span id="i18n-btn-roll-seed">Roll Seed</span>
                         </button>
                     </div>
                 </div>
@@ -238,15 +260,18 @@
                     <div class="settings-card-header" data-echosfall-control="true">
                         <div class="settings-card-title-wrap" data-echosfall-control="true">
                             <i class="fa-solid fa-wand-magic-sparkles settings-card-icon"></i>
-                            <span class="settings-card-label">Preset Blend Smoothness</span>
+                            <span id="i18n-blend-title" class="settings-card-label">Preset Blend Smoothness</span>
                         </div>
                         <span id="blend-duration-badge" class="settings-badge badge-cyan">2.7s (Dreamy)</span>
                     </div>
+                    <div id="i18n-blend-desc" class="settings-card-desc" data-echosfall-control="true">
+                        Time taken to crossfade and interpolate between visual presets. Instant disables motion blurring.
+                    </div>
                     <div class="settings-segmented-group" id="blend-segmented-group" data-echosfall-control="true">
-                        <button type="button" class="btn-segment" data-blend="0" data-echosfall-control="true">Instant (0s)</button>
-                        <button type="button" class="btn-segment" data-blend="1.5" data-echosfall-control="true">Smooth (1.5s)</button>
-                        <button type="button" class="btn-segment active" data-blend="2.7" data-echosfall-control="true">Dreamy (2.7s)</button>
-                        <button type="button" class="btn-segment" data-blend="4.5" data-echosfall-control="true">Ethereal (4.5s)</button>
+                        <button type="button" class="btn-segment" data-blend="0" data-echosfall-control="true"><span id="i18n-blend-0">Instant (0s)</span></button>
+                        <button type="button" class="btn-segment" data-blend="1.5" data-echosfall-control="true"><span id="i18n-blend-1">Smooth (1.5s)</span></button>
+                        <button type="button" class="btn-segment active" data-blend="2.7" data-echosfall-control="true"><span id="i18n-blend-2">Dreamy (2.7s)</span></button>
+                        <button type="button" class="btn-segment" data-blend="4.5" data-echosfall-control="true"><span id="i18n-blend-3">Ethereal (4.5s)</span></button>
                     </div>
                 </div>
 
@@ -255,19 +280,19 @@
                     <div class="settings-card-header" data-echosfall-control="true">
                         <div class="settings-card-title-wrap" data-echosfall-control="true">
                             <i class="fa-solid fa-message settings-card-icon"></i>
-                            <span class="settings-card-label">HUD Card on Preset Switch</span>
+                            <span id="i18n-hud-title" class="settings-card-label">HUD Card on Preset Switch</span>
                         </div>
                         <span id="preset-hud-badge" class="settings-badge badge-cyan">Show Info Box (Default)</span>
                     </div>
-                    <div class="settings-card-desc" data-echosfall-control="true">
+                    <div id="i18n-hud-desc" class="settings-card-desc" data-echosfall-control="true">
                         Choose whether the bottom track/preset floating card pops up when switching effects. Set to "Hide / Pure Visual" to enjoy uninterrupted visuals.
                     </div>
                     <div class="settings-segmented-group settings-segmented-2" id="preset-hud-segmented-group" data-echosfall-control="true">
                         <button type="button" class="btn-segment active" data-hud="show" data-echosfall-control="true">
-                            <i class="fa-solid fa-eye"></i> Show Info Box
+                            <i class="fa-solid fa-eye"></i> <span id="i18n-hud-show">Show Info Box</span>
                         </button>
                         <button type="button" class="btn-segment" data-hud="hide" data-echosfall-control="true">
-                            <i class="fa-solid fa-eye-slash"></i> Hide (Pure Visual)
+                            <i class="fa-solid fa-eye-slash"></i> <span id="i18n-hud-hide">Hide (Pure Visual)</span>
                         </button>
                     </div>
                 </div>
@@ -275,10 +300,10 @@
                 <!-- 6. 底部操作栏 -->
                 <div class="settings-footer" data-echosfall-control="true">
                     <button id="btn-reset-settings" type="button" class="btn-settings-reset" title="Reset to Defaults" data-echosfall-control="true">
-                        <i class="fa-solid fa-rotate-left"></i> Reset Defaults
+                        <i class="fa-solid fa-rotate-left"></i> <span id="i18n-btn-reset">Reset Defaults</span>
                     </button>
                     <button id="btn-back-settings" type="button" class="btn-settings-done" title="Done" data-echosfall-control="true">
-                        <i class="fa-solid fa-check"></i> Done
+                        <i class="fa-solid fa-check"></i> <span id="i18n-btn-done">Done</span>
                     </button>
                 </div>
             </div>
@@ -298,11 +323,11 @@
                         <img src="./favicon_circle.png" alt="Dreamy Voyage" class="about-avatar-img" data-echosfall-control="true" />
                         <div class="about-avatar-glow" data-echosfall-control="true"></div>
                     </div>
-                    <h2 class="about-title" data-echosfall-control="true">About Dreamy Voyage</h2>
-                    <div class="about-tagline" data-echosfall-control="true">Echoes in the Fog · A Pocket of Stillness</div>
+                    <h2 id="about-title-text" class="about-title" data-echosfall-control="true">About Dreamy Voyage</h2>
+                    <div id="about-tagline-text" class="about-tagline" data-echosfall-control="true">Echoes in the Fog · A Pocket of Stillness</div>
                 </div>
 
-                <div class="about-body" data-echosfall-control="true">
+                <div id="about-body-content" class="about-body" data-echosfall-control="true">
                     <p class="about-para about-lead" data-echosfall-control="true">
                         Life carries a quiet fragility—like a waking dream that slips through our fingers while we rush to keep up with the world. Somewhere in the noise and the daily demands, we slowly lose sight of the people we once meant to become.
                     </p>
@@ -327,11 +352,11 @@
                 <div class="about-footer" data-echosfall-control="true">
                     <a href="https://open.spotify.com/artist/4697UO1twJkVreMzMQIFo0" target="_blank" rel="noopener noreferrer" class="about-spotify-btn" title="Listen on Spotify" data-echosfall-control="true">
                         <i class="fa-brands fa-spotify"></i>
-                        <span>Listen on Spotify</span>
+                        <span id="about-spotify-text">Listen on Spotify</span>
                     </a>
                     <button id="btn-back-about" type="button" class="btn-about-back" data-echosfall-control="true">
                         <i class="fa-solid fa-arrow-left"></i>
-                        <span>Back to Voyage</span>
+                        <span id="about-back-text">Back to Voyage</span>
                     </button>
                 </div>
             </div>
@@ -345,7 +370,7 @@
     <div id="catalog-drawer-overlay" class="catalog-drawer-overlay hidden" data-echosfall-control="true"></div>
     <div id="catalog-drawer" class="catalog-drawer" data-echosfall-control="true">
         <div class="drawer-header" data-echosfall-control="true">
-            <h3><i class="fa-solid fa-compact-disc"></i> Dreamy Tracks (68)</h3>
+            <h3 id="catalog-drawer-heading"><i class="fa-solid fa-compact-disc"></i> <span id="catalog-drawer-title-text">Dreamy Tracks</span> (<span id="catalog-drawer-count">68</span>)</h3>
             <button id="btn-close-catalog" type="button" class="btn-close-drawer" title="Close" data-echosfall-control="true">
                 <i class="fa-solid fa-xmark"></i>
             </button>

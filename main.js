@@ -18,16 +18,191 @@
     const DEFAULT_PRESET_AUTO_CYCLE = 30; // 默认每个预设播放 30s 后自动软切换下一个预设
     const MAX_HISTORY_STACK = 40;
 
+    // 效果自动切换离散步进秒数映射 (7 档：Off, 15s, 30s, 45s, 60s, 90s, 120s)
+    const CYCLE_STEPS = [0, 15, 30, 45, 60, 90, 120];
+
     // 7 档画质水平定义 (默认第 4 档 1080P 标准全高清)
     const QUALITY_TIERS = [
-        { tier: 1, label: 'Tier 1 · 540P Eco (0.50x)', scale: 0.50, desc: '540P' },
-        { tier: 2, label: 'Tier 2 · 720P Smooth (0.67x)', scale: 0.67, desc: '720P' },
-        { tier: 3, label: 'Tier 3 · 900P Balanced (0.85x)', scale: 0.85, desc: '900P' },
-        { tier: 4, label: 'Tier 4 · 1080P Standard (1.00x)', scale: 1.00, desc: '1080P' },
-        { tier: 5, label: 'Tier 5 · 1440P High (1.25x)', scale: 1.25, desc: '1440P' },
-        { tier: 6, label: 'Tier 6 · 1800P Ultra (1.50x)', scale: 1.50, desc: '1800P' },
-        { tier: 7, label: 'Tier 7 · 4K Cinema (2.00x)', scale: 2.00, desc: '4K' },
+        { tier: 1, labelEn: 'Tier 1 · 540P Eco (0.50x)', labelZh: '1档 · 540P 省电 (0.50x)', scale: 0.50, desc: '540P' },
+        { tier: 2, labelEn: 'Tier 2 · 720P Smooth (0.67x)', labelZh: '2档 · 720P 流畅 (0.67x)', scale: 0.67, desc: '720P' },
+        { tier: 3, labelEn: 'Tier 3 · 900P Balanced (0.85x)', labelZh: '3档 · 900P 均衡 (0.85x)', scale: 0.85, desc: '900P' },
+        { tier: 4, labelEn: 'Tier 4 · 1080P Standard (1.00x)', labelZh: '4档 · 1080P 标准全高清 (1.00x)', scale: 1.00, desc: '1080P' },
+        { tier: 5, labelEn: 'Tier 5 · 1440P High (1.25x)', labelZh: '5档 · 1440P 高清 (1.25x)', scale: 1.25, desc: '1440P' },
+        { tier: 6, labelEn: 'Tier 6 · 1800P Ultra (1.50x)', labelZh: '6档 · 1800P 超清 (1.50x)', scale: 1.50, desc: '1800P' },
+        { tier: 7, labelEn: 'Tier 7 · 4K Cinema (2.00x)', labelZh: '7档 · 4K 影院级超采样 (2.00x)', scale: 2.00, desc: '4K' },
     ];
+
+    // 多语言国际化文案字典 (默认英文 English / 简体中文)
+    const I18N = {
+        en: {
+            langBadge: 'English (Default)',
+            langTitle: 'Interface & Track Language',
+            langDesc: 'Select display language. English mode displays English-only track names; Chinese mode displays Chinese-only track names in playlist & HUD.',
+            settingsTitle: 'System Settings',
+            settingsSubtitle: 'Visualizer, Timing & Cosmic Seed Engine',
+            qualityTitle: 'Rendering Quality (7 Tiers)',
+            qualityDesc: 'Scale WebGL internal buffer resolution. Tier 4 is standard full HD (1.0x). Tier 7 enables cinema 4K supersampling.',
+            qualityLabels: ['1 (540p)', '2 (720p)', '3 (900p)', '4 [Def]', '5 (1440p)', '6 (1800p)', '7 (4K)'],
+            cycleTitle: 'Preset Auto-Cycle Duration',
+            cycleDesc: 'Duration each visual preset plays before automatically blending to the next. Set to Off (0s) to disable auto-cycle.',
+            cycleDisabled: 'Disabled (Manual Only)',
+            cycleDefault: '30s (Default)',
+            cycleSeconds: 's',
+            cycleLabels: ['Off', '15s', '30s [Def]', '45s', '60s', '90s', '120s'],
+            seedTitle: 'Cosmic Shuffle Seed',
+            seedDesc: 'A pseudo-random seed deterministically shuffles the playlist & presets. Auto-refreshes daily. Enter any seed or roll a new one.',
+            seedDailyBadge: 'Daily Auto',
+            seedCustomBadge: 'Custom Seed',
+            seedPlaceholder: 'e.g. DV-2026-09-14',
+            btnApply: 'Apply',
+            btnDailySeed: "Today's Seed",
+            btnRollSeed: 'Roll Seed',
+            blendTitle: 'Preset Blend Smoothness',
+            blendDesc: 'Time taken to crossfade and interpolate between visual presets. Instant disables motion blurring.',
+            blendInstant: 'Instant (0s)',
+            blendSmooth: 'Smooth (1.5s)',
+            blendDreamy: '2.7s (Dreamy Default)',
+            blendEthereal: 'Ethereal (4.5s)',
+            blendBtn0: 'Instant (0s)',
+            blendBtn1: 'Smooth (1.5s)',
+            blendBtn2: 'Dreamy (2.7s)',
+            blendBtn3: 'Ethereal (4.5s)',
+            hudTitle: 'HUD Card on Preset Switch',
+            hudDesc: 'Choose whether the bottom track/preset floating card pops up when switching effects. Set to "Hide / Pure Visual" to enjoy uninterrupted visuals.',
+            hudShowBadge: 'Show Info Box (Default)',
+            hudHideBadge: 'Hidden (Pure Visual)',
+            hudShowBtn: 'Show Info Box',
+            hudHideBtn: 'Hide (Pure Visual)',
+            btnReset: 'Reset Defaults',
+            btnDone: 'Done',
+            pause: 'Pause',
+            play: 'Play',
+            pauseTitle: 'Pause Playback (1s Fade Out)',
+            playTitle: 'Resume Playback (1s Fade In)',
+            shuffle: 'Shuffle',
+            sequential: 'Sequential',
+            catalogBtn: 'Dreamy Playlist',
+            favBtnActive: 'Favorited',
+            favBtnInactive: 'Favorite Track',
+            favTitleActive: 'Remove Favorite',
+            favTitleInactive: 'Favorite Track',
+            presetBtn: 'Switch Preset (Space)',
+            shareBtn: 'Share',
+            settingsBtn: 'System Settings',
+            pauseHint: 'Swipe Up/Down or Arrow Keys ↑↓: Switch Track · Swipe Left/Right or Arrow Keys ←→: Blend Preset',
+            topCatalogTitle: 'Tracklist',
+            topFullscreenTitle: 'Fullscreen',
+            drawerTitle: 'Dreamy Tracks',
+            favItemActive: 'Remove Favorite',
+            favItemInactive: 'Favorite',
+            toastSeedApplied: 'Seed applied: ',
+            toastDailyRestored: 'Daily seed restored: ',
+            toastSeedRolled: 'New seed rolled: ',
+            toastResetDefaults: 'Settings restored to defaults',
+            toastGenerating: 'Generating...',
+            toastSnapshotSavedCopied: '✨ Snapshot saved & link copied to clipboard!',
+            toastSnapshotSaved: '✨ Snapshot saved to downloads!',
+            toastSnapshotFailed: 'Failed to generate snapshot',
+            toastShareFailed: 'Share failed',
+            shareTitlePrefix: 'Dreamy Voyage - ',
+            shareText: (title, url) => `✨ Immerse in "${title}" on Dreamy Voyage: ${url}`,
+            canvasPresetPrefix: 'Preset: ',
+            canvasDefaultTrack: 'Dreamy Voyage',
+            aboutTitle: 'About Dreamy Voyage',
+            aboutTagline: 'Echoes in the Fog · A Pocket of Stillness',
+            aboutLead: 'Life carries a quiet fragility—like a waking dream that slips through our fingers while we rush to keep up with the world. Somewhere in the noise and the daily demands, we slowly lose sight of the people we once meant to become.',
+            aboutHighlight: 'That quiet drift is why Dreamy Voyage exists.',
+            aboutPara1: 'The melodies begin with AI. I do not think of myself as a producer, but as someone listening for echoes in the fog—keeping only what speaks directly to the chest. What matters is not the process, but the door this music might leave open for you.',
+            aboutPara2: 'I hope these tracks feel like stepping into zero gravity: hazy, slow, and weightless enough to soften the edges of the day. When the background noise fades and the defenses quiet down, the things we set aside—early promises, half-remembered hopes, the clear light of our original purpose—can gently drift back into view.',
+            aboutClosing: 'Through all the complications of living, may this sound offer you a small pocket of stillness… and, eventually, guide you back to your own shore.',
+            aboutSpotify: 'Listen on Spotify',
+            aboutBack: 'Back to Voyage'
+        },
+        zh: {
+            langBadge: '简体中文',
+            langTitle: '界面与曲目语言',
+            langDesc: '选择系统显示语言。英文模式下播放列表与卡片仅显示英文曲名；中文模式下仅显示中文曲名。',
+            settingsTitle: '系统设置',
+            settingsSubtitle: '视觉渲染、切换时长与伪随机种子引擎',
+            qualityTitle: '渲染画质水平 (7档)',
+            qualityDesc: '调整 WebGL 内部物理渲染缓冲分辨率。第4档为 1080P 标准全高清，第7档开启 4K 影院级超分辨率采样。',
+            qualityLabels: ['1档(540p)', '2档(720p)', '3档(900p)', '4档[默认]', '5档(1440p)', '6档(1800p)', '7档(4K)'],
+            cycleTitle: '视觉效果自动播放时长',
+            cycleDesc: '每个视觉效果自动播放的时长，到期后自动平滑过渡至下一个效果。滑至最左侧关闭自动切换。',
+            cycleDisabled: '已关闭 (仅手动切换)',
+            cycleDefault: '30秒 (默认)',
+            cycleSeconds: '秒',
+            cycleLabels: ['关闭', '15秒', '30秒[默认]', '45秒', '60秒', '90秒', '120秒'],
+            seedTitle: '伪随机重排种子',
+            seedDesc: '采用确定性伪随机算法重排歌曲与视觉效果序列，支持上下精准往返。种子每日自动刷新，亦可自定义或随机生成。',
+            seedDailyBadge: '每日自动刷新',
+            seedCustomBadge: '自定义种子',
+            seedPlaceholder: '例如 DV-2026-09-14',
+            btnApply: '应用',
+            btnDailySeed: '今日种子',
+            btnRollSeed: '随机生成',
+            blendTitle: '视觉过渡平滑时长',
+            blendDesc: '切换视觉预设时的色彩与几何插值过渡耗时。瞬间切变将直接加载，无动态交叉渐变。',
+            blendInstant: '瞬间切变 (0秒)',
+            blendSmooth: '平滑 (1.5秒)',
+            blendDreamy: '2.7秒 (梦幻默认)',
+            blendEthereal: '空灵漫长 (4.5秒)',
+            blendBtn0: '瞬间 (0秒)',
+            blendBtn1: '平滑 (1.5秒)',
+            blendBtn2: '梦幻 (2.7秒)',
+            blendBtn3: '空灵 (4.5秒)',
+            hudTitle: '切换效果时显示信息框',
+            hudDesc: '左右切换效果时，屏幕下方是否弹出曲名与效果信息框。设为「隐藏」可享受纯净不被打扰的可视化流。',
+            hudShowBadge: '显示信息框 (默认)',
+            hudHideBadge: '隐藏 (纯净画面)',
+            hudShowBtn: '显示信息框',
+            hudHideBtn: '隐藏 (纯净画面)',
+            btnReset: '恢复默认设置',
+            btnDone: '完成',
+            pause: '暂停',
+            play: '播放',
+            pauseTitle: '暂停播放 (1秒渐弱)',
+            playTitle: '继续播放 (1秒渐强)',
+            shuffle: '随机播放',
+            sequential: '顺序播放',
+            catalogBtn: '曲库列表',
+            favBtnActive: '已收藏',
+            favBtnInactive: '收藏此曲',
+            favTitleActive: '取消收藏',
+            favTitleInactive: '收藏此曲',
+            presetBtn: '切换视觉效果 (空格)',
+            shareBtn: '分享海报',
+            settingsBtn: '系统设置',
+            pauseHint: '上下滑动或方向键 ↑↓：切换歌曲 · 左右滑动或方向键 ←→：平滑过渡视觉效果',
+            topCatalogTitle: '曲目列表',
+            topFullscreenTitle: '全屏切换',
+            drawerTitle: '幻梦曲库',
+            favItemActive: '取消收藏',
+            favItemInactive: '收藏',
+            toastSeedApplied: '随机种子已生效: ',
+            toastDailyRestored: '已恢复今日随机种子: ',
+            toastSeedRolled: '已生成新随机种子: ',
+            toastResetDefaults: '设置已恢复默认参数',
+            toastGenerating: '生成中...',
+            toastSnapshotSavedCopied: '✨ 视觉快照已保存，短链接已复制到剪贴板！',
+            toastSnapshotSaved: '✨ 视觉快照已保存至下载文件夹！',
+            toastSnapshotFailed: '生成视觉快照失败',
+            toastShareFailed: '分享失败',
+            shareTitlePrefix: 'Dreamy Voyage 幻梦之旅 - ',
+            shareText: (title, url) => `✨ 在 Dreamy Voyage 沉浸聆听《${title}》: ${url}`,
+            canvasPresetPrefix: '视觉效果: ',
+            canvasDefaultTrack: '幻梦之旅',
+            aboutTitle: '关于 Dreamy Voyage',
+            aboutTagline: '雾中的回声 · 一片安歇之地',
+            aboutLead: '生命带着一种静谧的脆弱——就像当我们奔忙于跟上这世界的步伐时，从指缝悄然溜走的清醒之梦。在喧嚣与日复一日的索求中，我们渐渐模糊了曾经想要成为的模样。',
+            aboutHighlight: '那份悄然的流逝，正是 Dreamy Voyage 存在的缘起。',
+            aboutPara1: '旋律源于 AI。我不认为自己是一个制作人，而是一个在迷雾中倾听回声的人——只保留那些能直抵心扉的共振。重要的从不是创作的过程，而是这音乐或许能为你推开的那扇门。',
+            aboutPara2: '我希望这些曲目听起来就像步入失重状态：朦胧、缓慢、轻盈，足以抚平一整天的棱角与疲惫。当背景杂音隐去、戒备悄然卸下，那些曾被我们搁置的事物——最初的许诺、半梦半醒的期冀，以及生命原本澄澈的光芒——都将缓缓重新浮现于眼前。',
+            aboutClosing: '愿这声音在繁复纷扰的生活中，为你提供一片小小的安歇之地……并最终，引领你回到属于自己的心灵彼岸。',
+            aboutSpotify: '在 Spotify 上收听',
+            aboutBack: '返回航程'
+        }
+    };
 
     // DOM 元素引用
     const canvas = document.getElementById('butterchurn-canvas');
@@ -57,14 +232,23 @@
     const btnOpenSettings = document.getElementById('btn-open-settings');
     const toastEl = document.getElementById('echosfall-toast');
 
+    // 菜单与提示动态文字节点
+    const catalogBtnText = document.getElementById('catalog-btn-text');
+    const presetBtnText = document.getElementById('preset-btn-text');
+    const shareBtnText = document.getElementById('share-btn-text');
+    const settingsBtnText = document.getElementById('settings-btn-text');
+    const pauseHintText = document.getElementById('pause-hint-text');
+
     // 系统设置模态浮层控件
     const settingsModal = document.getElementById('settings-modal');
     const btnCloseSettings = document.getElementById('btn-close-settings');
     const btnBackSettings = document.getElementById('btn-back-settings');
     const qualityRangeSlider = document.getElementById('quality-range-slider');
     const qualityTierBadge = document.getElementById('quality-tier-badge');
+    const qualityTierLabels = document.getElementById('quality-tier-labels');
     const cycleRangeSlider = document.getElementById('cycle-range-slider');
     const cycleDurationBadge = document.getElementById('cycle-duration-badge');
+    const cycleTierLabels = document.getElementById('cycle-tier-labels');
     const seedModeBadge = document.getElementById('seed-mode-badge');
     const seedInput = document.getElementById('seed-input');
     const btnApplySeed = document.getElementById('btn-apply-seed');
@@ -76,11 +260,45 @@
     const presetHudSegmentedGroup = document.getElementById('preset-hud-segmented-group');
     const btnResetSettings = document.getElementById('btn-reset-settings');
 
+    // 多语言国际化相关控件引用
+    const langSegmentedGroup = document.getElementById('lang-segmented-group');
+    const langBadge = document.getElementById('lang-badge');
+    const settingsTitleText = document.getElementById('settings-title-text');
+    const settingsSubtitleText = document.getElementById('settings-subtitle-text');
+    const i18nLangTitle = document.getElementById('i18n-lang-title');
+    const i18nLangDesc = document.getElementById('i18n-lang-desc');
+    const i18nQualityTitle = document.getElementById('i18n-quality-title');
+    const i18nQualityDesc = document.getElementById('i18n-quality-desc');
+    const i18nCycleTitle = document.getElementById('i18n-cycle-title');
+    const i18nCycleDesc = document.getElementById('i18n-cycle-desc');
+    const i18nSeedTitle = document.getElementById('i18n-seed-title');
+    const i18nSeedDesc = document.getElementById('i18n-seed-desc');
+    const i18nBtnApply = document.getElementById('i18n-btn-apply');
+    const i18nBtnDailySeed = document.getElementById('i18n-btn-daily-seed');
+    const i18nBtnRollSeed = document.getElementById('i18n-btn-roll-seed');
+    const i18nBlendTitle = document.getElementById('i18n-blend-title');
+    const i18nBlendDesc = document.getElementById('i18n-blend-desc');
+    const i18nBlend0 = document.getElementById('i18n-blend-0');
+    const i18nBlend1 = document.getElementById('i18n-blend-1');
+    const i18nBlend2 = document.getElementById('i18n-blend-2');
+    const i18nBlend3 = document.getElementById('i18n-blend-3');
+    const i18nHudTitle = document.getElementById('i18n-hud-title');
+    const i18nHudDesc = document.getElementById('i18n-hud-desc');
+    const i18nHudShow = document.getElementById('i18n-hud-show');
+    const i18nHudHide = document.getElementById('i18n-hud-hide');
+    const i18nBtnReset = document.getElementById('i18n-btn-reset');
+    const i18nBtnDone = document.getElementById('i18n-btn-done');
+
     // 关于 Dreamy Voyage 模态浮层
     const btnOpenAbout = document.getElementById('btn-open-about');
     const aboutModal = document.getElementById('about-modal');
     const btnCloseAbout = document.getElementById('btn-close-about');
     const btnBackAbout = document.getElementById('btn-back-about');
+    const aboutTitleText = document.getElementById('about-title-text');
+    const aboutTaglineText = document.getElementById('about-tagline-text');
+    const aboutBodyContent = document.getElementById('about-body-content');
+    const aboutSpotifyText = document.getElementById('about-spotify-text');
+    const aboutBackText = document.getElementById('about-back-text');
 
     // 顶部状态栏与按钮
     const topStatusBar = document.getElementById('top-status-bar');
@@ -92,6 +310,8 @@
     const catalogOverlay = document.getElementById('catalog-drawer-overlay');
     const btnCloseCatalog = document.getElementById('btn-close-catalog');
     const catalogList = document.getElementById('catalog-list');
+    const catalogDrawerTitleText = document.getElementById('catalog-drawer-title-text');
+    const catalogDrawerCount = document.getElementById('catalog-drawer-count');
 
     // ==========================================
     // 运行时状态与系统偏好
@@ -102,6 +322,8 @@
     let historyStack = [];
     let currentItem = null;
     let playbackMode = localStorage.getItem('echosfall_playback_mode') || 'random'; // 'random' | 'sequence'
+    let currentLanguage = localStorage.getItem('echosfall_language') || 'en'; // 默认语言为英文 English
+    if (currentLanguage !== 'zh' && currentLanguage !== 'en') currentLanguage = 'en';
     let favorites = new Set();
     try {
         const savedFavs = JSON.parse(localStorage.getItem('echosfall_favorites') || '[]');
@@ -238,25 +460,31 @@
         }
 
         buildSeededSequences(false);
+        applyLanguage(currentLanguage);
         renderCatalog();
         updateModeButtonUI();
         initSettingsUI();
     }
 
-    // 格式化歌曲展示标题 (仅保留序号和中英文，去除其后的 -Mastered、-old 等其他后缀)
-    function formatTrackTitle(rawName) {
-        if (!rawName) return 'Dreamy Voyage Track';
+    // 格式化歌曲展示标题 (仅保留序号与相应语言曲名；英文模式仅保留英文，中文模式仅保留中文)
+    function formatTrackTitle(rawName, lang = currentLanguage) {
+        if (!rawName) return lang === 'zh' ? '幻梦之旅' : 'Dreamy Voyage Track';
         let title = rawName.replace(/\.mp3$/i, '').trim();
         const parts = title.split('-');
         if (parts.length >= 3) {
-            return `${parts[0].trim()}-${parts[1].trim()}-${parts[2].trim()}`;
+            const num = parts[0].trim();
+            const zh = parts[1].trim();
+            const en = parts[2].trim();
+            return lang === 'zh' ? `${num}-${zh}` : `${num}-${en}`;
+        } else if (parts.length === 2) {
+            return `${parts[0].trim()}-${parts[1].trim()}`;
         }
         return title;
     }
 
     // 提取简略显示标题
-    function formatShortTitle(rawName) {
-        let title = formatTrackTitle(rawName);
+    function formatShortTitle(rawName, lang = currentLanguage) {
+        let title = formatTrackTitle(rawName, lang);
         if (title.includes('-')) {
             const parts = title.split('-');
             if (parts.length >= 2) return parts.slice(1).join(' - ').trim();
@@ -266,9 +494,15 @@
 
     // 渲染歌单抽屉列表
     function renderCatalog() {
-        const drawerH3 = document.querySelector('.drawer-header h3');
-        if (drawerH3) {
-            drawerH3.innerHTML = `<i class="fa-solid fa-compact-disc"></i> Dreamy Tracks (${songList.length})`;
+        const t = I18N[currentLanguage] || I18N.en;
+        if (catalogDrawerTitleText && catalogDrawerCount) {
+            catalogDrawerTitleText.innerText = t.drawerTitle;
+            catalogDrawerCount.innerText = String(songList.length);
+        } else {
+            const drawerH3 = document.querySelector('.drawer-header h3');
+            if (drawerH3) {
+                drawerH3.innerHTML = `<i class="fa-solid fa-compact-disc"></i> ${t.drawerTitle} (${songList.length})`;
+            }
         }
 
         catalogList.innerHTML = '';
@@ -283,8 +517,8 @@
 
             item.innerHTML = `
                 <span class="catalog-item-index">${String(index + 1).padStart(2, '0')}</span>
-                <span class="catalog-item-title">${formatTrackTitle(song)}</span>
-                <button type="button" class="catalog-item-fav ${isFav ? 'active' : ''}" title="${isFav ? 'Remove Favorite' : 'Favorite'}" data-echosfall-control="true">
+                <span class="catalog-item-title">${formatTrackTitle(song, currentLanguage)}</span>
+                <button type="button" class="catalog-item-fav ${isFav ? 'active' : ''}" title="${isFav ? t.favItemActive : t.favItemInactive}" data-echosfall-control="true">
                     <i class="${isFav ? 'fa-solid fa-heart' : 'fa-regular fa-heart'}"></i>
                 </button>
             `;
@@ -321,6 +555,7 @@
     }
 
     function updateCatalogFavorites() {
+        const t = I18N[currentLanguage] || I18N.en;
         const items = catalogList.querySelectorAll('.catalog-item');
         items.forEach((item, idx) => {
             const song = songList[idx];
@@ -329,11 +564,11 @@
                 const isFav = isTrackFavorited(song);
                 if (isFav) {
                     btnFav.classList.add('active');
-                    btnFav.title = 'Remove Favorite';
+                    btnFav.title = t.favItemActive;
                     btnFav.innerHTML = '<i class="fa-solid fa-heart"></i>';
                 } else {
                     btnFav.classList.remove('active');
-                    btnFav.title = 'Favorite';
+                    btnFav.title = t.favItemInactive;
                     btnFav.innerHTML = '<i class="fa-regular fa-heart"></i>';
                 }
             }
@@ -503,7 +738,7 @@
     }
 
     function showTrackTitle(songName, presetName) {
-        trackNameEl.innerText = formatTrackTitle(songName);
+        trackNameEl.innerText = formatTrackTitle(songName, currentLanguage);
         presetNameEl.innerText = (presetName || 'REVERIE SPECTRUM').replace(/\.json$/i, '');
 
         // 重新挂载动画类
@@ -515,6 +750,9 @@
 
     function updatePresetTitle(presetName) {
         presetNameEl.innerText = (presetName || 'REVERIE SPECTRUM').replace(/\.json$/i, '');
+        if (currentItem && currentItem.song) {
+            trackNameEl.innerText = formatTrackTitle(currentItem.song, currentLanguage);
+        }
         // 依据系统设置：切换预设时是否展示底部信息卡片 (关闭时纯净呈现流体视觉)
         if (showInfoOnPresetSwitch) {
             titleCard.classList.remove('title-animate');
@@ -631,14 +869,15 @@
     function updatePlayPauseButtonUI() {
         const isAudioPlaying = !audio.paused && !isPaused;
         if (resumeIcon && resumeText) {
+            const t = I18N[currentLanguage] || I18N.en;
             if (isAudioPlaying) {
                 resumeIcon.className = 'fa-solid fa-pause';
-                resumeText.innerText = 'Pause';
-                btnResume.title = 'Pause Playback (1s Fade Out)';
+                resumeText.innerText = t.pause;
+                btnResume.title = t.pauseTitle;
             } else {
                 resumeIcon.className = 'fa-solid fa-play';
-                resumeText.innerText = 'Play';
-                btnResume.title = 'Resume Playback (1s Fade In)';
+                resumeText.innerText = t.play;
+                btnResume.title = t.playTitle;
             }
         }
     }
@@ -726,17 +965,23 @@
     // ==========================================
     function isTrackFavorited(song) {
         if (!song) return false;
-        return favorites.has(song) || favorites.has(formatTrackTitle(song));
+        if (favorites.has(song)) return true;
+        if (favorites.has(formatTrackTitle(song, 'en'))) return true;
+        if (favorites.has(formatTrackTitle(song, 'zh'))) return true;
+        const rawNoMp3 = song.replace(/\.mp3$/i, '').trim();
+        if (favorites.has(rawNoMp3)) return true;
+        return false;
     }
 
     function toggleTrackFavorite(song) {
         if (!song) return;
-        const trackTitle = formatTrackTitle(song);
         const isFav = isTrackFavorited(song);
 
         if (isFav) {
             favorites.delete(song);
-            favorites.delete(trackTitle);
+            favorites.delete(formatTrackTitle(song, 'en'));
+            favorites.delete(formatTrackTitle(song, 'zh'));
+            favorites.delete(song.replace(/\.mp3$/i, '').trim());
         } else {
             favorites.add(song);
         }
@@ -792,12 +1037,13 @@
     }
 
     function updateModeButtonUI() {
+        const t = I18N[currentLanguage] || I18N.en;
         if (playbackMode === 'random') {
             modeIcon.className = 'fa-solid fa-shuffle';
-            modeText.innerText = 'Shuffle';
+            modeText.innerText = t.shuffle;
         } else {
             modeIcon.className = 'fa-solid fa-arrow-down-1-9';
-            modeText.innerText = 'Sequential';
+            modeText.innerText = t.sequential;
         }
     }
 
@@ -810,16 +1056,19 @@
     function updatePauseModalUI() {
         updateModeButtonUI();
         updatePlayPauseButtonUI();
+        const t = I18N[currentLanguage] || I18N.en;
         if (currentItem && currentItem.song) {
             const isFav = isTrackFavorited(currentItem.song);
             if (isFav) {
                 favoriteStatusIcon.className = 'fa-solid fa-heart';
-                favoriteStatusText.innerText = 'Favorited';
+                favoriteStatusText.innerText = t.favBtnActive;
+                btnToggleFavorite.title = t.favTitleActive;
                 btnToggleFavorite.style.color = '#fda4af';
                 btnToggleFavorite.style.borderColor = 'rgba(244, 63, 94, 0.6)';
             } else {
                 favoriteStatusIcon.className = 'fa-regular fa-heart';
-                favoriteStatusText.innerText = 'Favorite Track';
+                favoriteStatusText.innerText = t.favBtnInactive;
+                btnToggleFavorite.title = t.favTitleInactive;
                 btnToggleFavorite.style.color = '#ffe4e6';
                 btnToggleFavorite.style.borderColor = 'rgba(244, 63, 94, 0.32)';
             }
@@ -1149,7 +1398,8 @@
         ctx.stroke();
 
         // 3. 歌曲名称与视觉预设信息
-        const trackTitle = currentItem ? formatTrackTitle(currentItem.song) : 'Dreamy Voyage';
+        const t = I18N[currentLanguage] || I18N.en;
+        const trackTitle = currentItem ? formatTrackTitle(currentItem.song, currentLanguage) : t.canvasDefaultTrack;
         const presetTitle = currentItem ? (currentItem.presetName || 'Reverie Spectrum').replace(/\.json$/i, '') : 'Echosfall';
 
         ctx.save();
@@ -1177,7 +1427,7 @@
         // 预设名称
         ctx.font = '500 24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
         ctx.fillStyle = '#94a3b8';
-        let displayPreset = `Preset: ${presetTitle}`;
+        let displayPreset = `${t.canvasPresetPrefix}${presetTitle}`;
         if (ctx.measureText(displayPreset).width > maxTextW) {
             while (displayPreset.length > 3 && ctx.measureText(displayPreset + '...').width > maxTextW) {
                 displayPreset = displayPreset.slice(0, -1);
@@ -1209,19 +1459,20 @@
     async function handleShare() {
         if (isSharing) return;
         isSharing = true;
+        const t = I18N[currentLanguage] || I18N.en;
 
         const originalHtml = btnShare ? btnShare.innerHTML : '';
         if (btnShare) {
-            btnShare.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Generating...</span>';
+            btnShare.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>${t.toastGenerating}</span>`;
         }
 
         try {
-            const trackTitle = currentItem ? formatTrackTitle(currentItem.song) : 'Dreamy Track';
+            const trackTitle = currentItem ? formatTrackTitle(currentItem.song, currentLanguage) : t.canvasDefaultTrack;
             const shareUrl = generateShareUrl();
             const blob = await generateClean916Snapshot();
 
             if (!blob) {
-                showToast('Failed to generate snapshot');
+                showToast(t.toastSnapshotFailed);
                 if (btnShare) btnShare.innerHTML = originalHtml;
                 isSharing = false;
                 return;
@@ -1231,8 +1482,8 @@
             const file = new File([blob], fileName, { type: 'image/png' });
 
             const shareData = {
-                title: `Dreamy Voyage - ${trackTitle}`,
-                text: `✨ Immerse in "${trackTitle}" on Dreamy Voyage: ${shareUrl}`,
+                title: `${t.shareTitlePrefix}${trackTitle}`,
+                text: t.shareText(trackTitle, shareUrl),
                 url: shareUrl
             };
 
@@ -1275,17 +1526,17 @@
                 try {
                     if (navigator.clipboard && navigator.clipboard.writeText) {
                         await navigator.clipboard.writeText(shareUrl);
-                        showToast('✨ Snapshot saved & link copied to clipboard!');
+                        showToast(t.toastSnapshotSavedCopied);
                     } else {
-                        showToast('✨ Snapshot saved to downloads!');
+                        showToast(t.toastSnapshotSaved);
                     }
                 } catch (clipErr) {
-                    showToast('✨ Snapshot saved to downloads!');
+                    showToast(t.toastSnapshotSaved);
                 }
             }
         } catch (err) {
             console.error('[Echosfall] 分享处理异常:', err);
-            showToast('Share failed');
+            showToast(t.toastShareFailed);
             if (btnShare) {
                 btnShare.innerHTML = originalHtml;
             }
@@ -1559,6 +1810,116 @@
     // ==========================================
     // 系统设置窗口 (System Settings Modal) 交互控制
     // ==========================================
+    function setLanguage(lang) {
+        if (lang !== 'en' && lang !== 'zh') lang = 'en';
+        currentLanguage = lang;
+        localStorage.setItem('echosfall_language', lang);
+        applyLanguage(lang);
+    }
+
+    function applyLanguage(lang) {
+        const t = I18N[lang] || I18N.en;
+
+        // 1. Language segmented buttons & badge
+        if (langBadge) langBadge.innerText = t.langBadge;
+        if (langSegmentedGroup) {
+            const btns = langSegmentedGroup.querySelectorAll('.btn-segment');
+            btns.forEach(btn => {
+                if (btn.getAttribute('data-lang') === lang) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        // 2. Settings modal headers & labels
+        if (settingsTitleText) settingsTitleText.innerText = t.settingsTitle;
+        if (settingsSubtitleText) settingsSubtitleText.innerText = t.settingsSubtitle;
+        if (i18nLangTitle) i18nLangTitle.innerText = t.langTitle;
+        if (i18nLangDesc) i18nLangDesc.innerText = t.langDesc;
+        if (i18nQualityTitle) i18nQualityTitle.innerText = t.qualityTitle;
+        if (i18nQualityDesc) i18nQualityDesc.innerText = t.qualityDesc;
+        if (i18nCycleTitle) i18nCycleTitle.innerText = t.cycleTitle;
+        if (i18nCycleDesc) i18nCycleDesc.innerText = t.cycleDesc;
+        if (i18nSeedTitle) i18nSeedTitle.innerText = t.seedTitle;
+        if (i18nSeedDesc) i18nSeedDesc.innerText = t.seedDesc;
+        if (i18nBtnApply) i18nBtnApply.innerText = t.btnApply;
+        if (i18nBtnDailySeed) i18nBtnDailySeed.innerText = t.btnDailySeed;
+        if (i18nBtnRollSeed) i18nBtnRollSeed.innerText = t.btnRollSeed;
+        if (seedInput) seedInput.placeholder = t.seedPlaceholder;
+        if (i18nBlendTitle) i18nBlendTitle.innerText = t.blendTitle;
+        if (i18nBlendDesc) i18nBlendDesc.innerText = t.blendDesc;
+        if (i18nBlend0) i18nBlend0.innerText = t.blendBtn0;
+        if (i18nBlend1) i18nBlend1.innerText = t.blendBtn1;
+        if (i18nBlend2) i18nBlend2.innerText = t.blendBtn2;
+        if (i18nBlend3) i18nBlend3.innerText = t.blendBtn3;
+        if (i18nHudTitle) i18nHudTitle.innerText = t.hudTitle;
+        if (i18nHudDesc) i18nHudDesc.innerText = t.hudDesc;
+        if (i18nHudShow) i18nHudShow.innerText = t.hudShowBtn;
+        if (i18nHudHide) i18nHudHide.innerText = t.hudHideBtn;
+        if (i18nBtnReset) i18nBtnReset.innerText = t.btnReset;
+        if (i18nBtnDone) i18nBtnDone.innerText = t.btnDone;
+
+        // 滑块下方刻度分级文字
+        if (qualityTierLabels) {
+            qualityTierLabels.innerHTML = t.qualityLabels.map((lbl, idx) => {
+                const isDef = idx === 3;
+                return `<span class="${isDef ? 'tier-def' : ''}">${lbl}</span>`;
+            }).join('');
+        }
+        if (cycleTierLabels) {
+            cycleTierLabels.innerHTML = t.cycleLabels.map((lbl, idx) => {
+                const isDef = idx === 2;
+                return `<span class="${isDef ? 'tier-def' : ''}">${lbl}</span>`;
+            }).join('');
+        }
+
+        // 依据当前值刷新状态徽章
+        updateQualityUI();
+        updateCycleUI();
+        updateBlendUI();
+        updatePresetHudUI();
+        updateSeedUI();
+
+        // 3. 菜单控制浮层按钮与说明
+        if (catalogBtnText) catalogBtnText.innerText = t.catalogBtn;
+        if (presetBtnText) presetBtnText.innerText = t.presetBtn;
+        if (shareBtnText) shareBtnText.innerText = t.shareBtn;
+        if (settingsBtnText) settingsBtnText.innerText = t.settingsBtn;
+        if (pauseHintText) pauseHintText.innerText = t.pauseHint;
+        if (btnTopCatalog) btnTopCatalog.title = t.topCatalogTitle;
+        if (btnTopFullscreen) btnTopFullscreen.title = t.topFullscreenTitle;
+        updatePlayPauseButtonUI();
+        updateModeButtonUI();
+        updatePauseModalUI();
+
+        // 4. 关于 Dreamy Voyage 模态窗口文字
+        if (aboutTitleText) aboutTitleText.innerText = t.aboutTitle;
+        if (aboutTaglineText) aboutTaglineText.innerText = t.aboutTagline;
+        if (aboutSpotifyText) aboutSpotifyText.innerText = t.aboutSpotify;
+        if (aboutBackText) aboutBackText.innerText = t.aboutBack;
+        if (aboutBodyContent) {
+            aboutBodyContent.innerHTML = `
+                <p class="about-para about-lead" data-echosfall-control="true">${t.aboutLead}</p>
+                <div class="about-highlight-box" data-echosfall-control="true">
+                    <span class="about-highlight-text" data-echosfall-control="true">${t.aboutHighlight}</span>
+                </div>
+                <p class="about-para" data-echosfall-control="true">${t.aboutPara1}</p>
+                <p class="about-para" data-echosfall-control="true">${t.aboutPara2}</p>
+                <p class="about-para about-closing" data-echosfall-control="true">${t.aboutClosing}</p>
+            `;
+        }
+
+        // 5. 依当前语言重新渲染曲库抽屉列表
+        renderCatalog();
+
+        // 6. 更新底部悬浮 HUD 卡片中当前显示的曲名
+        if (currentItem && currentItem.song) {
+            trackNameEl.innerText = formatTrackTitle(currentItem.song, currentLanguage);
+        }
+    }
+
     function setQualityTier(tier) {
         tier = Math.max(1, Math.min(7, parseInt(tier, 10) || 4));
         currentQualityTier = tier;
@@ -1571,7 +1932,7 @@
         if (!qualityRangeSlider || !qualityTierBadge) return;
         qualityRangeSlider.value = currentQualityTier;
         const tierObj = QUALITY_TIERS.find(t => t.tier === currentQualityTier) || QUALITY_TIERS[3];
-        qualityTierBadge.innerText = tierObj.label;
+        qualityTierBadge.innerText = currentLanguage === 'zh' ? tierObj.labelZh : tierObj.labelEn;
     }
 
     function setCycleDuration(seconds) {
@@ -1584,15 +1945,19 @@
 
     function updateCycleUI() {
         if (!cycleRangeSlider || !cycleDurationBadge) return;
-        cycleRangeSlider.value = presetCycleSeconds;
+        let stepIdx = CYCLE_STEPS.indexOf(presetCycleSeconds);
+        if (stepIdx === -1) stepIdx = 2; // 默认 30s
+        cycleRangeSlider.value = stepIdx;
+
+        const t = I18N[currentLanguage] || I18N.en;
         if (presetCycleSeconds === 0) {
-            cycleDurationBadge.innerText = 'Disabled (Manual Only)';
+            cycleDurationBadge.innerText = t.cycleDisabled;
             cycleDurationBadge.className = 'settings-badge badge-purple';
         } else if (presetCycleSeconds === 30) {
-            cycleDurationBadge.innerText = '30s (Default)';
+            cycleDurationBadge.innerText = t.cycleDefault;
             cycleDurationBadge.className = 'settings-badge badge-purple';
         } else {
-            cycleDurationBadge.innerText = `${presetCycleSeconds}s`;
+            cycleDurationBadge.innerText = `${presetCycleSeconds}${t.cycleSeconds}`;
             cycleDurationBadge.className = 'settings-badge badge-purple';
         }
     }
@@ -1605,11 +1970,12 @@
 
     function updateBlendUI() {
         if (!blendDurationBadge) return;
-        let desc = `${presetBlendSeconds}s`;
-        if (presetBlendSeconds === 0) desc = 'Instant (0s)';
-        else if (presetBlendSeconds === 1.5) desc = 'Smooth (1.5s)';
-        else if (presetBlendSeconds === 2.7) desc = '2.7s (Dreamy Default)';
-        else if (presetBlendSeconds === 4.5) desc = 'Ethereal (4.5s)';
+        const t = I18N[currentLanguage] || I18N.en;
+        let desc = `${presetBlendSeconds}${t.cycleSeconds}`;
+        if (presetBlendSeconds === 0) desc = t.blendInstant;
+        else if (presetBlendSeconds === 1.5) desc = t.blendSmooth;
+        else if (presetBlendSeconds === 2.7) desc = t.blendDreamy;
+        else if (presetBlendSeconds === 4.5) desc = t.blendEthereal;
         blendDurationBadge.innerText = desc;
 
         if (blendSegmentedGroup) {
@@ -1633,11 +1999,12 @@
 
     function updatePresetHudUI() {
         if (!presetHudBadge) return;
+        const t = I18N[currentLanguage] || I18N.en;
         if (showInfoOnPresetSwitch) {
-            presetHudBadge.innerText = 'Show Info Box (Default)';
+            presetHudBadge.innerText = t.hudShowBadge;
             presetHudBadge.className = 'settings-badge badge-cyan';
         } else {
-            presetHudBadge.innerText = 'Hidden (Pure Visual)';
+            presetHudBadge.innerText = t.hudHideBadge;
             presetHudBadge.className = 'settings-badge badge-purple';
         }
 
@@ -1671,12 +2038,13 @@
 
     function updateSeedUI() {
         if (!seedInput || !seedModeBadge) return;
+        const t = I18N[currentLanguage] || I18N.en;
         seedInput.value = currentSeed;
         if (isCustomSeed) {
-            seedModeBadge.innerText = 'Custom Seed';
+            seedModeBadge.innerText = t.seedCustomBadge;
             seedModeBadge.className = 'settings-badge badge-cyan';
         } else {
-            seedModeBadge.innerText = 'Daily Auto';
+            seedModeBadge.innerText = t.seedDailyBadge;
             seedModeBadge.className = 'settings-badge badge-amber';
         }
     }
@@ -1696,24 +2064,17 @@
         isCustomSeed = false;
 
         buildSeededSequences(true);
-        updateQualityUI();
-        updateCycleUI();
-        updateBlendUI();
-        updatePresetHudUI();
-        updateSeedUI();
+        applyLanguage(currentLanguage);
         resizeVisualizer();
         startPresetAutoCycle();
 
-        showToast('Settings restored to defaults');
+        const t = I18N[currentLanguage] || I18N.en;
+        showToast(t.toastResetDefaults);
     }
 
     function showSettingsModal() {
         if (!settingsModal) return;
-        updateQualityUI();
-        updateCycleUI();
-        updateBlendUI();
-        updatePresetHudUI();
-        updateSeedUI();
+        applyLanguage(currentLanguage);
         settingsModal.classList.remove('hidden');
     }
 
@@ -1723,11 +2084,7 @@
     }
 
     function initSettingsUI() {
-        updateQualityUI();
-        updateCycleUI();
-        updateBlendUI();
-        updatePresetHudUI();
-        updateSeedUI();
+        applyLanguage(currentLanguage);
     }
 
     // ==========================================
@@ -1862,6 +2219,18 @@
             });
         }
 
+        if (langSegmentedGroup) {
+            langSegmentedGroup.addEventListener('click', (e) => {
+                const segBtn = e.target.closest('.btn-segment');
+                if (!segBtn) return;
+                e.stopPropagation();
+                const selectedLang = segBtn.getAttribute('data-lang');
+                if (selectedLang) {
+                    setLanguage(selectedLang);
+                }
+            });
+        }
+
         if (qualityRangeSlider) {
             qualityRangeSlider.addEventListener('input', (e) => {
                 setQualityTier(e.target.value);
@@ -1870,7 +2239,9 @@
 
         if (cycleRangeSlider) {
             cycleRangeSlider.addEventListener('input', (e) => {
-                setCycleDuration(e.target.value);
+                const stepIdx = parseInt(e.target.value, 10);
+                const seconds = CYCLE_STEPS[stepIdx] !== undefined ? CYCLE_STEPS[stepIdx] : 30;
+                setCycleDuration(seconds);
             });
         }
 
@@ -1878,7 +2249,8 @@
             btnApplySeed.addEventListener('click', (e) => {
                 e.stopPropagation();
                 setCustomSeed(seedInput.value);
-                showToast(`Seed applied: ${currentSeed}`);
+                const t = I18N[currentLanguage] || I18N.en;
+                showToast(`${t.toastSeedApplied}${currentSeed}`);
             });
         }
 
@@ -1886,7 +2258,8 @@
             btnSeedDaily.addEventListener('click', (e) => {
                 e.stopPropagation();
                 setCustomSeed('');
-                showToast(`Daily seed restored: ${currentSeed}`);
+                const t = I18N[currentLanguage] || I18N.en;
+                showToast(`${t.toastDailyRestored}${currentSeed}`);
             });
         }
 
@@ -1895,7 +2268,8 @@
                 e.stopPropagation();
                 const rndHex = Math.random().toString(36).substring(2, 8).toUpperCase();
                 setCustomSeed(`DV-${rndHex}`);
-                showToast(`New seed rolled: ${currentSeed}`);
+                const t = I18N[currentLanguage] || I18N.en;
+                showToast(`${t.toastSeedRolled}${currentSeed}`);
             });
         }
 
