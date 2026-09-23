@@ -1,3 +1,32 @@
+# 依赖与临时文件
 node_modules/
 .DS_Store
 *.tmp
+__pycache__/
+*.pyc
+
+# 个人创意与记录目录 (禁止上传 GitHub)
+Ideas/
+ideas/
+
+# 音乐视频化桌面应用及其录制组件 (禁止上传 GitHub)
+app_gui.py
+render_cli.js
+音乐视频化应用.bat
+record_studio.html
+auto_recorder.js
+run_record.bat
+check_presets.js
+preview_snapshots.js
+record_single.js
+test_*.js
+temp_*.json
+temp_*.webm
+problematic_presets.csv
+problematic_presets/
+*.all-backup.js
+
+# 视频输出产物与临时流
+recordings/
+*.mp4
+*.webm

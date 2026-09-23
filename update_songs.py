@@ -18,8 +18,14 @@ try:
     with open(json_file, 'w', encoding='utf-8') as f:
         f.write('window.songList = ')
         json.dump(mp3_files, f, indent=4, ensure_ascii=False)
-        f.write(';')
-    print(f"'{json_file}' 已成功更新为新的格式。")
+        f.write(';\n')
+    print(f"'{json_file}' 已成功更新。共 {len(mp3_files)} 首曲目。")
+
+    # 同步更新song-list.json文件
+    with open('song-list.json', 'w', encoding='utf-8') as f:
+        json.dump(mp3_files, f, indent=4, ensure_ascii=False)
+        f.write('\n')
+    print("'song-list.json' 已成功同步更新。")
 
 except IOError as e:
     print(f"写入文件时出错: {e}")

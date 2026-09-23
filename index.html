@@ -125,8 +125,41 @@
                     <span id="settings-btn-text">System Settings</span>
                 </button>
             </div>
-            <div id="pause-hint-text" class="pause-hint" data-echosfall-control="true">
-                Swipe Up/Down or Arrow Keys ↑↓: Switch Track · Swipe Left/Right or Arrow Keys ←→: Blend Preset
+            <!-- 基本操作与快捷键提示卡片 (HUD Style) -->
+            <div id="pause-hint-box" class="pause-hint-box" data-echosfall-control="true">
+                <div class="hint-row" data-echosfall-control="true">
+                    <div class="hint-keys" data-echosfall-control="true">
+                        <kbd class="hint-kbd">↑</kbd>
+                        <kbd class="hint-kbd">↓</kbd>
+                    </div>
+                    <div class="hint-desc" data-echosfall-control="true">
+                        <span class="hint-action" id="hint-action-track">Switch Track</span>
+                        <span class="hint-sep">·</span>
+                        <span class="hint-detail" id="hint-detail-track">Swipe ↑↓</span>
+                    </div>
+                </div>
+                <div class="hint-row" data-echosfall-control="true">
+                    <div class="hint-keys" data-echosfall-control="true">
+                        <kbd class="hint-kbd">←</kbd>
+                        <kbd class="hint-kbd">→</kbd>
+                        <kbd class="hint-kbd hint-kbd-space">Space</kbd>
+                    </div>
+                    <div class="hint-desc" data-echosfall-control="true">
+                        <span class="hint-action" id="hint-action-preset">Blend Preset</span>
+                        <span class="hint-sep">·</span>
+                        <span class="hint-detail" id="hint-detail-preset">Swipe ←→</span>
+                    </div>
+                </div>
+                <div class="hint-row" data-echosfall-control="true">
+                    <div class="hint-keys" data-echosfall-control="true">
+                        <kbd class="hint-kbd hint-kbd-esc">Esc</kbd>
+                    </div>
+                    <div class="hint-desc" data-echosfall-control="true">
+                        <span class="hint-action" id="hint-action-menu">Toggle Menu</span>
+                        <span class="hint-sep">·</span>
+                        <span class="hint-detail" id="hint-detail-menu">Hold to Exit Fullscreen</span>
+                    </div>
+                </div>
             </div>
             <!-- Spotify 绿色圆形图标艺术家跳转链接 -->
             <a href="https://open.spotify.com/artist/4697UO1twJkVreMzMQIFo0" target="_blank" rel="noopener noreferrer" class="spotify-circle-btn" title="Listen on Spotify" aria-label="Listen on Spotify" data-echosfall-control="true">
@@ -370,7 +403,7 @@
     <div id="catalog-drawer-overlay" class="catalog-drawer-overlay hidden" data-echosfall-control="true"></div>
     <div id="catalog-drawer" class="catalog-drawer" data-echosfall-control="true">
         <div class="drawer-header" data-echosfall-control="true">
-            <h3 id="catalog-drawer-heading"><i class="fa-solid fa-compact-disc"></i> <span id="catalog-drawer-title-text">Dreamy Tracks</span> (<span id="catalog-drawer-count">68</span>)</h3>
+            <h3 id="catalog-drawer-heading"><i class="fa-solid fa-compact-disc"></i> <span id="catalog-drawer-title-text">Dreamy Tracks</span> (<span id="catalog-drawer-count">77</span>)</h3>
             <button id="btn-close-catalog" type="button" class="btn-close-drawer" title="Close" data-echosfall-control="true">
                 <i class="fa-solid fa-xmark"></i>
             </button>

@@ -89,7 +89,12 @@
             presetBtn: 'Switch Preset (Space)',
             shareBtn: 'Share',
             settingsBtn: 'System Settings',
-            pauseHint: 'Swipe Up/Down or Arrow Keys ↑↓: Switch Track · Swipe Left/Right or Arrow Keys ←→: Blend Preset',
+            hintTrackAction: 'Switch Track',
+            hintTrackDetail: 'Swipe ↑↓',
+            hintPresetAction: 'Blend Preset',
+            hintPresetDetail: 'Swipe ←→',
+            hintMenuAction: 'Toggle Menu',
+            hintMenuDetail: 'Hold to Exit Fullscreen',
             topCatalogTitle: 'Tracklist',
             topFullscreenTitle: 'Fullscreen',
             drawerTitle: 'Dreamy Tracks',
@@ -173,7 +178,12 @@
             presetBtn: '切换视觉效果 (空格)',
             shareBtn: '分享海报',
             settingsBtn: '系统设置',
-            pauseHint: '上下滑动或方向键 ↑↓：切换歌曲 · 左右滑动或方向键 ←→：平滑过渡视觉效果',
+            hintTrackAction: '切换歌曲',
+            hintTrackDetail: '上下滑动',
+            hintPresetAction: '切换视觉',
+            hintPresetDetail: '左右滑动',
+            hintMenuAction: '呼出菜单',
+            hintMenuDetail: '长按退出全屏',
             topCatalogTitle: '曲目列表',
             topFullscreenTitle: '全屏切换',
             drawerTitle: '幻梦曲库',
@@ -1648,8 +1658,95 @@
         }, DOUBLE_TAP_MS);
     }
 
-    // 键盘监听 (PC 端：方向键上下切歌/回退，方向键左右切换预设/回退，空格键亦支持软切)
+    // ==========================================
+    // 全屏与 Escape 键盘锁定 (Keyboard Lock & Hold-to-Exit)
+    // ==========================================
+    const ESC_LONG_PRESS_MS = 1000; // 1秒判定为长按退出全屏
+    let escKeyDownTime = 0;
+    let escLongPressTimer = null;
+    let escLongPressTriggered = false;
+
+    async function lockEscapeKey() {
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) return;
+        if (navigator.keyboard && typeof navigator.keyboard.lock === 'function') {
+            try {
+                await navigator.keyboard.lock(['Escape']);
+                console.log('[Echosfall] 键盘锁定已启用：Esc 键已拦截（长按可退出全屏）');
+            } catch (err) {
+                console.warn('[Echosfall] 键盘锁定请求未执行或不受支持:', err);
+            }
+        }
+    }
+
+    function unlockEscapeKey() {
+        if (navigator.keyboard && typeof navigator.keyboard.unlock === 'function') {
+            try {
+                navigator.keyboard.unlock();
+                console.log('[Echosfall] 键盘锁定已解除');
+            } catch (err) {}
+        }
+    }
+
+    function enterAppFullscreen() {
+        const root = document.documentElement;
+        if (root.requestFullscreen) {
+            return root.requestFullscreen()
+                .then(() => lockEscapeKey())
+                .catch(() => undefined);
+        } else if (root.webkitRequestFullscreen) {
+            try {
+                const res = root.webkitRequestFullscreen();
+                if (res && res.then) res.then(() => lockEscapeKey()).catch(() => undefined);
+            } catch (e) {}
+        }
+    }
+
+    function exitAppFullscreen() {
+        if (document.fullscreenElement) {
+            if (document.exitFullscreen) {
+                document.exitFullscreen().catch(() => undefined);
+            }
+        } else if (document.webkitFullscreenElement) {
+            if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+        }
+    }
+
+    function handleFullscreenChange() {
+        const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+        if (isFs) {
+            lockEscapeKey();
+        } else {
+            unlockEscapeKey();
+            if (escLongPressTimer) {
+                clearTimeout(escLongPressTimer);
+                escLongPressTimer = null;
+            }
+            escLongPressTriggered = true;
+        }
+    }
+
+    // 键盘监听 (PC 端：方向键上下切歌/回退，方向键左右切换预设/回退，空格键亦支持软切，Esc 拦截与菜单控制)
     function handleKeyDown(e) {
+        // Escape 键拦截与长按退出全屏控制 (不受子组件交互焦点遮挡)
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            if (e.repeat) return; // 忽略长按过程中的自动重复按键
+
+            escKeyDownTime = Date.now();
+            escLongPressTriggered = false;
+
+            if (escLongPressTimer) clearTimeout(escLongPressTimer);
+            escLongPressTimer = setTimeout(() => {
+                escLongPressTriggered = true;
+                console.log('[Echosfall] 长按 Esc 达到阈值：执行退出全屏');
+                exitAppFullscreen();
+            }, ESC_LONG_PRESS_MS);
+
+            return;
+        }
+
         if (isInteractiveTarget(e.target)) return;
 
         // 方向键左右：切换与回退预设 (右 = 下一个，左 = 上一个/刚才看过的效果)
@@ -1685,25 +1782,61 @@
             switchNextPreset(true);
             return;
         }
+    }
 
-        // Escape 键：关闭打开的设置窗口、关于页面或暂停菜单
+    function handleKeyUp(e) {
         if (e.key === 'Escape') {
-            if (settingsModal && !settingsModal.classList.contains('hidden')) {
-                e.preventDefault();
-                hideSettingsModal();
+            e.preventDefault();
+
+            if (escLongPressTimer) {
+                clearTimeout(escLongPressTimer);
+                escLongPressTimer = null;
+            }
+
+            if (e.target && typeof e.target.blur === 'function' && (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON')) {
+                e.target.blur();
+            }
+
+            // 若已经触发了长按退出全屏，则松开时不弹出菜单
+            if (escLongPressTriggered) {
+                escLongPressTriggered = false;
                 return;
             }
-            if (aboutModal && !aboutModal.classList.contains('hidden')) {
-                e.preventDefault();
-                hideAboutModal();
-                return;
-            }
-            if (pauseModal && pauseModal.classList.contains('visible')) {
-                e.preventDefault();
-                hidePauseModal();
-                return;
-            }
+
+            // 短按 Esc：执行弹出或关闭菜单逻辑
+            handleEscapeAction();
         }
+    }
+
+    function handleEscapeAction() {
+        if (!hasStarted) return;
+
+        // 1. 若系统设置窗口打开，优先关闭设置窗口
+        if (settingsModal && !settingsModal.classList.contains('hidden')) {
+            hideSettingsModal();
+            return;
+        }
+
+        // 2. 若关于窗口打开，优先关闭关于窗口
+        if (aboutModal && !aboutModal.classList.contains('hidden')) {
+            hideAboutModal();
+            return;
+        }
+
+        // 3. 若歌曲列表抽屉打开，优先关闭抽屉
+        if (catalogDrawer && catalogDrawer.classList.contains('open')) {
+            closeCatalog();
+            return;
+        }
+
+        // 4. 若主菜单处于显示状态，关闭主菜单
+        if (pauseModal && pauseModal.classList.contains('visible')) {
+            hidePauseModal();
+            return;
+        }
+
+        // 5. 播放沉浸状态下按 Esc，弹出主菜单
+        showPauseModal();
     }
 
     // ==========================================
@@ -1719,16 +1852,9 @@
             introOverlay.style.display = 'none';
         }, 600);
 
-        // 尝试触发全屏 (手机浏览器体验最佳)
+        // 尝试触发全屏 (手机与桌面全屏沉浸)
         try {
-            if (document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(() => undefined);
-            } else if (document.documentElement.webkitRequestFullscreen) {
-                try {
-                    const res = document.documentElement.webkitRequestFullscreen();
-                    if (res && res.catch) res.catch(() => undefined);
-                } catch (e) {}
-            }
+            enterAppFullscreen();
         } catch (e) {}
 
         // 初始化音频与 Butterchurn
@@ -1793,17 +1919,9 @@
     // 全屏切换
     function toggleFullscreen() {
         if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-            if (document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(() => undefined);
-            } else if (document.documentElement.webkitRequestFullscreen) {
-                document.documentElement.webkitRequestFullscreen();
-            }
+            enterAppFullscreen();
         } else {
-            if (document.exitFullscreen) {
-                document.exitFullscreen().catch(() => undefined);
-            } else if (document.webkitExitFullscreen) {
-                document.webkitExitFullscreen();
-            }
+            exitAppFullscreen();
         }
     }
 
@@ -1887,7 +2005,21 @@
         if (presetBtnText) presetBtnText.innerText = t.presetBtn;
         if (shareBtnText) shareBtnText.innerText = t.shareBtn;
         if (settingsBtnText) settingsBtnText.innerText = t.settingsBtn;
-        if (pauseHintText) pauseHintText.innerText = t.pauseHint;
+
+        const hintActionTrack = document.getElementById('hint-action-track');
+        const hintDetailTrack = document.getElementById('hint-detail-track');
+        const hintActionPreset = document.getElementById('hint-action-preset');
+        const hintDetailPreset = document.getElementById('hint-detail-preset');
+        const hintActionMenu = document.getElementById('hint-action-menu');
+        const hintDetailMenu = document.getElementById('hint-detail-menu');
+
+        if (hintActionTrack) hintActionTrack.innerText = t.hintTrackAction;
+        if (hintDetailTrack) hintDetailTrack.innerText = t.hintTrackDetail;
+        if (hintActionPreset) hintActionPreset.innerText = t.hintPresetAction;
+        if (hintDetailPreset) hintDetailPreset.innerText = t.hintPresetDetail;
+        if (hintActionMenu) hintActionMenu.innerText = t.hintMenuAction;
+        if (hintDetailMenu) hintDetailMenu.innerText = t.hintMenuDetail;
+
         if (btnTopCatalog) btnTopCatalog.title = t.topCatalogTitle;
         if (btnTopFullscreen) btnTopFullscreen.title = t.topFullscreenTitle;
         updatePlayPauseButtonUI();
@@ -2125,6 +2257,17 @@
         window.addEventListener('pointerup', handlePointerUp);
         window.addEventListener('pointercancel', () => { pointerState = null; });
         window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        window.addEventListener('blur', () => {
+            if (escLongPressTimer) {
+                clearTimeout(escLongPressTimer);
+                escLongPressTimer = null;
+            }
+            escLongPressTriggered = false;
+        });
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
         // 视口与缩放变化
         window.addEventListener('resize', resizeVisualizer);

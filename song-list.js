@@ -66,5 +66,14 @@ window.songList = [
     "65-天机通道-Heavenliness Channel.mp3",
     "66-宿命光纹-Fatalism Striation.mp3",
     "67-自豪朦霞-Pride Mistveil.mp3",
-    "68-交织玄思-Interweave Cogitation.mp3"
+    "68-交织玄思-Interweave Cogitation.mp3",
+    "69-遐想绮丽-Daydreaming Gorgeous-Mastered.mp3",
+    "70-层次灵感-Level Inspiration-Mastered.mp3",
+    "71-因果谬论-Causal Absurdity-Mastered.mp3",
+    "72-漩涡窒息感-Vortex Asphyxiation-Mastered.mp3",
+    "73-妄想独奏-Delusion Solo-Mastered.mp3",
+    "74-噪点彷徨-Noise Wandering-Mastered.mp3",
+    "75-自如升华-Fluidity Sublime-Mastered.mp3",
+    "76-迷失进化-Lostness Evolution-Mastered.mp3",
+    "77-陶醉玄境-Enchantment Mystical-Mastered.mp3"
 ];
