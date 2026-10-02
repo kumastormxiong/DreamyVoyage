@@ -115,11 +115,13 @@
             canvasDefaultTrack: 'Dreamy Voyage',
             aboutTitle: 'About Dreamy Voyage',
             aboutTagline: 'Echoes in the Fog · A Pocket of Stillness',
+            aboutAuthorPrefix: 'Crafted by',
             aboutLead: 'Life carries a quiet fragility—like a waking dream that slips through our fingers while we rush to keep up with the world. Somewhere in the noise and the daily demands, we slowly lose sight of the people we once meant to become.',
             aboutHighlight: 'That quiet drift is why Dreamy Voyage exists.',
-            aboutPara1: 'The melodies begin with AI. I do not think of myself as a producer, but as someone listening for echoes in the fog—keeping only what speaks directly to the chest. What matters is not the process, but the door this music might leave open for you.',
+            aboutPara1: 'These melodies awaken from the quiet depths of algorithmic dreams. <span class="about-quote-highlight">I do not consider myself a producer, but an explorer in the fog of fragmented echoes</span>—keeping only what speaks directly to the chest, and the quiet door this music might leave open for you.',
             aboutPara2: 'I hope these tracks feel like stepping into zero gravity: hazy, slow, and weightless enough to soften the edges of the day. When the background noise fades and the defenses quiet down, the things we set aside—early promises, half-remembered hopes, the clear light of our original purpose—can gently drift back into view.',
             aboutClosing: 'Through all the complications of living, may this sound offer you a small pocket of stillness… and, eventually, guide you back to your own shore.',
+            aboutSignoffRole: 'Explorer & Creator',
             aboutSpotify: 'Listen on Spotify',
             aboutBack: 'Back to Voyage'
         },
@@ -204,11 +206,13 @@
             canvasDefaultTrack: '幻梦之旅',
             aboutTitle: '关于 Dreamy Voyage',
             aboutTagline: '雾中的回声 · 一片安歇之地',
+            aboutAuthorPrefix: '创作者',
             aboutLead: '生命带着一种静谧的脆弱——就像当我们奔忙于跟上这世界的步伐时，从指缝悄然溜走的清醒之梦。在喧嚣与日复一日的索求中，我们渐渐模糊了曾经想要成为的模样。',
             aboutHighlight: '那份悄然的流逝，正是 Dreamy Voyage 存在的缘起。',
-            aboutPara1: '旋律源于 AI。我不认为自己是一个制作人，而是一个在迷雾中倾听回声的人——只保留那些能直抵心扉的共振。重要的从不是创作的过程，而是这音乐或许能为你推开的那扇门。',
+            aboutPara1: '这些旋律自数字虚空的梦境深处悄然苏醒。<span class="about-quote-highlight">我不认为自己是一个制作人（Producer），而是回声碎片迷雾世界中的探索者（Explorer）</span>——只保留那些能直抵心扉的共振，以及这音乐或许能为你推开的那扇门。',
             aboutPara2: '我希望这些曲目听起来就像步入失重状态：朦胧、缓慢、轻盈，足以抚平一整天的棱角与疲惫。当背景杂音隐去、戒备悄然卸下，那些曾被我们搁置的事物——最初的许诺、半梦半醒的期冀，以及生命原本澄澈的光芒——都将缓缓重新浮现于眼前。',
             aboutClosing: '愿这声音在繁复纷扰的生活中，为你提供一片小小的安歇之地……并最终，引领你回到属于自己的心灵彼岸。',
+            aboutSignoffRole: '迷雾探索者 / 创作者',
             aboutSpotify: '在 Spotify 上收听',
             aboutBack: '返回航程'
         }
@@ -2029,6 +2033,8 @@
         // 4. 关于 Dreamy Voyage 模态窗口文字
         if (aboutTitleText) aboutTitleText.innerText = t.aboutTitle;
         if (aboutTaglineText) aboutTaglineText.innerText = t.aboutTagline;
+        const aboutAuthorPrefixEl = document.getElementById('about-author-prefix');
+        if (aboutAuthorPrefixEl) aboutAuthorPrefixEl.innerText = t.aboutAuthorPrefix;
         if (aboutSpotifyText) aboutSpotifyText.innerText = t.aboutSpotify;
         if (aboutBackText) aboutBackText.innerText = t.aboutBack;
         if (aboutBodyContent) {
@@ -2040,6 +2046,11 @@
                 <p class="about-para" data-echosfall-control="true">${t.aboutPara1}</p>
                 <p class="about-para" data-echosfall-control="true">${t.aboutPara2}</p>
                 <p class="about-para about-closing" data-echosfall-control="true">${t.aboutClosing}</p>
+                <div class="about-signoff" data-echosfall-control="true">
+                    <span class="about-signoff-title">${t.aboutSignoffRole}</span>
+                    <span class="about-signoff-author">虚空造物FFVoid</span>
+                    <span class="about-signoff-sub">Forging From The Void</span>
+                </div>
             `;
         }
 

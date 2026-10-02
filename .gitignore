@@ -25,6 +25,8 @@ temp_*.webm
 problematic_presets.csv
 problematic_presets/
 *.all-backup.js
+*.bak.js
+
 
 # 视频输出产物与临时流
 recordings/

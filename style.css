@@ -1177,6 +1177,54 @@ html, body {
     color: #94a3b8;
 }
 
+/* 作者与探索者身份徽章 */
+.about-author-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    margin-top: 0.85rem;
+    padding: 0.38rem 1.1rem;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, rgba(236, 72, 153, 0.14) 0%, rgba(56, 189, 248, 0.14) 100%);
+    border: 1px solid rgba(236, 72, 153, 0.38);
+    box-shadow: 0 0 22px rgba(236, 72, 153, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    font-size: 0.82rem;
+    letter-spacing: 0.05em;
+    user-select: none;
+    flex-wrap: wrap;
+}
+
+.about-author-prefix {
+    color: rgba(255, 255, 255, 0.48);
+    font-weight: 500;
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.about-author-name {
+    color: #fdf2f8;
+    font-weight: 700;
+    font-family: 'Orbitron', -apple-system, sans-serif;
+    letter-spacing: 0.08em;
+    text-shadow: 0 0 12px rgba(236, 72, 153, 0.55);
+}
+
+.about-author-sep {
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.75rem;
+}
+
+.about-author-desc {
+    color: #7dd3fc;
+    font-weight: 500;
+    font-size: 0.76rem;
+    font-style: italic;
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
 .about-body {
     display: flex;
     flex-direction: column;
@@ -1210,12 +1258,65 @@ html, body {
     color: #e0f2fe;
 }
 
+/* 核心句子重点高亮与放大 */
+.about-quote-highlight {
+    display: inline;
+    font-size: 1.08em;
+    font-weight: 700;
+    color: #ffffff;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.22) 0%, rgba(236, 72, 153, 0.2) 100%);
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    border: 1px solid rgba(56, 189, 248, 0.48);
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    text-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+}
+
 .about-closing {
     margin-top: 0.5rem;
     font-style: italic;
     color: #fef08a;
     text-shadow: 0 0 12px rgba(254, 240, 138, 0.25);
     line-height: 1.9;
+}
+
+/* 底部作者签名区 */
+.about-signoff {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    margin-top: 1rem;
+    padding-top: 0.95rem;
+    border-top: 1px dashed rgba(255, 255, 255, 0.14);
+    gap: 0.22rem;
+}
+
+.about-signoff-title {
+    font-size: 0.72rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.42);
+}
+
+.about-signoff-author {
+    font-size: 1.15rem;
+    font-weight: 800;
+    font-family: 'Orbitron', -apple-system, sans-serif;
+    letter-spacing: 0.08em;
+    background: linear-gradient(135deg, #ffffff 0%, #f472b6 60%, #38bdf8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 18px rgba(244, 114, 182, 0.4);
+}
+
+.about-signoff-sub {
+    font-size: 0.78rem;
+    font-style: italic;
+    color: #94a3b8;
+    letter-spacing: 0.04em;
 }
 
 .about-footer {
