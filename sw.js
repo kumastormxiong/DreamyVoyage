@@ -1,9 +1,11 @@
-const CACHE_NAME = 'dreamy-echosfall-v28';
+const CACHE_NAME = 'dreamy-echosfall-v29';
 const ASSETS = [
   './index.html',
   './style.css',
   './main.js',
+  './vr_manager.js',
   './song-list.js',
+  './lib/three.min.js',
   './lib/butterchurn.min.js',
   './presets/preset-names.js',
   './presets/presets-data.js',

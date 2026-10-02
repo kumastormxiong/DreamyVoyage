@@ -88,6 +88,8 @@
             favTitleInactive: 'Favorite Track',
             presetBtn: 'Switch Preset (Space)',
             shareBtn: 'Share',
+            vrBtn: 'Enter VR (Quest 2)',
+            topVrTitle: 'Enter VR (Quest 2)',
             settingsBtn: 'System Settings',
             hintTrackAction: 'Switch Track',
             hintTrackDetail: 'Swipe ↑↓',
@@ -179,6 +181,8 @@
             favTitleInactive: '收藏此曲',
             presetBtn: '切换视觉效果 (空格)',
             shareBtn: '分享海报',
+            vrBtn: '进入 VR 模式 (Quest 2)',
+            topVrTitle: '进入 VR 模式 (Quest 2)',
             settingsBtn: '系统设置',
             hintTrackAction: '切换歌曲',
             hintTrackDetail: '上下滑动',
@@ -243,6 +247,8 @@
     const favoriteStatusText = document.getElementById('favorite-status-text');
     const btnNextPreset = document.getElementById('btn-next-preset');
     const btnShare = document.getElementById('btn-share');
+    const btnEnterVR = document.getElementById('btn-enter-vr');
+    const btnTopVR = document.getElementById('btn-top-vr');
     const btnOpenSettings = document.getElementById('btn-open-settings');
     const toastEl = document.getElementById('echosfall-toast');
 
@@ -250,6 +256,7 @@
     const catalogBtnText = document.getElementById('catalog-btn-text');
     const presetBtnText = document.getElementById('preset-btn-text');
     const shareBtnText = document.getElementById('share-btn-text');
+    const vrBtnText = document.getElementById('vr-btn-text');
     const settingsBtnText = document.getElementById('settings-btn-text');
     const pauseHintText = document.getElementById('pause-hint-text');
 
@@ -691,6 +698,9 @@
         currentItem = item;
         updateCatalogActive();
         updatePauseModalUI();
+        if (window.VRManager && window.VRManager.isActive()) {
+            window.VRManager.updateHUD();
+        }
 
         // 1. 触发曲名卡片动画 (与 Echosfall 原生规格一致: 7秒模糊进退动效)
         showTrackTitle(item.song, item.presetName);
@@ -772,6 +782,9 @@
             titleCard.classList.remove('title-animate');
             void titleCard.offsetWidth;
             titleCard.classList.add('title-animate');
+        }
+        if (window.VRManager && window.VRManager.isActive()) {
+            window.VRManager.updateHUD();
         }
     }
 
@@ -893,6 +906,9 @@
                 resumeText.innerText = t.play;
                 btnResume.title = t.playTitle;
             }
+        }
+        if (window.VRManager && window.VRManager.isActive()) {
+            window.VRManager.updateHUD();
         }
     }
 
@@ -2008,6 +2024,9 @@
         if (catalogBtnText) catalogBtnText.innerText = t.catalogBtn;
         if (presetBtnText) presetBtnText.innerText = t.presetBtn;
         if (shareBtnText) shareBtnText.innerText = t.shareBtn;
+        if (vrBtnText) vrBtnText.innerText = t.vrBtn;
+        if (btnEnterVR) btnEnterVR.title = t.vrBtn;
+        if (btnTopVR) btnTopVR.title = t.topVrTitle;
         if (settingsBtnText) settingsBtnText.innerText = t.settingsBtn;
 
         const hintActionTrack = document.getElementById('hint-action-track');
@@ -2336,6 +2355,101 @@
             btnShare.addEventListener('click', (e) => {
                 e.stopPropagation();
                 handleShare();
+            });
+        }
+
+        // ==========================================
+        // Quest 2 / WebXR VR 沉浸模式启动与桥接
+        // ==========================================
+        function handleEnterVR() {
+            if (!window.VRManager) {
+                showToast(currentLanguage === 'zh' ? 'VR 模块正在加载，请稍候...' : 'Loading VR module, please wait...');
+                return;
+            }
+
+            // 激活 Web Audio
+            initWebAudio();
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume().catch(() => undefined);
+            }
+            if (audio.paused && !isPaused && hasStarted) {
+                audio.play().catch(() => undefined);
+            }
+            hidePauseModal();
+            window.VRManager.enterVR();
+        }
+
+        if (btnEnterVR) {
+            btnEnterVR.addEventListener('click', (e) => {
+                e.stopPropagation();
+                handleEnterVR();
+            });
+        }
+
+        if (btnTopVR) {
+            btnTopVR.addEventListener('click', (e) => {
+                e.stopPropagation();
+                handleEnterVR();
+            });
+        }
+
+        // 注册 VR 与主播放器的双向状态通讯桥
+        if (window.VRManager) {
+            window.VRManager.setPlaybackBridge({
+                getTrackInfo: () => {
+                    const songTitle = currentItem && currentItem.song
+                        ? formatTrackTitle(currentItem.song, currentLanguage)
+                        : 'Dreamy Voyage';
+                    const pTitle = (currentItem && currentItem.presetName
+                        ? currentItem.presetName
+                        : (presetNameEl ? presetNameEl.innerText : 'BUTTERCHURN REVERIE')).replace(/\.json$/i, '');
+                    return {
+                        title: songTitle,
+                        preset: pTitle,
+                        isPlaying: !audio.paused && !isPaused,
+                        isChinese: currentLanguage === 'zh'
+                    };
+                },
+                togglePlayPause: () => {
+                    togglePlayPause();
+                },
+                nextTrack: () => {
+                    goNext();
+                },
+                prevTrack: () => {
+                    goPrevious();
+                },
+                nextPreset: () => {
+                    switchNextPreset(true);
+                },
+                prevPreset: () => {
+                    switchPrevPreset(true);
+                },
+                renderButterchurnFrame: () => {
+                    if (visualizer) {
+                        visualizer.render();
+                    }
+                },
+                onSessionStart: () => {
+                    // 暂停 2D RAF 循环，由 WebXR 原生 72/90Hz 硬件循环接管，省电且不掉帧
+                    if (renderAnimationFrameId) {
+                        cancelAnimationFrame(renderAnimationFrameId);
+                        renderAnimationFrameId = null;
+                    }
+                    // 针对 Quest 2 视网膜单眼画质与功耗优化为 1280x720
+                    if (visualizer) {
+                        canvas.width = 1280;
+                        canvas.height = 720;
+                        visualizer.setRendererSize(1280, 720, { pixelRatio: 1, textureRatio: 1.0 });
+                    }
+                    showToast(currentLanguage === 'zh' ? '✨ 已进入 Quest 2 VR 沉浸空间' : '✨ Entered Quest 2 VR space');
+                },
+                onSessionEnd: () => {
+                    // 恢复 2D 网页端渲染尺寸与循环
+                    resizeVisualizer();
+                    startRenderLoop();
+                    updatePlayPauseButtonUI();
+                }
             });
         }
 
