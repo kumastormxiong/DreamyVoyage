@@ -807,30 +807,44 @@
         }
     }
 
+    let presetPlaybackMode = localStorage.getItem('echosfall_preset_playback_mode') || 'random';
+
+    function togglePresetPlaybackMode() {
+        presetPlaybackMode = (presetPlaybackMode === 'random') ? 'sequence' : 'random';
+        localStorage.setItem('echosfall_preset_playback_mode', presetPlaybackMode);
+        return presetPlaybackMode;
+    }
+
     // 预设效果切换：切换至下一个预设 (向右)
     async function switchNextPreset(soft = true) {
-        if (shuffledPresetList.length === 0) {
+        const targetList = (presetPlaybackMode === 'sequence' && presetNames.length > 0)
+            ? presetNames
+            : shuffledPresetList;
+        if (targetList.length === 0) {
             if (presetNames.length > 0) buildSeededSequences(true);
             else return;
         }
-        presetSequenceIndex = (presetSequenceIndex + 1) % shuffledPresetList.length;
-        const nextPName = shuffledPresetList[presetSequenceIndex];
+        presetSequenceIndex = (presetSequenceIndex + 1) % targetList.length;
+        const nextPName = targetList[presetSequenceIndex];
         const bTime = soft ? presetBlendSeconds : 0;
-        console.log(`[Echosfall] 切换至下一个预设 [${presetSequenceIndex + 1}/${shuffledPresetList.length}]: ${nextPName} (blendTime: ${bTime}s)`);
+        console.log(`[Echosfall] 切换至下一个预设 [${presetSequenceIndex + 1}/${targetList.length}]: ${nextPName} (blendTime: ${bTime}s, 模式:${presetPlaybackMode})`);
         await loadPresetIntoVisualizer(nextPName, bTime);
         startPresetAutoCycle();
     }
 
     // 预设效果切换：回退至上一个预设 (向左，可回退到刚才看过的效果)
     async function switchPrevPreset(soft = true) {
-        if (shuffledPresetList.length === 0) {
+        const targetList = (presetPlaybackMode === 'sequence' && presetNames.length > 0)
+            ? presetNames
+            : shuffledPresetList;
+        if (targetList.length === 0) {
             if (presetNames.length > 0) buildSeededSequences(true);
             else return;
         }
-        presetSequenceIndex = (presetSequenceIndex - 1 + shuffledPresetList.length) % shuffledPresetList.length;
-        const prevPName = shuffledPresetList[presetSequenceIndex];
+        presetSequenceIndex = (presetSequenceIndex - 1 + targetList.length) % targetList.length;
+        const prevPName = targetList[presetSequenceIndex];
         const bTime = soft ? presetBlendSeconds : 0;
-        console.log(`[Echosfall] 回退至上一个预设 [${presetSequenceIndex + 1}/${shuffledPresetList.length}]: ${prevPName} (blendTime: ${bTime}s)`);
+        console.log(`[Echosfall] 回退至上一个预设 [${presetSequenceIndex + 1}/${targetList.length}]: ${prevPName} (blendTime: ${bTime}s, 模式:${presetPlaybackMode})`);
         await loadPresetIntoVisualizer(prevPName, bTime);
         startPresetAutoCycle();
     }
@@ -1185,14 +1199,24 @@
     }
 
     function getVisualizerDimensions() {
-        const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth < 768;
-        const screenW = Math.max(window.innerWidth || 0, 320);
-        const screenH = Math.max(window.innerHeight || 0, 320);
+        const isVR = (window.VRManager && typeof window.VRManager.isActive === 'function' && window.VRManager.isActive());
+        const isQuest = /Quest/i.test(navigator.userAgent) || isVR;
+        const isMobile = !isQuest && (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth < 768);
+        
+        let screenW = Math.max(window.innerWidth || 0, 320);
+        let screenH = Math.max(window.innerHeight || 0, 320);
+        
+        // VR 沉浸模式或 Quest 设备下，基准视口强制对齐 16:9 全高清 (1920x1080)，杜绝移动端小视口造成的画质模糊
+        if (isQuest || isVR) {
+            screenW = 1920;
+            screenH = 1080;
+        }
+
         const isPortrait = isMobile && screenH > screenW;
 
         // 依据系统设置中 7 档画质精准计算 DPR 缩放倍率 (默认第 4 档 1080P)
         const tierObj = QUALITY_TIERS.find(t => t.tier === currentQualityTier) || QUALITY_TIERS[3];
-        const baseDpr = window.devicePixelRatio || 1;
+        const baseDpr = (isQuest || isVR) ? 1.0 : (window.devicePixelRatio || 1);
         const pixelRatio = Math.max(0.45, Math.min(baseDpr * tierObj.scale, 3.0));
         const textureRatio = currentQualityTier >= 5 ? 1.0 : (currentQualityTier <= 2 ? 0.75 : 1.0);
 
@@ -2463,6 +2487,27 @@
                     }
                 },
                 getPlaybackMode: () => playbackMode,
+                getPresetPlaybackMode: () => presetPlaybackMode,
+                togglePresetPlaybackMode: () => {
+                    togglePresetPlaybackMode();
+                    if (window.VRManager) {
+                        window.VRManager.updateHUD();
+                    }
+                },
+                cycleQualityTier: () => {
+                    let nextTier = currentQualityTier + 1;
+                    if (nextTier > 7) nextTier = 2; // 2(720P) -> 3(900P) -> 4(1080P) -> 5(1440P) -> 6(1800P) -> 7(4K)
+                    setQualityTier(nextTier);
+                    if (window.VRManager) {
+                        window.VRManager.updateHUD();
+                    }
+                    return currentQualityTier;
+                },
+                getQualityTier: () => currentQualityTier,
+                getQualityLabel: () => {
+                    const tierObj = QUALITY_TIERS.find(t => t.tier === currentQualityTier) || QUALITY_TIERS[3];
+                    return tierObj.desc;
+                },
                 getSongList: () => (Array.isArray(songList) ? songList : []),
                 selectSong: (song) => {
                     selectSongByName(song);
@@ -2484,6 +2529,7 @@
                         cancelAnimationFrame(renderAnimationFrameId);
                         renderAnimationFrameId = null;
                     }
+                    resizeVisualizer();
                     showToast(currentLanguage === 'zh' ? '✨ 已进入 Quest 2 VR 沉浸空间' : '✨ Entered Quest 2 VR space');
                 },
                 onSessionEnd: () => {
