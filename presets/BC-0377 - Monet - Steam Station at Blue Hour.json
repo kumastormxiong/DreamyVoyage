@@ -1,0 +1,20 @@
+{
+  "baseVals": {
+    "wave_mode": 6,
+    "wave_a": 0.58,
+    "wave_scale": 0.9,
+    "decay": 0.977,
+    "gammaadj": 1.07,
+    "zoom": 1.003,
+    "rot": 0.002,
+    "warp": 0.018,
+    "wave_r": 0.4,
+    "wave_g": 0.62,
+    "wave_b": 0.85
+  },
+  "init_eqs_str": "a.q1=0;",
+  "frame_eqs_str": "a.q1+=.006; a.q2=.9*a.q2+.1*a.bass_att; a.dx=.001;",
+  "pixel_eqs_str": "a.dy+=.003*Math.sin(a.x*12.+a.q1)+.001*Math.sin(a.y*30.);",
+  "warp": "shader_body { vec2 p=uv+vec2(.001, .002*sin(uv.x*10.+q1)); ret=texture(sampler_main, p).xyz*.984; }",
+  "comp": "shader_body { vec3 c=texture(sampler_main, uv).xyz; vec3 blue=vec3(.08,.18,.42), steam=vec3(.72,.8,.82), amber=vec3(.9,.38,.08); ret=mix(blue,steam,c.g)+amber*c.r*1.2; }"
+}

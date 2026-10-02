@@ -1,0 +1,20 @@
+{
+  "baseVals": {
+    "wave_mode": 2,
+    "wave_a": 0.48,
+    "wave_scale": 0.8,
+    "decay": 0.983,
+    "gammaadj": 1.02,
+    "zoom": 1.002,
+    "rot": 0.001,
+    "warp": 0.01,
+    "wave_r": 0.16,
+    "wave_g": 0.35,
+    "wave_b": 0.85
+  },
+  "init_eqs_str": "a.q1=0;",
+  "frame_eqs_str": "a.q1+=.004; a.q2=.96*a.q2+.04*a.mid_att; a.dx=.0006*Math.sin(a.q1);",
+  "pixel_eqs_str": "a.dx+=.002*Math.sin(a.rad*25.-a.q1);",
+  "warp": "shader_body { vec2 p=uv+vec2(sin(uv.y*10.+q1),cos(uv.x*6.-q1))*.0013; ret=texture(sampler_main, p).xyz*.989; }",
+  "comp": "shader_body { vec3 c=texture(sampler_main, uv).xyz; vec3 porcelain=vec3(.88,.84,.75), cobalt=vec3(.04,.18,.58), rust=vec3(.65,.2,.08); float p=smoothstep(.25,.7,c.b); ret=mix(porcelain,cobalt,p)+rust*c.r*.5; }"
+}

@@ -1,0 +1,20 @@
+{
+  "baseVals": {
+    "wave_mode": 5,
+    "wave_a": 0.82,
+    "wave_scale": 1.15,
+    "decay": 0.95,
+    "gammaadj": 1.23,
+    "zoom": 1.012,
+    "rot": 0.006,
+    "warp": 0.045,
+    "wave_r": 1,
+    "wave_g": 0.45,
+    "wave_b": 0.05
+  },
+  "init_eqs_str": "a.q1=0;",
+  "frame_eqs_str": "a.q1+=.028; a.q2=.87*a.q2+.13*a.bass_att; a.dy=-.001;",
+  "pixel_eqs_str": "a.dx+=.002*Math.sin(a.y*48.+a.q1);",
+  "warp": "shader_body { vec2 p=uv+vec2(.001*sin(uv.y*80.+q1),0.); ret=texture(sampler_main, p).xyz*.968; }",
+  "comp": "shader_body { vec3 c=texture(sampler_main, uv).xyz; vec3 amber=vec3(1.,.35,.03), black=vec3(.015,.01,.005); float rain=smoothstep(.5,1.,fract(uv.y*24.+q1)); ret=mix(black,amber,c.r+rain*.3)+texture(sampler_blur1, uv).xyz*.5; }"
+}

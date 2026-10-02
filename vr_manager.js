@@ -66,6 +66,37 @@
     let hudTexture = null;
     let hudButtons = [];
 
+    // 防眩晕地面平台配置与状态
+    const PLATFORM_TYPES = [
+        { id: 'cyber_ring', nameEn: 'Cyber Ring', nameZh: '赛博光环' },
+        { id: 'space_grid', nameEn: 'Space Grid', nameZh: '空间网格' },
+        { id: 'hexagon_disc', nameEn: 'Hexagon Platform', nameZh: '六边浮台' },
+        { id: 'minimal_disc', nameEn: 'Minimal Disc', nameZh: '极简暗盘' }
+    ];
+
+    const PLATFORM_OPACITIES = [
+        { value: 1.0, labelEn: '100% Solid', labelZh: '100% 实体' },
+        { value: 0.75, labelEn: '75% Clear', labelZh: '75% 清晰' },
+        { value: 0.50, labelEn: '50% Medium', labelZh: '50% 半透' },
+        { value: 0.25, labelEn: '25% Subtle', labelZh: '25% 微弱' },
+        { value: 0.0, labelEn: '0% Hidden', labelZh: '0% (隐藏)' }
+    ];
+
+    let platformMeshes = {
+        cyber_ring: null,
+        space_grid: null,
+        hexagon_disc: null,
+        minimal_disc: null
+    };
+
+    let platformState = {
+        type: (typeof localStorage !== 'undefined' && localStorage.getItem('dv_vr_platform_type')) || 'cyber_ring',
+        opacity: (typeof localStorage !== 'undefined' && localStorage.getItem('dv_vr_platform_opacity') !== null)
+            ? parseFloat(localStorage.getItem('dv_vr_platform_opacity'))
+            : 0.75
+    };
+    if (isNaN(platformState.opacity)) platformState.opacity = 0.75;
+
     // 检查当前设备与浏览器是否支持 WebXR 沉浸式 VR
     async function checkXRSupport() {
         if (typeof navigator !== 'undefined' && navigator.xr && typeof navigator.xr.isSessionSupported === 'function') {
@@ -163,27 +194,40 @@
         screenMesh.position.set(0, 1.6, 0);
         scene.add(screenMesh);
 
-        // --- 方案 B: 360° 无缝真全景环幕 (彻底消除接缝断层与极点缩挤畸变) ---
-        // 采用全景对称镜像 UV 映射算法 (0°→180°→360°)，在任何角度转身看均 100% 连续无断层
-        // 高度 9.2 米，半径 5.2 米，彻底避免传统球体在头顶/脚底把像素挤扁成一个漩涡的严重形变
-        const panoRadius = 5.2;
-        const panoHeight = 9.2;
-        const panoSegments = 64;
-        const panoGeom = new THREE.CylinderGeometry(
-            panoRadius, panoRadius, panoHeight, panoSegments, 1, true, 0, Math.PI * 2
+        // --- 方案 B: 360° 天地全覆盖真全景球幕 (天顶、地底 100% 铺满，左右 360° 无缝对称平滑包裹) ---
+        // 采用完整球体 SphereGeometry，完全包裹天穹天顶与脚底深渊，彻底消除上下露黑问题！
+        // 结合对称镜像 UV 映射算法：在正前方(0°) U = 0.5 (正对特效最炫丽的核心舞台)，
+        // 转至 90°(右) U = 1.0，转至 180°(后) U = 0.5，转至 270°(左) U = 0.0，转回 360°(前) U = 0.5。
+        // 接缝处导数平滑对接自身，全视野转身 100% 连续无断层！
+        const panoRadius = 22;
+        const widthSegments = 80;
+        const heightSegments = 40;
+        const panoGeom = new THREE.SphereGeometry(
+            panoRadius, widthSegments, heightSegments, -Math.PI / 2, Math.PI * 2, 0, Math.PI
         );
 
-        // 自定义 UV 贴图坐标：0° 到 180° (U: 0.0 -> 1.0)，180° 到 360° (U: 1.0 -> 0.0)
-        // 这样在 0°(正前) 和 180°(正后) 两端接缝处 U 值完全平滑连续，杜绝任何撕裂线条！
+        function getMirroredU(frac) {
+            if (frac <= 0.25) {
+                return 0.5 + 2.0 * frac;
+            } else if (frac <= 0.75) {
+                return 1.5 - 2.0 * frac;
+            } else {
+                return 2.0 * frac - 1.5;
+            }
+        }
+
         const uvs = panoGeom.attributes.uv;
-        const numCols = panoSegments;
-        for (let i = 0; i <= numCols; i++) {
-            const frac = i / numCols;
-            const uVal = frac <= 0.5 ? (frac * 2.0) : ((1.0 - frac) * 2.0);
-            // 顶端顶点
-            uvs.setX(i, uVal);
-            // 底端顶点
-            uvs.setX(i + (numCols + 1), uVal);
+        for (let j = 0; j <= heightSegments; j++) {
+            for (let i = 0; i <= widthSegments; i++) {
+                const idx = j * (widthSegments + 1) + i;
+                const fracU = (j === 0 || j === heightSegments)
+                    ? ((i + 0.5) / widthSegments)
+                    : (i / widthSegments);
+                const u = getMirroredU(Math.min(1.0, Math.max(0.0, fracU)));
+                uvs.setX(idx, u);
+                const v = 1.0 - (j / heightSegments);
+                uvs.setY(idx, v);
+            }
         }
         uvs.needsUpdate = true;
 
@@ -193,6 +237,7 @@
         panoramicMesh.visible = false; // 默认使用 IMAX 巨幕
         scene.add(panoramicMesh);
     }
+
 
     // 构建深空星尘与地台
     function buildEnvironment() {
@@ -240,62 +285,330 @@
         starParticles.visible = false; // 默认隐藏星尘
         scene.add(starParticles);
 
-        // 2. 地面发光参考台
+        // 2. 地面防眩晕参考平台 (在巨幕模式与全景模式下均持久保留，锚定身体平衡)
+        buildPlatform();
+    }
+
+    // 构建 4 款防眩晕地面参考平台 (极客赛博、全息网格、六边晶台、极简暗盘)
+    function buildPlatform() {
         platformGroup = new THREE.Group();
 
-        const discGeom = new THREE.CircleGeometry(2.4, 48);
-        const discMat = new THREE.MeshBasicMaterial({
-            color: 0x050811,
+        // ----------------------------------------------------
+        // 样式 1: 赛博霓虹光环 (Cyber Ring)
+        // ----------------------------------------------------
+        const ringGroup = new THREE.Group();
+
+        const ringBaseGeom = new THREE.CircleGeometry(2.4, 64);
+        const ringBaseMat = new THREE.MeshBasicMaterial({
+            color: 0x060a14,
             transparent: true,
             opacity: 0.88,
             side: THREE.DoubleSide
         });
-        const discMesh = new THREE.Mesh(discGeom, discMat);
-        discMesh.rotation.x = -Math.PI / 2;
-        discMesh.position.y = 0.01;
-        platformGroup.add(discMesh);
+        ringBaseMat.userData = { baseOpacity: 0.88 };
+        const ringBaseMesh = new THREE.Mesh(ringBaseGeom, ringBaseMat);
+        ringBaseMesh.rotation.x = -Math.PI / 2;
+        ringBaseMesh.position.y = 0.008;
+        ringGroup.add(ringBaseMesh);
 
-        // 霓虹光环
-        const ringGeom1 = new THREE.RingGeometry(2.35, 2.4, 64);
-        const ringMat1 = new THREE.MeshBasicMaterial({
+        // 外层青色光环
+        const ringOuterGeom = new THREE.RingGeometry(2.32, 2.4, 64);
+        const ringOuterMat = new THREE.MeshBasicMaterial({
             color: 0x38bdf8,
             transparent: true,
-            opacity: 0.6,
+            opacity: 0.85,
             side: THREE.DoubleSide
         });
-        const ringMesh1 = new THREE.Mesh(ringGeom1, ringMat1);
-        ringMesh1.rotation.x = -Math.PI / 2;
-        ringMesh1.position.y = 0.015;
-        platformGroup.add(ringMesh1);
+        ringOuterMat.userData = { baseOpacity: 0.85 };
+        const ringOuterMesh = new THREE.Mesh(ringOuterGeom, ringOuterMat);
+        ringOuterMesh.rotation.x = -Math.PI / 2;
+        ringOuterMesh.position.y = 0.012;
+        ringGroup.add(ringOuterMesh);
 
-        const ringGeom2 = new THREE.RingGeometry(1.2, 1.23, 48);
-        const ringMat2 = new THREE.MeshBasicMaterial({
+        // 中层品红光环
+        const ringMidGeom = new THREE.RingGeometry(1.22, 1.28, 64);
+        const ringMidMat = new THREE.MeshBasicMaterial({
             color: 0xec4899,
             transparent: true,
-            opacity: 0.4,
+            opacity: 0.75,
             side: THREE.DoubleSide
         });
-        const ringMesh2 = new THREE.Mesh(ringGeom2, ringMat2);
-        ringMesh2.rotation.x = -Math.PI / 2;
-        ringMesh2.position.y = 0.016;
-        platformGroup.add(ringMesh2);
+        ringMidMat.userData = { baseOpacity: 0.75 };
+        const ringMidMesh = new THREE.Mesh(ringMidGeom, ringMidMat);
+        ringMidMesh.rotation.x = -Math.PI / 2;
+        ringMidMesh.position.y = 0.014;
+        ringGroup.add(ringMidMesh);
 
-        platformGroup.visible = false; // 默认纯净视野
+        // 内层青色圆环
+        const ringInnerGeom = new THREE.RingGeometry(0.38, 0.42, 48);
+        const ringInnerMat = new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide
+        });
+        ringInnerMat.userData = { baseOpacity: 0.8 };
+        const ringInnerMesh = new THREE.Mesh(ringInnerGeom, ringInnerMat);
+        ringInnerMesh.rotation.x = -Math.PI / 2;
+        ringInnerMesh.position.y = 0.016;
+        ringGroup.add(ringInnerMesh);
+
+        // 4 向十字罗盘刻度线 (指示正前、后、左、右防迷向)
+        const tickGeom = new THREE.PlaneGeometry(0.04, 0.9);
+        const tickMat = new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            transparent: true,
+            opacity: 0.65,
+            side: THREE.DoubleSide
+        });
+        tickMat.userData = { baseOpacity: 0.65 };
+
+        // 前后刻度
+        const tickForward = new THREE.Mesh(tickGeom, tickMat);
+        tickForward.rotation.x = -Math.PI / 2;
+        tickForward.position.set(0, 0.015, -1.75);
+        ringGroup.add(tickForward);
+
+        const tickBack = new THREE.Mesh(tickGeom, tickMat);
+        tickBack.rotation.x = -Math.PI / 2;
+        tickBack.position.set(0, 0.015, 1.75);
+        ringGroup.add(tickBack);
+
+        // 左右刻度
+        const tickRight = new THREE.Mesh(tickGeom, tickMat);
+        tickRight.rotation.x = -Math.PI / 2;
+        tickRight.rotation.z = Math.PI / 2;
+        tickRight.position.set(1.75, 0.015, 0);
+        ringGroup.add(tickRight);
+
+        const tickLeft = new THREE.Mesh(tickGeom, tickMat);
+        tickLeft.rotation.x = -Math.PI / 2;
+        tickLeft.rotation.z = Math.PI / 2;
+        tickLeft.position.set(-1.75, 0.015, 0);
+        ringGroup.add(tickLeft);
+
+        platformMeshes.cyber_ring = ringGroup;
+        platformGroup.add(ringGroup);
+
+        // ----------------------------------------------------
+        // 样式 2: 空间全息网格 (Space Grid)
+        // ----------------------------------------------------
+        const gridGroup = new THREE.Group();
+
+        const gridBaseGeom = new THREE.CircleGeometry(2.5, 64);
+        const gridBaseMat = new THREE.MeshBasicMaterial({
+            color: 0x040813,
+            transparent: true,
+            opacity: 0.88,
+            side: THREE.DoubleSide
+        });
+        gridBaseMat.userData = { baseOpacity: 0.88 };
+        const gridBaseMesh = new THREE.Mesh(gridBaseGeom, gridBaseMat);
+        gridBaseMesh.rotation.x = -Math.PI / 2;
+        gridBaseMesh.position.y = 0.008;
+        gridGroup.add(gridBaseMesh);
+
+        // 空间网格线条 (5m x 5m，16 分割)
+        const gridHelper = new THREE.GridHelper(5.0, 16, 0x38bdf8, 0x1e3a5f);
+        gridHelper.position.y = 0.012;
+        gridHelper.material.transparent = true;
+        gridHelper.material.opacity = 0.75;
+        gridHelper.material.userData = { baseOpacity: 0.75 };
+        gridGroup.add(gridHelper);
+
+        // 外围高亮青色边缘光圈
+        const gridOuterGeom = new THREE.RingGeometry(2.44, 2.50, 64);
+        const gridOuterMat = new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            transparent: true,
+            opacity: 0.85,
+            side: THREE.DoubleSide
+        });
+        gridOuterMat.userData = { baseOpacity: 0.85 };
+        const gridOuterMesh = new THREE.Mesh(gridOuterGeom, gridOuterMat);
+        gridOuterMesh.rotation.x = -Math.PI / 2;
+        gridOuterMesh.position.y = 0.014;
+        gridGroup.add(gridOuterMesh);
+
+        platformMeshes.space_grid = gridGroup;
+        platformGroup.add(gridGroup);
+
+        // ----------------------------------------------------
+        // 样式 3: 未来六边形浮台 (Hexagon Platform)
+        // ----------------------------------------------------
+        const hexGroup = new THREE.Group();
+
+        const hexBaseGeom = new THREE.CircleGeometry(2.4, 6);
+        const hexBaseMat = new THREE.MeshBasicMaterial({
+            color: 0x080c1a,
+            transparent: true,
+            opacity: 0.90,
+            side: THREE.DoubleSide
+        });
+        hexBaseMat.userData = { baseOpacity: 0.90 };
+        const hexBaseMesh = new THREE.Mesh(hexBaseGeom, hexBaseMat);
+        hexBaseMesh.rotation.x = -Math.PI / 2;
+        hexBaseMesh.rotation.z = Math.PI / 6; // 平整边缘对齐正前方
+        hexBaseMesh.position.y = 0.008;
+        hexGroup.add(hexBaseMesh);
+
+        // 外围发光紫色六边形轮廓
+        const hexOuterGeom = new THREE.RingGeometry(2.32, 2.40, 6);
+        const hexOuterMat = new THREE.MeshBasicMaterial({
+            color: 0xa855f7,
+            transparent: true,
+            opacity: 0.85,
+            side: THREE.DoubleSide
+        });
+        hexOuterMat.userData = { baseOpacity: 0.85 };
+        const hexOuterMesh = new THREE.Mesh(hexOuterGeom, hexOuterMat);
+        hexOuterMesh.rotation.x = -Math.PI / 2;
+        hexOuterMesh.rotation.z = Math.PI / 6;
+        hexOuterMesh.position.y = 0.012;
+        hexGroup.add(hexOuterMesh);
+
+        // 内层同心青色六边形
+        const hexInnerGeom = new THREE.RingGeometry(1.22, 1.28, 6);
+        const hexInnerMat = new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            transparent: true,
+            opacity: 0.75,
+            side: THREE.DoubleSide
+        });
+        hexInnerMat.userData = { baseOpacity: 0.75 };
+        const hexInnerMesh = new THREE.Mesh(hexInnerGeom, hexInnerMat);
+        hexInnerMesh.rotation.x = -Math.PI / 2;
+        hexInnerMesh.rotation.z = Math.PI / 6;
+        hexInnerMesh.position.y = 0.014;
+        hexGroup.add(hexInnerMesh);
+
+        // 核心粉色六边形晶核
+        const hexCoreGeom = new THREE.CircleGeometry(0.35, 6);
+        const hexCoreMat = new THREE.MeshBasicMaterial({
+            color: 0xec4899,
+            transparent: true,
+            opacity: 0.8,
+            side: THREE.DoubleSide
+        });
+        hexCoreMat.userData = { baseOpacity: 0.8 };
+        const hexCoreMesh = new THREE.Mesh(hexCoreGeom, hexCoreMat);
+        hexCoreMesh.rotation.x = -Math.PI / 2;
+        hexCoreMesh.rotation.z = Math.PI / 6;
+        hexCoreMesh.position.y = 0.016;
+        hexGroup.add(hexCoreMesh);
+
+        platformMeshes.hexagon_disc = hexGroup;
+        platformGroup.add(hexGroup);
+
+        // ----------------------------------------------------
+        // 样式 4: 极简纯黑暗盘 (Minimal Disc)
+        // ----------------------------------------------------
+        const discGroup = new THREE.Group();
+
+        const discMinimalGeom = new THREE.CircleGeometry(2.3, 64);
+        const discMinimalMat = new THREE.MeshBasicMaterial({
+            color: 0x060810,
+            transparent: true,
+            opacity: 0.88,
+            side: THREE.DoubleSide
+        });
+        discMinimalMat.userData = { baseOpacity: 0.88 };
+        const discMinimalMesh = new THREE.Mesh(discMinimalGeom, discMinimalMat);
+        discMinimalMesh.rotation.x = -Math.PI / 2;
+        discMinimalMesh.position.y = 0.008;
+        discGroup.add(discMinimalMesh);
+
+        // 细微石板灰边界
+        const discBorderGeom = new THREE.RingGeometry(2.26, 2.30, 64);
+        const discBorderMat = new THREE.MeshBasicMaterial({
+            color: 0x64748b,
+            transparent: true,
+            opacity: 0.55,
+            side: THREE.DoubleSide
+        });
+        discBorderMat.userData = { baseOpacity: 0.55 };
+        const discBorderMesh = new THREE.Mesh(discBorderGeom, discBorderMat);
+        discBorderMesh.rotation.x = -Math.PI / 2;
+        discBorderMesh.position.y = 0.012;
+        discGroup.add(discBorderMesh);
+
+        platformMeshes.minimal_disc = discGroup;
+        platformGroup.add(discGroup);
+
+        // 初始应用设置并加入场景
+        updatePlatformAppearance();
         scene.add(platformGroup);
     }
+
+    // 更新地面平台的样式与透明度
+    function updatePlatformAppearance() {
+        if (!platformGroup) return;
+
+        for (const [key, subGroup] of Object.entries(platformMeshes)) {
+            if (subGroup) {
+                subGroup.visible = (key === platformState.type);
+            }
+        }
+
+        const currentOpacity = platformState.opacity;
+        if (currentOpacity <= 0.01) {
+            platformGroup.visible = false;
+        } else {
+            platformGroup.visible = true;
+            platformGroup.traverse(child => {
+                if (child.material) {
+                    const mats = Array.isArray(child.material) ? child.material : [child.material];
+                    mats.forEach(mat => {
+                        const base = (mat.userData && typeof mat.userData.baseOpacity === 'number')
+                            ? mat.userData.baseOpacity
+                            : (mat.opacity || 1.0);
+                        mat.userData.baseOpacity = base;
+                        mat.transparent = true;
+                        mat.opacity = base * currentOpacity;
+                    });
+                }
+            });
+        }
+
+        try {
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('dv_vr_platform_type', platformState.type);
+                localStorage.setItem('dv_vr_platform_opacity', platformState.opacity.toString());
+            }
+        } catch (e) {}
+    }
+
+    // 切换地面平台样式
+    function cyclePlatformType() {
+        const idx = PLATFORM_TYPES.findIndex(t => t.id === platformState.type);
+        const nextIdx = (idx + 1) % PLATFORM_TYPES.length;
+        platformState.type = PLATFORM_TYPES[nextIdx].id;
+        updatePlatformAppearance();
+        drawHUD();
+    }
+
+    // 切换地面平台透明度
+    function cyclePlatformOpacity() {
+        const idx = PLATFORM_OPACITIES.findIndex(o => Math.abs(o.value - platformState.opacity) < 0.05);
+        const nextIdx = (idx + 1) % PLATFORM_OPACITIES.length;
+        platformState.opacity = PLATFORM_OPACITIES[nextIdx].value;
+        updatePlatformAppearance();
+        drawHUD();
+    }
+
 
     // 构建 3D 浮动玻璃拟态 HUD 菜单
     function buildFloatingHUD() {
         hudCanvas = document.createElement('canvas');
         hudCanvas.width = 1080;
-        hudCanvas.height = 640;
+        hudCanvas.height = 720;
         hudCtx = hudCanvas.getContext('2d');
 
         hudTexture = new THREE.CanvasTexture(hudCanvas);
         hudTexture.minFilter = THREE.LinearFilter;
         hudTexture.magFilter = THREE.LinearFilter;
 
-        const planeGeom = new THREE.PlaneGeometry(1.44, 0.85);
+        const planeGeom = new THREE.PlaneGeometry(1.44, 0.96);
         const planeMat = new THREE.MeshBasicMaterial({
             map: hudTexture,
             transparent: true,
@@ -370,17 +683,17 @@
             ctx.font = '900 24px "Orbitron", sans-serif';
             ctx.fillStyle = '#38bdf8';
             ctx.textAlign = 'left';
-            ctx.fillText(isZh ? '🎵 选曲播放 (Tracklist)' : '🎵 Select Track (Tracklist)', 60, 68);
+            ctx.fillText(isZh ? '🎵 选曲播放 (Tracklist)' : '🎵 Select Track (Tracklist)', 60, 65);
 
             ctx.font = '600 16px "Orbitron", sans-serif';
             ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-            ctx.fillText(`${isZh ? '第' : 'Page'} ${state.tracklistPage + 1} / ${totalPages} ${isZh ? '页 (共 ' + totalSongs + ' 首)' : '(Total ' + totalSongs + ')'}`, 400, 68);
+            ctx.fillText(`${isZh ? '第' : 'Page'} ${state.tracklistPage + 1} / ${totalPages} ${isZh ? '页 (共 ' + totalSongs + ' 首)' : '(Total ' + totalSongs + ')'}`, 400, 65);
             ctx.restore();
 
             // 返回主控制面板按钮
             hudButtons.push({
                 id: 'btn-tracklist-back',
-                x: 770, y: 34, w: 250, h: 50,
+                x: 770, y: 30, w: 250, h: 48,
                 icon: '⬅', labelEn: 'Back to Player', labelZh: '返回控制面板',
                 isOutline: true,
                 onClick: () => {
@@ -391,8 +704,8 @@
 
             // 分隔线
             ctx.beginPath();
-            ctx.moveTo(60, 102);
-            ctx.lineTo(w - 60, 102);
+            ctx.moveTo(60, 96);
+            ctx.lineTo(w - 60, 96);
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
             ctx.lineWidth = 1.5;
             ctx.stroke();
@@ -402,8 +715,8 @@
             const pageSongs = rawSongList.slice(startIndex, startIndex + state.songsPerPage);
 
             const colWidth = 460;
-            const rowHeight = 74;
-            const startY = 125;
+            const rowHeight = 76;
+            const startY = 112;
             const col1X = 60;
             const col2X = 560;
 
@@ -441,7 +754,7 @@
 
             hudButtons.push({
                 id: 'btn-page-prev',
-                x: 60, y: 500, w: 220, h: 58,
+                x: 60, y: 485, w: 220, h: 58,
                 icon: '◀', labelEn: 'Prev Page', labelZh: '上一页',
                 disabled: prevDisabled,
                 onClick: () => {
@@ -454,7 +767,7 @@
 
             hudButtons.push({
                 id: 'btn-page-next',
-                x: 800, y: 500, w: 220, h: 58,
+                x: 800, y: 485, w: 220, h: 58,
                 icon: '▶', labelEn: 'Next Page', labelZh: '下一页',
                 disabled: nextDisabled,
                 onClick: () => {
@@ -470,7 +783,7 @@
             ctx.font = '500 14px "Orbitron", sans-serif';
             ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
             ctx.textAlign = 'center';
-            ctx.fillText(isZh ? '💡 扣动手柄扳机键 (Trigger) 点击曲目即可切歌 · 瞄准空白处扣动扳机可隐去菜单' : '💡 Pull Trigger to select song · Pull in empty space to hide HUD', w / 2, 595);
+            ctx.fillText(isZh ? '💡 扣动手柄扳机键 (Trigger) 点击曲目即可切歌 · 瞄准空白处扣动扳机可隐去菜单' : '💡 Pull Trigger to select song · Pull in empty space to hide HUD', w / 2, 665);
             ctx.restore();
 
         } else {
@@ -483,20 +796,20 @@
             ctx.font = '900 24px "Orbitron", sans-serif';
             ctx.fillStyle = '#f472b6';
             ctx.textAlign = 'left';
-            ctx.fillText('ECHOSFALL VR', 60, 64);
+            ctx.fillText('ECHOSFALL VR', 60, 58);
 
             // 右上角模式徽章
             const modeText = state.displayMode === 'curved_screen' ? 'IMAX 148° SCREEN' : '360° SEAMLESS PANORAMA';
             ctx.font = '700 15px "Orbitron", sans-serif';
             ctx.fillStyle = '#38bdf8';
             ctx.textAlign = 'right';
-            ctx.fillText(modeText, 930, 64);
+            ctx.fillText(modeText, 930, 58);
             ctx.restore();
 
             // 右上角极速隐藏按钮
             hudButtons.push({
                 id: 'btn-quick-hide',
-                x: 955, y: 38, w: 65, h: 42,
+                x: 955, y: 32, w: 65, h: 42,
                 icon: '✕', labelEn: '', labelZh: '',
                 isOutline: true,
                 onClick: () => {
@@ -506,22 +819,22 @@
 
             // 正在播放曲目名称
             ctx.save();
-            ctx.font = '800 32px "Orbitron", -apple-system, sans-serif';
+            ctx.font = '800 30px "Orbitron", -apple-system, sans-serif';
             ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'left';
             const displayTitle = trackInfo.title || 'Echoes in the Fog';
-            ctx.fillText(displayTitle.length > 38 ? displayTitle.substring(0, 36) + '...' : displayTitle, 60, 115);
+            ctx.fillText(displayTitle.length > 38 ? displayTitle.substring(0, 36) + '...' : displayTitle, 60, 105);
 
             // 当前视觉特效预设名称
-            ctx.font = '600 20px "Orbitron", sans-serif';
+            ctx.font = '600 19px "Orbitron", sans-serif';
             ctx.fillStyle = '#a5f3fc';
             const displayPreset = 'FX: ' + (trackInfo.preset || 'Cosmic Pulse');
-            ctx.fillText(displayPreset.length > 48 ? displayPreset.substring(0, 46) + '...' : displayPreset, 60, 150);
+            ctx.fillText(displayPreset.length > 50 ? displayPreset.substring(0, 48) + '...' : displayPreset, 60, 140);
 
             // 分隔线
             ctx.beginPath();
-            ctx.moveTo(60, 175);
-            ctx.lineTo(w - 60, 175);
+            ctx.moveTo(60, 165);
+            ctx.lineTo(w - 60, 165);
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
             ctx.lineWidth = 1.5;
             ctx.stroke();
@@ -531,7 +844,7 @@
             hudButtons.push(
                 {
                     id: 'btn-prev-track',
-                    x: 60, y: 195, w: 160, h: 78,
+                    x: 60, y: 185, w: 150, h: 68,
                     icon: '⏮', labelEn: 'Prev Track', labelZh: '上一曲',
                     onClick: () => {
                         if (state.bridge && state.bridge.prevTrack) state.bridge.prevTrack();
@@ -540,7 +853,7 @@
                 },
                 {
                     id: 'btn-play-pause',
-                    x: 240, y: 190, w: 220, h: 88,
+                    x: 225, y: 185, w: 210, h: 68,
                     isPrimary: true,
                     icon: '⏯', labelEn: 'Play / Pause', labelZh: '播放 / 暂停',
                     onClick: () => {
@@ -550,7 +863,7 @@
                 },
                 {
                     id: 'btn-next-track',
-                    x: 480, y: 195, w: 160, h: 78,
+                    x: 450, y: 185, w: 150, h: 68,
                     icon: '⏭', labelEn: 'Next Track', labelZh: '下一曲',
                     onClick: () => {
                         if (state.bridge && state.bridge.nextTrack) state.bridge.nextTrack();
@@ -559,7 +872,7 @@
                 },
                 {
                     id: 'btn-open-tracklist',
-                    x: 660, y: 195, w: 360, h: 78,
+                    x: 615, y: 185, w: 405, h: 68,
                     icon: '📜', labelEn: 'Pick Song (77 Tracks)', labelZh: '选曲点播 (77首曲目)',
                     isSpecial: true,
                     onClick: () => {
@@ -573,7 +886,7 @@
             hudButtons.push(
                 {
                     id: 'btn-prev-preset',
-                    x: 60, y: 295, w: 160, h: 74,
+                    x: 60, y: 265, w: 150, h: 68,
                     icon: '◀', labelEn: 'Prev FX', labelZh: '上一特效',
                     onClick: () => {
                         if (state.bridge && state.bridge.prevPreset) state.bridge.prevPreset();
@@ -582,7 +895,7 @@
                 },
                 {
                     id: 'btn-next-preset',
-                    x: 240, y: 295, w: 220, h: 74,
+                    x: 225, y: 265, w: 210, h: 68,
                     icon: '🪄', labelEn: 'Next FX', labelZh: '切换特效',
                     onClick: () => {
                         if (state.bridge && state.bridge.nextPreset) state.bridge.nextPreset();
@@ -591,7 +904,7 @@
                 },
                 {
                     id: 'btn-toggle-preset-mode',
-                    x: 480, y: 295, w: 260, h: 74,
+                    x: 450, y: 265, w: 270, h: 68,
                     icon: '🎨',
                     labelEn: isPresetShuffle ? 'FX: Shuffle' : 'FX: Sequential',
                     labelZh: isPresetShuffle ? '特效: 随机循环' : '特效: 顺序播放',
@@ -604,7 +917,7 @@
                 },
                 {
                     id: 'btn-cycle-quality',
-                    x: 760, y: 295, w: 260, h: 74,
+                    x: 735, y: 265, w: 285, h: 68,
                     icon: '💎',
                     labelEn: `Quality: ${qualityLabel}`,
                     labelZh: `画质: ${qualityLabel} (可调)`,
@@ -622,7 +935,7 @@
             hudButtons.push(
                 {
                     id: 'btn-toggle-song-mode',
-                    x: 60, y: 390, w: 280, h: 74,
+                    x: 60, y: 345, w: 310, h: 68,
                     icon: isSongShuffle ? '🔀' : '🔁',
                     labelEn: isSongShuffle ? 'Songs: Shuffle' : 'Songs: Sequential',
                     labelZh: isSongShuffle ? '曲目: 随机播放' : '曲目: 顺序播放',
@@ -635,7 +948,7 @@
                 },
                 {
                     id: 'btn-toggle-display-mode',
-                    x: 360, y: 390, w: 310, h: 74,
+                    x: 385, y: 345, w: 330, h: 68,
                     icon: '🌐',
                     labelEn: state.displayMode === 'curved_screen' ? 'View: IMAX Screen' : 'View: 360° Panorama',
                     labelZh: state.displayMode === 'curved_screen' ? '视角: IMAX超巨幕' : '视角: 360°真全景',
@@ -646,19 +959,48 @@
                 },
                 {
                     id: 'btn-recenter',
-                    x: 690, y: 390, w: 330, h: 74,
-                    icon: '🎯', labelEn: 'Recenter HUD View', labelZh: '视角正前居中',
+                    x: 730, y: 345, w: 290, h: 68,
+                    icon: '🎯', labelEn: 'Recenter View', labelZh: '视角正前居中',
                     onClick: () => {
                         recenterHUD();
                     }
                 }
             );
 
-            // 第四行控制按钮：退出 VR 与 隐藏菜单
+            // 第四行控制按钮：防眩晕地面平台样式与透明度调节
+            const currentTypeObj = PLATFORM_TYPES.find(t => t.id === platformState.type) || PLATFORM_TYPES[0];
+            const currentOpacityObj = PLATFORM_OPACITIES.find(o => Math.abs(o.value - platformState.opacity) < 0.05) || PLATFORM_OPACITIES[1];
+
+            hudButtons.push(
+                {
+                    id: 'btn-cycle-platform-type',
+                    x: 60, y: 425, w: 495, h: 68,
+                    icon: '🛡️',
+                    labelEn: `Platform: ${currentTypeObj.nameEn} (Cycle)`,
+                    labelZh: `地台样式: ${currentTypeObj.nameZh} (点击切换)`,
+                    isPlatformType: true,
+                    onClick: () => {
+                        cyclePlatformType();
+                    }
+                },
+                {
+                    id: 'btn-cycle-platform-opacity',
+                    x: 570, y: 425, w: 450, h: 68,
+                    icon: '🔆',
+                    labelEn: `Platform Opacity: ${currentOpacityObj.labelEn}`,
+                    labelZh: `地台透明度: ${currentOpacityObj.labelZh}`,
+                    isPlatformOpacity: true,
+                    onClick: () => {
+                        cyclePlatformOpacity();
+                    }
+                }
+            );
+
+            // 第五行控制按钮：退出 VR 与 隐藏菜单
             hudButtons.push(
                 {
                     id: 'btn-exit-vr',
-                    x: 60, y: 485, w: 560, h: 70,
+                    x: 60, y: 505, w: 530, h: 68,
                     isDanger: true,
                     icon: '🚪', labelEn: 'Exit VR Mode', labelZh: '退出 VR 沉浸模式',
                     onClick: () => {
@@ -667,9 +1009,9 @@
                 },
                 {
                     id: 'btn-hide-hud',
-                    x: 640, y: 485, w: 380, h: 70,
+                    x: 605, y: 505, w: 415, h: 68,
                     isOutline: true,
-                    icon: '✕', labelEn: 'Hide Menu (Pure Visual)', labelZh: '隐藏菜单 (纯享巨幕)',
+                    icon: '✕', labelEn: 'Hide Menu (Pure Visual)', labelZh: '隐藏菜单 (纯享视觉)',
                     onClick: () => {
                         hideMenu();
                     }
@@ -684,7 +1026,7 @@
             const hintText = isZh
                 ? '💡 瞄准空白处扣动扳机或按 A/X 键可隐藏菜单 · 摇杆左右切特效 · 摇杆上下切歌 · 侧握居中'
                 : '💡 Pull Trigger in empty space or press A/X to toggle HUD · Stick [←→] FX · Stick [↑↓] Track';
-            ctx.fillText(hintText, w / 2, 595);
+            ctx.fillText(hintText, w / 2, 665);
             ctx.restore();
         }
 
@@ -749,6 +1091,20 @@
                 ctx.lineWidth = 1.8;
                 ctx.strokeStyle = '#f59e0b';
                 ctx.stroke();
+            } else if (btn.isPlatformType) {
+                // 地台样式按钮 (科技青色微光)
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.16)';
+                ctx.fill();
+                ctx.lineWidth = 1.8;
+                ctx.strokeStyle = '#38bdf8';
+                ctx.stroke();
+            } else if (btn.isPlatformOpacity) {
+                // 地台透明度按钮 (幻梦粉微光)
+                ctx.fillStyle = 'rgba(236, 72, 153, 0.16)';
+                ctx.fill();
+                ctx.lineWidth = 1.8;
+                ctx.strokeStyle = '#f472b6';
+                ctx.stroke();
             } else if (btn.isDanger) {
                 // 退出按钮
                 ctx.fillStyle = 'rgba(239, 68, 68, 0.14)';
@@ -765,6 +1121,7 @@
                 ctx.stroke();
             }
             ctx.restore();
+
 
             // 绘制文字与图标
             ctx.save();
