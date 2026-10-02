@@ -2,21 +2,19 @@
  * Dreamy Voyage - WebXR VR Manager
  * 专门适配 Meta Quest 2 / Quest 3 / Quest Pro (Meta Quest Browser)
  * 
- * 核心功能：
- * 1. WebXR 会话生命周期管理 (全屏沉浸式立体 VR 体验)
- * 2. 空间视听映射：
- *    - [IMAX 巨幕模式] 120° 悬浮超宽曲面巨幕 (默认推荐，沉浸且无眩晕)
- *    - [360° 穹顶模式] 全包裹动态宇宙球体视界
- * 3. Quest 2 手柄 6DoF 空间交互：
- *    - 激光射线指针 (Laser Pointer) 与吸附光斑
- *    - 手柄物理震动触觉反馈 (Haptic Pulses)
- * 4. 3D 悬浮玻璃拟态交互菜单 (HUD)：
- *    - 播放/暂停、上一曲/下一曲、切换视觉预设、模式切换、视角居中、退出 VR
- * 5. Quest 2 物理按键与摇杆盲操：
- *    - 摇杆 上/下：切歌
- *    - 摇杆 左/右：切换 Butterchurn 视觉预设
- *    - A/X 键 或 Grip 侧握键：呼出/隐藏 3D 菜单
- *    - 扳机键 (Trigger)：点击光束选中的菜单按钮
+ * 核心升级：
+ * 1. 修复 Butterchurn 动态特效显示：
+ *    - 120° 弧形微曲巨幕准确对称居中在用户正前方 (-Z 轴)，彻底消除偏移
+ *    - 双面渲染 (THREE.DoubleSide) 杜绝剔除，水平翻转保证画面正向
+ *    - WebGL2 preserveDrawingBuffer 支持，帧帧无损同步
+ * 2. 彻底解决菜单缓慢向右漂移问题：
+ *    - 去除星尘粒子连续自转 (消除视动错觉 Vection Illusion)
+ *    - 浮动 HUD 牢固锚定于空间，视角重置精准稳定
+ * 3. 新增随机播放 / 顺序播放切换按键：
+ *    - VR HUD 一键切换 Shuffle ↔ Sequential
+ * 4. 新增内置曲目选择系统 (In-VR Tracklist Picker)：
+ *    - 完整支持浏览 77+ 首歌曲，分页网格化展示
+ *    - 正在播放曲目高亮标识，手柄射线直接点击秒切歌曲
  */
 
 (() => {
@@ -28,6 +26,9 @@
         isSupported: false,
         displayMode: 'curved_screen', // 'curved_screen' | 'dome'
         menuVisible: true,
+        currentView: 'player', // 'player' (播放控制) | 'tracklist' (选曲列表)
+        tracklistPage: 0,
+        songsPerPage: 8,
         hoveredButtonId: null,
         lastThumbstickTime: 0,
         thumbstickCooldown: 380, // 摇杆操作防抖毫秒数
@@ -61,7 +62,6 @@
     let hudCtx = null;
     let hudTexture = null;
     let hudButtons = [];
-    let hudNeedsRedraw = true;
 
     // 检查当前设备与浏览器是否支持 WebXR 沉浸式 VR
     async function checkXRSupport() {
@@ -121,10 +121,10 @@
         visualizerTexture.format = THREE.RGBAFormat;
         visualizerTexture.generateMipmaps = false;
 
-        // 5. 构建 3D 视觉巨幕 & 360° 穹顶
+        // 5. 构建 3D 视觉巨幕 & 360° 穹顶 (精确对称对齐在用户正前方)
         buildScreenAndDome();
 
-        // 6. 构建深空星尘环境 & 地面发光台
+        // 6. 构建深空静态星尘环境 & 地面发光参考台 (消除自转以杜绝菜单漂移错觉)
         buildEnvironment();
 
         // 7. 构建 3D 悬浮 HUD 菜单
@@ -140,22 +140,23 @@
     function buildScreenAndDome() {
         const screenMat = new THREE.MeshBasicMaterial({
             map: visualizerTexture,
-            side: THREE.FrontSide,
+            side: THREE.DoubleSide, // 双面渲染杜绝剔除
             toneMapped: false
         });
 
         // --- 方案 A: 120° 弧形曲面 IMAX 巨幕 ---
-        // 半径 4.2 米，高 2.5 米，圆弧角约 120° (Math.PI * 0.68)
+        // 半径 4.2 米，高 2.6 米，弧角约 130° (Math.PI * 0.72)
+        // thetaStart = Math.PI - arcAngle / 2 确保中心完全精准对准负 Z 轴 (用户正前方)！
         const radius = 4.2;
-        const height = 2.55;
-        const arcAngle = Math.PI * 0.68;
-        const thetaStart = Math.PI * 1.5 - arcAngle / 2;
+        const height = 2.6;
+        const arcAngle = Math.PI * 0.72;
+        const thetaStart = Math.PI - arcAngle / 2;
 
         const cylinderGeom = new THREE.CylinderGeometry(
             radius, radius, height, 48, 1, true, thetaStart, arcAngle
         );
         screenMesh = new THREE.Mesh(cylinderGeom, screenMat);
-        // 水平翻转 X 轴，确保从圆心向前看时，纹理保持正向且不镜像
+        // 水平翻转 X 轴使画面左至右方向与原画完全一致
         screenMesh.scale.set(-1, 1, 1);
         screenMesh.position.set(0, 1.6, 0); // 居中置于眼平线高度
         scene.add(screenMesh);
@@ -163,7 +164,7 @@
         // --- 方案 B: 360° 全景沉浸穹顶球体 ---
         const sphereGeom = new THREE.SphereGeometry(22, 60, 40);
         domeMesh = new THREE.Mesh(sphereGeom, screenMat);
-        domeMesh.scale.set(-1, 1, 1); // 内部反转面向视线
+        domeMesh.scale.set(-1, 1, 1);
         domeMesh.position.set(0, 1.6, 0);
         domeMesh.visible = false; // 默认使用巨幕模式
         scene.add(domeMesh);
@@ -171,7 +172,7 @@
 
     // 构建深空星尘与地台
     function buildEnvironment() {
-        // 1. 星尘粒子 (1200 颗随机点缀在视界周围)
+        // 1. 星尘粒子 (静态点缀，不自转，消除相对位移错觉)
         const particleCount = 1200;
         const positions = new Float32Array(particleCount * 3);
         const colors = new Float32Array(particleCount * 3);
@@ -184,7 +185,6 @@
         ];
 
         for (let i = 0; i < particleCount; i++) {
-            // 球坐标随机分布
             const u = Math.random();
             const v = Math.random();
             const theta = u * 2.0 * Math.PI;
@@ -192,7 +192,7 @@
             const r = 8 + Math.random() * 25;
 
             positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-            positions[i * 3 + 1] = Math.max(0.2, r * Math.sin(phi) * Math.sin(theta)); // 保持大部分在水平面及以上
+            positions[i * 3 + 1] = Math.max(0.2, r * Math.sin(phi) * Math.sin(theta));
             positions[i * 3 + 2] = r * Math.cos(phi);
 
             const c = colorPalette[Math.floor(Math.random() * colorPalette.length)];
@@ -215,10 +215,9 @@
         starParticles = new THREE.Points(particleGeom, particleMat);
         scene.add(starParticles);
 
-        // 2. 地面发光参考台 (防止 VR 眩晕，提供空间感知锚点)
+        // 2. 地面发光参考台 (提供空间物理感知，消除悬空眩晕)
         platformGroup = new THREE.Group();
 
-        // 黑色基座圆盘
         const discGeom = new THREE.CircleGeometry(2.4, 48);
         const discMat = new THREE.MeshBasicMaterial({
             color: 0x070b14,
@@ -231,7 +230,7 @@
         discMesh.position.y = 0.01;
         platformGroup.add(discMesh);
 
-        // 霓虹光环 1
+        // 霓虹光环
         const ringGeom1 = new THREE.RingGeometry(2.35, 2.4, 64);
         const ringMat1 = new THREE.MeshBasicMaterial({
             color: 0x38bdf8,
@@ -244,7 +243,6 @@
         ringMesh1.position.y = 0.015;
         platformGroup.add(ringMesh1);
 
-        // 霓虹光环 2 (内环)
         const ringGeom2 = new THREE.RingGeometry(1.2, 1.23, 48);
         const ringMat2 = new THREE.MeshBasicMaterial({
             color: 0xec4899,
@@ -264,14 +262,14 @@
     function buildFloatingHUD() {
         hudCanvas = document.createElement('canvas');
         hudCanvas.width = 1024;
-        hudCanvas.height = 512;
+        hudCanvas.height = 600;
         hudCtx = hudCanvas.getContext('2d');
 
         hudTexture = new THREE.CanvasTexture(hudCanvas);
         hudTexture.minFilter = THREE.LinearFilter;
         hudTexture.magFilter = THREE.LinearFilter;
 
-        const planeGeom = new THREE.PlaneGeometry(1.25, 0.625);
+        const planeGeom = new THREE.PlaneGeometry(1.4, 0.82);
         const planeMat = new THREE.MeshBasicMaterial({
             map: hudTexture,
             transparent: true,
@@ -280,77 +278,15 @@
         });
 
         hudMesh = new THREE.Mesh(planeGeom, planeMat);
-        // 置于用户正前方 1.8 米，高度 1.35 米，微向上仰角 8 度，最舒适自然的人体工程学视角
+        // 初始放置于正前方 1.8 米，高度 1.35 米
         hudMesh.position.set(0, 1.35, -1.8);
         hudMesh.rotation.x = THREE.MathUtils.degToRad(8);
         scene.add(hudMesh);
 
-        // 定义可点击按钮的绝对物理区域 (针对 1024x512 Canvas)
-        hudButtons = [
-            // 第一行控制按钮：切歌与播放控制
-            {
-                id: 'btn-prev-track',
-                x: 104, y: 250, w: 230, h: 84,
-                icon: '⏮', labelEn: 'Prev Track', labelZh: '上一曲',
-                onClick: () => {
-                    if (state.bridge && state.bridge.prevTrack) state.bridge.prevTrack();
-                    drawHUD();
-                }
-            },
-            {
-                id: 'btn-play-pause',
-                x: 397, y: 244, w: 230, h: 96,
-                isPrimary: true,
-                icon: '⏯', labelEn: 'Play / Pause', labelZh: '播放 / 暂停',
-                onClick: () => {
-                    if (state.bridge && state.bridge.togglePlayPause) state.bridge.togglePlayPause();
-                    drawHUD();
-                }
-            },
-            {
-                id: 'btn-next-track',
-                x: 690, y: 250, w: 230, h: 84,
-                icon: '⏭', labelEn: 'Next Track', labelZh: '下一曲',
-                onClick: () => {
-                    if (state.bridge && state.bridge.nextTrack) state.bridge.nextTrack();
-                    drawHUD();
-                }
-            },
-
-            // 第二行控制按钮：视觉预设、模式、居中、退出
-            {
-                id: 'btn-switch-preset',
-                x: 104, y: 370, w: 230, h: 76,
-                icon: '🪄', labelEn: 'Next FX Preset', labelZh: '切换视觉特效',
-                onClick: () => {
-                    if (state.bridge && state.bridge.nextPreset) state.bridge.nextPreset();
-                    drawHUD();
-                }
-            },
-            {
-                id: 'btn-toggle-mode',
-                x: 397, y: 370, w: 230, h: 76,
-                icon: '🌐', labelEn: 'Screen / Dome', labelZh: '巨幕 / 360°穹顶',
-                onClick: () => {
-                    toggleDisplayMode();
-                    drawHUD();
-                }
-            },
-            {
-                id: 'btn-exit-vr',
-                x: 690, y: 370, w: 230, h: 76,
-                isDanger: true,
-                icon: '🚪', labelEn: 'Exit VR', labelZh: '退出 VR',
-                onClick: () => {
-                    exitVR();
-                }
-            }
-        ];
-
         drawHUD();
     }
 
-    // 绘制 3D 浮动 HUD 菜单 (玻璃拟态 + 霓虹发光)
+    // 绘制 3D 浮动 HUD 菜单 (支持播放主控制视图 & 曲目点选列表视图)
     function drawHUD() {
         if (!hudCtx) return;
         const ctx = hudCtx;
@@ -358,13 +294,14 @@
         const h = hudCanvas.height;
 
         ctx.clearRect(0, 0, w, h);
+        hudButtons = [];
 
-        // 1. 半透明深蓝黑底板与霓虹边框
+        // 1. 半透明深蓝黑底板与霓虹流动边框
         const cornerRadius = 36;
         ctx.save();
         ctx.beginPath();
         roundRect(ctx, 30, 20, w - 60, h - 40, cornerRadius);
-        ctx.fillStyle = 'rgba(7, 12, 24, 0.90)';
+        ctx.fillStyle = 'rgba(7, 12, 24, 0.92)';
         ctx.fill();
 
         ctx.lineWidth = 3.5;
@@ -376,60 +313,315 @@
         ctx.stroke();
         ctx.restore();
 
-        // 2. 顶部品牌与曲目信息
         const trackInfo = state.bridge ? state.bridge.getTrackInfo() : {
             title: 'Dreamy Voyage',
             preset: 'BUTTERCHURN REVERIE',
             isPlaying: true,
             isChinese: false
         };
-
-        // 标题徽标
-        ctx.save();
-        ctx.font = '900 24px "Orbitron", sans-serif';
-        ctx.fillStyle = '#f472b6';
-        ctx.textAlign = 'left';
-        ctx.fillText('ECHOSFALL VR', 68, 68);
-
-        // 模式徽章
-        const modeText = state.displayMode === 'curved_screen' ? 'IMAX 120° SCREEN' : '360° COSMIC DOME';
-        ctx.font = '700 16px "Orbitron", sans-serif';
-        ctx.fillStyle = '#38bdf8';
-        ctx.textAlign = 'right';
-        ctx.fillText(modeText, w - 68, 68);
-
-        // 正在播放曲目名称
-        ctx.font = '800 34px "Orbitron", -apple-system, sans-serif';
-        ctx.fillStyle = '#ffffff';
-        ctx.textAlign = 'left';
-        const displayTitle = trackInfo.title || 'Echoes in the Fog';
-        ctx.fillText(displayTitle.length > 38 ? displayTitle.substring(0, 36) + '...' : displayTitle, 68, 124);
-
-        // 当前视觉特效预设名称
-        ctx.font = '600 20px "Orbitron", sans-serif';
-        ctx.fillStyle = '#a5f3fc';
-        const displayPreset = 'FX: ' + (trackInfo.preset || 'Cosmic Pulse');
-        ctx.fillText(displayPreset.length > 46 ? displayPreset.substring(0, 44) + '...' : displayPreset, 68, 162);
-
-        // 状态分隔线
-        ctx.beginPath();
-        ctx.moveTo(68, 192);
-        ctx.lineTo(w - 68, 192);
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-        ctx.restore();
-
-        // 3. 渲染所有可交互按钮
         const isZh = trackInfo.isChinese;
+        const playbackMode = state.bridge && state.bridge.getPlaybackMode ? state.bridge.getPlaybackMode() : 'random';
+        const isShuffle = (playbackMode === 'random');
+
+        // ==========================================
+        // 视图分支 A：选曲列表视图 (Tracklist View)
+        // ==========================================
+        if (state.currentView === 'tracklist') {
+            const rawSongList = state.bridge && state.bridge.getSongList ? state.bridge.getSongList() : [];
+            const currentSong = state.bridge && state.bridge.getCurrentSong ? state.bridge.getCurrentSong() : '';
+            const totalSongs = rawSongList.length;
+            const totalPages = Math.max(1, Math.ceil(totalSongs / state.songsPerPage));
+            if (state.tracklistPage >= totalPages) state.tracklistPage = totalPages - 1;
+            if (state.tracklistPage < 0) state.tracklistPage = 0;
+
+            // 标题栏
+            ctx.save();
+            ctx.font = '900 24px "Orbitron", sans-serif';
+            ctx.fillStyle = '#38bdf8';
+            ctx.textAlign = 'left';
+            ctx.fillText(isZh ? '🎵 选曲播放 (Tracklist)' : '🎵 Select Track (Tracklist)', 68, 68);
+
+            ctx.font = '600 16px "Orbitron", sans-serif';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.fillText(`${isZh ? '第' : 'Page'} ${state.tracklistPage + 1} / ${totalPages} ${isZh ? '页 (共 ' + totalSongs + ' 首)' : '(Total ' + totalSongs + ')'}`, 380, 68);
+            ctx.restore();
+
+            // 返回主控制面板按钮
+            hudButtons.push({
+                id: 'btn-tracklist-back',
+                x: 740, y: 36, w: 216, h: 48,
+                icon: '⬅', labelEn: 'Back to Player', labelZh: '返回控制面板',
+                isOutline: true,
+                onClick: () => {
+                    state.currentView = 'player';
+                    drawHUD();
+                }
+            });
+
+            // 分隔线
+            ctx.beginPath();
+            ctx.moveTo(68, 100);
+            ctx.lineTo(w - 68, 100);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // 渲染当前页 8 首歌曲 (2 列 x 4 行)
+            const startIndex = state.tracklistPage * state.songsPerPage;
+            const pageSongs = rawSongList.slice(startIndex, startIndex + state.songsPerPage);
+
+            const colWidth = 430;
+            const rowHeight = 72;
+            const startY = 120;
+            const col1X = 68;
+            const col2X = 526;
+
+            pageSongs.forEach((song, idx) => {
+                const globalIdx = startIndex + idx;
+                const col = idx % 2;
+                const row = Math.floor(idx / 2);
+                const btnX = col === 0 ? col1X : col2X;
+                const btnY = startY + row * (rowHeight + 12);
+                const isCurrentPlaying = (song === currentSong);
+
+                const songTitle = state.bridge && state.bridge.formatTrackTitle
+                    ? state.bridge.formatTrackTitle(song)
+                    : song.replace(/\.mp3$/i, '');
+
+                hudButtons.push({
+                    id: `btn-song-pick-${globalIdx}`,
+                    x: btnX, y: btnY, w: colWidth, h: rowHeight,
+                    songName: song,
+                    songTitle: songTitle,
+                    isCurrentPlaying,
+                    isSongItem: true,
+                    onClick: () => {
+                        if (state.bridge && state.bridge.selectSong) {
+                            state.bridge.selectSong(song);
+                        }
+                        drawHUD();
+                    }
+                });
+            });
+
+            // 底部翻页栏
+            const prevDisabled = state.tracklistPage === 0;
+            const nextDisabled = state.tracklistPage >= totalPages - 1;
+
+            hudButtons.push({
+                id: 'btn-page-prev',
+                x: 68, y: 472, w: 220, h: 56,
+                icon: '◀', labelEn: 'Prev Page', labelZh: '上一页',
+                disabled: prevDisabled,
+                onClick: () => {
+                    if (state.tracklistPage > 0) {
+                        state.tracklistPage--;
+                        drawHUD();
+                    }
+                }
+            });
+
+            hudButtons.push({
+                id: 'btn-page-next',
+                x: 736, y: 472, w: 220, h: 56,
+                icon: '▶', labelEn: 'Next Page', labelZh: '下一页',
+                disabled: nextDisabled,
+                onClick: () => {
+                    if (state.tracklistPage < totalPages - 1) {
+                        state.tracklistPage++;
+                        drawHUD();
+                    }
+                }
+            });
+
+            // 底部提示
+            ctx.save();
+            ctx.font = '500 14px "Orbitron", sans-serif';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.textAlign = 'center';
+            ctx.fillText(isZh ? '💡 扣动手柄扳机键 (Trigger) 即可直接点播对应曲目' : '💡 Pull controller Trigger to immediately select and play song', w / 2, 560);
+            ctx.restore();
+
+        } else {
+            // ==========================================
+            // 视图分支 B：播放主控制视图 (Player View)
+            // ==========================================
+
+            // 顶部品牌与曲目信息
+            ctx.save();
+            ctx.font = '900 24px "Orbitron", sans-serif';
+            ctx.fillStyle = '#f472b6';
+            ctx.textAlign = 'left';
+            ctx.fillText('ECHOSFALL VR', 68, 68);
+
+            // 右上角模式徽章
+            const modeText = state.displayMode === 'curved_screen' ? 'IMAX 120° SCREEN' : '360° COSMIC DOME';
+            const shuffleBadge = isShuffle ? (isZh ? '随机播放' : 'Shuffle') : (isZh ? '顺序播放' : 'Sequential');
+            ctx.font = '700 16px "Orbitron", sans-serif';
+            ctx.fillStyle = '#38bdf8';
+            ctx.textAlign = 'right';
+            ctx.fillText(`${modeText} · ${shuffleBadge}`, w - 68, 68);
+
+            // 正在播放曲目名称
+            ctx.font = '800 32px "Orbitron", -apple-system, sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'left';
+            const displayTitle = trackInfo.title || 'Echoes in the Fog';
+            ctx.fillText(displayTitle.length > 36 ? displayTitle.substring(0, 34) + '...' : displayTitle, 68, 118);
+
+            // 当前视觉特效预设名称
+            ctx.font = '600 20px "Orbitron", sans-serif';
+            ctx.fillStyle = '#a5f3fc';
+            const displayPreset = 'FX: ' + (trackInfo.preset || 'Cosmic Pulse');
+            ctx.fillText(displayPreset.length > 46 ? displayPreset.substring(0, 44) + '...' : displayPreset, 68, 156);
+
+            // 分隔线
+            ctx.beginPath();
+            ctx.moveTo(68, 185);
+            ctx.lineTo(w - 68, 185);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            ctx.restore();
+
+            // 第一行控制按钮：切歌、播放控制与选曲列表
+            hudButtons.push(
+                {
+                    id: 'btn-prev-track',
+                    x: 68, y: 215, w: 180, h: 84,
+                    icon: '⏮', labelEn: 'Prev', labelZh: '上一曲',
+                    onClick: () => {
+                        if (state.bridge && state.bridge.prevTrack) state.bridge.prevTrack();
+                        drawHUD();
+                    }
+                },
+                {
+                    id: 'btn-play-pause',
+                    x: 272, y: 210, w: 230, h: 94,
+                    isPrimary: true,
+                    icon: '⏯', labelEn: 'Play / Pause', labelZh: '播放 / 暂停',
+                    onClick: () => {
+                        if (state.bridge && state.bridge.togglePlayPause) state.bridge.togglePlayPause();
+                        drawHUD();
+                    }
+                },
+                {
+                    id: 'btn-next-track',
+                    x: 526, y: 215, w: 180, h: 84,
+                    icon: '⏭', labelEn: 'Next', labelZh: '下一曲',
+                    onClick: () => {
+                        if (state.bridge && state.bridge.nextTrack) state.bridge.nextTrack();
+                        drawHUD();
+                    }
+                },
+                {
+                    id: 'btn-open-tracklist',
+                    x: 730, y: 215, w: 226, h: 84,
+                    icon: '📜', labelEn: 'Tracklist', labelZh: '选曲列表',
+                    isSpecial: true,
+                    onClick: () => {
+                        state.currentView = 'tracklist';
+                        drawHUD();
+                    }
+                }
+            );
+
+            // 第二行控制按钮：切换预设、顺序/随机播放、巨幕/穹顶
+            hudButtons.push(
+                {
+                    id: 'btn-prev-preset',
+                    x: 68, y: 325, w: 180, h: 76,
+                    icon: '◀', labelEn: 'Prev FX', labelZh: '上一特效',
+                    onClick: () => {
+                        if (state.bridge && state.bridge.prevPreset) state.bridge.prevPreset();
+                        drawHUD();
+                    }
+                },
+                {
+                    id: 'btn-next-preset',
+                    x: 272, y: 325, w: 230, h: 76,
+                    icon: '🪄', labelEn: 'Next FX', labelZh: '切换特效',
+                    onClick: () => {
+                        if (state.bridge && state.bridge.nextPreset) state.bridge.nextPreset();
+                        drawHUD();
+                    }
+                },
+                {
+                    id: 'btn-toggle-playback-mode',
+                    x: 526, y: 325, w: 260, h: 76,
+                    isModeBtn: true,
+                    isShuffle,
+                    icon: isShuffle ? '🔀' : '🔁',
+                    labelEn: isShuffle ? 'Mode: Shuffle' : 'Mode: Sequential',
+                    labelZh: isShuffle ? '模式: 随机播放' : '模式: 顺序播放',
+                    onClick: () => {
+                        if (state.bridge && state.bridge.togglePlaybackMode) {
+                            state.bridge.togglePlaybackMode();
+                        }
+                        drawHUD();
+                    }
+                },
+                {
+                    id: 'btn-toggle-mode',
+                    x: 810, y: 325, w: 146, h: 76,
+                    icon: '🌐', labelEn: 'Screen/Dome', labelZh: '巨幕/穹顶',
+                    onClick: () => {
+                        toggleDisplayMode();
+                        drawHUD();
+                    }
+                }
+            );
+
+            // 第三行控制按钮：视角居中与退出 VR
+            hudButtons.push(
+                {
+                    id: 'btn-recenter',
+                    x: 68, y: 425, w: 434, h: 74,
+                    icon: '🎯', labelEn: 'Recenter HUD View', labelZh: '视角居中对齐',
+                    onClick: () => {
+                        recenterHUD();
+                    }
+                },
+                {
+                    id: 'btn-exit-vr',
+                    x: 526, y: 425, w: 430, h: 74,
+                    isDanger: true,
+                    icon: '🚪', labelEn: 'Exit VR Mode', labelZh: '退出 VR 模式',
+                    onClick: () => {
+                        exitVR();
+                    }
+                }
+            );
+
+            // 底部手柄盲操提示
+            ctx.save();
+            ctx.font = '500 14px "Orbitron", sans-serif';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.textAlign = 'center';
+            const hintText = isZh
+                ? '💡 Quest 手柄盲操：摇杆[上下]切歌 · 摇杆[左右]切特效 · [A/X键]开闭菜单 · [侧握Grip]居中'
+                : '💡 Quest Controller: Stick [↑↓] Track · Stick [←→] FX Preset · Button [A/X] Menu · Grip [Recenter]';
+            ctx.fillText(hintText, w / 2, 545);
+            ctx.restore();
+        }
+
+        // ==========================================
+        // 统一渲染所有按钮外观与悬停状态
+        // ==========================================
         hudButtons.forEach(btn => {
             const isHover = (state.hoveredButtonId === btn.id);
             ctx.save();
             ctx.beginPath();
-            roundRect(ctx, btn.x, btn.y, btn.w, btn.h, 24);
+            roundRect(ctx, btn.x, btn.y, btn.w, btn.h, btn.isSongItem ? 16 : 22);
 
-            if (isHover) {
-                // 悬停态：高亮发光
+            if (btn.disabled) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+                ctx.fill();
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.stroke();
+            } else if (isHover) {
+                // 悬停高亮发光
                 ctx.fillStyle = btn.isDanger ? 'rgba(239, 68, 68, 0.45)' : 'rgba(56, 189, 248, 0.38)';
                 ctx.fill();
                 ctx.lineWidth = 3;
@@ -437,15 +629,39 @@
                 ctx.shadowColor = btn.isDanger ? '#ef4444' : '#38bdf8';
                 ctx.shadowBlur = 18;
                 ctx.stroke();
+            } else if (btn.isSongItem) {
+                // 曲目项
+                if (btn.isCurrentPlaying) {
+                    ctx.fillStyle = 'rgba(236, 72, 153, 0.22)';
+                    ctx.fill();
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = '#f472b6';
+                    ctx.shadowColor = '#f472b6';
+                    ctx.shadowBlur = 12;
+                    ctx.stroke();
+                } else {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+                    ctx.fill();
+                    ctx.lineWidth = 1.2;
+                    ctx.strokeStyle = 'rgba(56, 189, 248, 0.28)';
+                    ctx.stroke();
+                }
             } else if (btn.isPrimary) {
                 // 主操作按钮 (播放/暂停)
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
                 ctx.fill();
                 ctx.lineWidth = 2.5;
                 ctx.strokeStyle = '#ffffff';
                 ctx.stroke();
+            } else if (btn.isSpecial || btn.isModeBtn) {
+                // 特殊选曲与模式切换按钮 (霓虹渐变感)
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.14)';
+                ctx.fill();
+                ctx.lineWidth = 1.8;
+                ctx.strokeStyle = '#38bdf8';
+                ctx.stroke();
             } else if (btn.isDanger) {
-                // 危险/退出按钮
+                // 退出 VR 按钮
                 ctx.fillStyle = 'rgba(239, 68, 68, 0.14)';
                 ctx.fill();
                 ctx.lineWidth = 1.8;
@@ -463,38 +679,47 @@
 
             // 绘制文字与图标
             ctx.save();
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-
             const centerX = btn.x + btn.w / 2;
             const centerY = btn.y + btn.h / 2;
-            const labelText = (isZh ? btn.labelZh : btn.labelEn);
 
-            if (btn.isPrimary) {
-                const isPlaying = trackInfo.isPlaying;
-                const icon = isPlaying ? '⏸' : '▶';
-                const actionLabel = isPlaying ? (isZh ? '暂停音乐' : 'Pause') : (isZh ? '播放音乐' : 'Play');
-                ctx.font = '800 24px "Orbitron", sans-serif';
-                ctx.fillStyle = '#ffffff';
-                ctx.fillText(`${icon} ${actionLabel}`, centerX, centerY);
+            if (btn.isSongItem) {
+                // 曲目项文本布局 (靠左对齐，右侧标正在播放)
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                ctx.font = '600 18px "Orbitron", -apple-system, sans-serif';
+                ctx.fillStyle = btn.isCurrentPlaying ? '#ffffff' : (isHover ? '#ffffff' : '#e0f2fe');
+
+                const prefix = btn.isCurrentPlaying ? '🎵 ' : '▶ ';
+                const maxChars = 24;
+                const titleStr = btn.songTitle.length > maxChars ? btn.songTitle.substring(0, maxChars - 1) + '...' : btn.songTitle;
+                ctx.fillText(`${prefix}${titleStr}`, btn.x + 20, centerY);
+
+                if (btn.isCurrentPlaying) {
+                    ctx.textAlign = 'right';
+                    ctx.font = '700 13px "Orbitron", sans-serif';
+                    ctx.fillStyle = '#f472b6';
+                    ctx.fillText(isZh ? '正在播放' : 'PLAYING', btn.x + btn.w - 18, centerY);
+                }
             } else {
-                ctx.font = '700 18px "Orbitron", -apple-system, sans-serif';
-                ctx.fillStyle = isHover ? '#ffffff' : (btn.isDanger ? '#fca5a5' : '#e0f2fe');
-                ctx.fillText(`${btn.icon} ${labelText}`, centerX, centerY);
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const labelText = (isZh ? btn.labelZh : btn.labelEn);
+
+                if (btn.isPrimary) {
+                    const isPlaying = trackInfo.isPlaying;
+                    const icon = isPlaying ? '⏸' : '▶';
+                    const actionLabel = isPlaying ? (isZh ? '暂停音乐' : 'Pause') : (isZh ? '播放音乐' : 'Play');
+                    ctx.font = '800 24px "Orbitron", sans-serif';
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillText(`${icon} ${actionLabel}`, centerX, centerY);
+                } else {
+                    ctx.font = '700 18px "Orbitron", -apple-system, sans-serif';
+                    ctx.fillStyle = btn.disabled ? 'rgba(255, 255, 255, 0.25)' : (isHover ? '#ffffff' : (btn.isDanger ? '#fca5a5' : '#e0f2fe'));
+                    ctx.fillText(`${btn.icon || ''} ${labelText || ''}`, centerX, centerY);
+                }
             }
             ctx.restore();
         });
-
-        // 底部手柄快捷提示
-        ctx.save();
-        ctx.font = '500 14px "Orbitron", sans-serif';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-        ctx.textAlign = 'center';
-        const hintText = isZh
-            ? '💡 Quest 手柄盲操：摇杆[上下]切歌 · 摇杆[左右]切换特效 · [A/X键]开闭菜单 · [侧握Grip]居中'
-            : '💡 Quest Controller: Stick [↑↓] Track · Stick [←→] FX Preset · Button [A/X] Menu · Grip [Recenter]';
-        ctx.fillText(hintText, w / 2, h - 36);
-        ctx.restore();
 
         if (hudTexture) {
             hudTexture.needsUpdate = true;
@@ -533,7 +758,7 @@
             controller.add(rayLine);
             scene.add(controller);
 
-            // 手柄握把几何体 (流线型科技手杖形态，自渲染无需下载庞大 GLTF)
+            // 手柄握把几何体
             const grip = renderer.xr.getControllerGrip(i);
             const wandGeom = new THREE.CylinderGeometry(0.016, 0.022, 0.16, 16);
             const wandMat = new THREE.MeshBasicMaterial({ color: 0x1e293b });
@@ -541,7 +766,7 @@
             wandMesh.rotation.x = -Math.PI / 4;
             grip.add(wandMesh);
 
-            // 握把霓虹环装饰
+            // 握把霓虹环
             const glowRingGeom = new THREE.TorusGeometry(0.022, 0.003, 8, 24);
             const glowRingMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
             const glowRing = new THREE.Mesh(glowRingGeom, glowRingMat);
@@ -575,7 +800,6 @@
     // 扳机键 (Trigger) 点击处理
     function onControllerSelect(controller, controllerIndex) {
         if (!state.menuVisible || !hudMesh || !hudMesh.visible) {
-            // 如果菜单处于隐藏状态，点击任意扳机键唤出菜单
             state.menuVisible = true;
             hudMesh.visible = true;
             recenterHUD();
@@ -585,8 +809,7 @@
 
         if (state.hoveredButtonId) {
             const btn = hudButtons.find(b => b.id === state.hoveredButtonId);
-            if (btn && typeof btn.onClick === 'function') {
-                // 触发手柄触觉震动反馈 (Haptics)
+            if (btn && !btn.disabled && typeof btn.onClick === 'function') {
                 pulseControllerHaptic(controllerIndex, 0.5, 60);
                 btn.onClick();
             }
@@ -600,19 +823,18 @@
         if (source && source.gamepad && source.gamepad.hapticActuators && source.gamepad.hapticActuators.length > 0) {
             try {
                 source.gamepad.hapticActuators[0].pulse(intensity, durationMs);
-            } catch (e) {
-                // ignore
-            }
+            } catch (e) {}
         }
     }
 
-    // 将 3D HUD 居中召唤到用户正前方视野
+    // 将 3D HUD 居中召唤到用户正前方视野 (稳定无旋转畸变)
     function recenterHUD() {
         if (!camera || !hudMesh) return;
 
-        // 计算当前相机水平朝向
+        // 计算当前相机水平面投影朝向
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
         forward.y = 0;
+        if (forward.lengthSq() < 0.001) forward.set(0, 0, -1);
         forward.normalize();
 
         // 放置在眼睛正前方 1.8 米，高度微低于人眼 0.2 米
@@ -620,8 +842,9 @@
         targetPos.y = Math.max(1.1, camera.position.y - 0.2);
 
         hudMesh.position.copy(targetPos);
-        hudMesh.lookAt(camera.position);
-        hudMesh.rotation.x += THREE.MathUtils.degToRad(8); // 微向上倾斜对准眼睛
+        // 让 HUD 朝向当前眼睛所在位置
+        hudMesh.lookAt(camera.position.x, targetPos.y, camera.position.z);
+        hudMesh.rotation.x += THREE.MathUtils.degToRad(8); // 微向上倾斜
 
         pulseControllerHaptic(0, 0.2, 40);
         pulseControllerHaptic(1, 0.2, 40);
@@ -633,7 +856,7 @@
             state.displayMode = 'dome';
             screenMesh.visible = false;
             domeMesh.visible = true;
-            if (platformGroup) platformGroup.visible = false; // 穹顶模式隐藏地面，全空灵沉浸
+            if (platformGroup) platformGroup.visible = false;
         } else {
             state.displayMode = 'curved_screen';
             screenMesh.visible = true;
@@ -655,11 +878,10 @@
                 if (!source || !source.gamepad) continue;
                 const gp = source.gamepad;
 
-                // 轴数据 (Quest 2 手柄通常 axes[2] 为 X 轴, axes[3] 为 Y 轴；部分浏览器为 axes[0]/[1])
                 const stickX = gp.axes.length >= 4 ? gp.axes[2] : (gp.axes[0] || 0);
                 const stickY = gp.axes.length >= 4 ? gp.axes[3] : (gp.axes[1] || 0);
 
-                // 摇杆左右倾斜：切换预设 (左: 上一个预设, 右: 下一个预设)
+                // 摇杆左右倾斜：切换预设
                 if (stickX > 0.62) {
                     state.lastThumbstickTime = now;
                     pulseControllerHaptic(i, 0.35, 40);
@@ -674,7 +896,7 @@
                     break;
                 }
 
-                // 摇杆上下倾斜：切歌 (下: 下一首, 上: 上一首)
+                // 摇杆上下倾斜：切歌
                 if (stickY > 0.65) {
                     state.lastThumbstickTime = now;
                     pulseControllerHaptic(i, 0.35, 40);
@@ -737,7 +959,7 @@
         // 处理悬停光标与触觉微震
         if (hitPoint && reticleMesh) {
             reticleMesh.position.copy(hitPoint);
-            reticleMesh.position.add(raycaster.ray.direction.clone().multiplyScalar(-0.01)); // 防 Z-fighting
+            reticleMesh.position.add(raycaster.ray.direction.clone().multiplyScalar(-0.01));
             reticleMesh.lookAt(camera.position);
             reticleMesh.visible = true;
         } else if (reticleMesh) {
@@ -754,27 +976,24 @@
         }
     }
 
-    // WebXR 专属主渲染循环 (由 Quest 2 72/90Hz 刷新率硬件精准节拍驱动)
+    // WebXR 专属主渲染循环
     function onXRAnimationLoop(timestamp, frame) {
         if (!state.isVRActive || !renderer) return;
 
         // 1. 同步更新 Butterchurn 画面到 3D 空间材质
         if (state.bridge && state.bridge.renderButterchurnFrame) {
-            state.bridge.renderButterchurnFrame();
+            try {
+                state.bridge.renderButterchurnFrame();
+            } catch (err) {}
         }
         if (visualizerTexture) {
             visualizerTexture.needsUpdate = true;
         }
 
-        // 2. 旋转星尘背景与动画
-        if (starParticles) {
-            starParticles.rotation.y += 0.0003;
-        }
-
-        // 3. 轮询手柄、射线与交互
+        // 2. 轮询手柄、射线与交互 (星尘背景保持稳定不自转，彻底消除位移错觉)
         updateXRFrame();
 
-        // 4. 提交立体双目渲染
+        // 3. 提交立体双目渲染
         renderer.render(scene, camera);
     }
 
@@ -799,19 +1018,17 @@
             await renderer.xr.setSession(xrSession);
             state.isVRActive = true;
 
-            // 监听会话结束事件 (用户在 Quest 系统菜单退出或拔下头显)
             xrSession.addEventListener('end', onSessionEnded);
 
-            // 通知外部 (如暂停 2D 网页端的 requestAnimationFrame，适配 Quest 2 最佳 VR 分辨率)
             if (state.bridge && state.bridge.onSessionStart) {
                 state.bridge.onSessionStart();
             }
 
-            // 初始居中 HUD
+            // 初始精准居中 HUD
             setTimeout(() => {
                 recenterHUD();
                 drawHUD();
-            }, 200);
+            }, 100);
 
             // 启动 WebXR 驱动的动画循环
             renderer.setAnimationLoop(onXRAnimationLoop);
@@ -842,7 +1059,6 @@
             renderer.setAnimationLoop(null);
         }
 
-        // 通知外部恢复 2D 网页全屏渲染与原始画质
         if (state.bridge && state.bridge.onSessionEnd) {
             state.bridge.onSessionEnd();
         }
@@ -867,7 +1083,6 @@
         }
     };
 
-    // 页面加载完成后自动检测一次
     if (typeof window !== 'undefined') {
         window.addEventListener('load', () => {
             checkXRSupport().catch(() => undefined);

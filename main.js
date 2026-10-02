@@ -685,6 +685,25 @@
         playItem({ song: prevSong, presetName: prevPreset }, false);
     }
 
+    function selectSongByName(song) {
+        if (!song) return;
+        const songIdx = shuffledSongList.indexOf(song);
+        if (songIdx !== -1) {
+            songSequenceIndex = songIdx;
+        }
+        const index = songList.indexOf(song);
+        const selectedPreset = (shuffledPresetList.length > 0)
+            ? shuffledPresetList[songSequenceIndex % shuffledPresetList.length]
+            : pickPresetForSong(song, index >= 0 ? index : 0);
+        if (shuffledPresetList.length > 0) {
+            presetSequenceIndex = songSequenceIndex % shuffledPresetList.length;
+        }
+        playItem({ song, presetName: selectedPreset }, true);
+        if (isPaused) {
+            resumePlayback();
+        }
+    }
+
     // ==========================================
     // 播放核心与可视化切换
     // ==========================================
@@ -1232,6 +1251,18 @@
         canvas.height = bufferH;
 
         try {
+            // 预先使用 preserveDrawingBuffer: true 获取/配置 WebGL2 上下文，确保 Three.js WebXR 能将 Butterchurn 作为动态材质实时双目渲染
+            try {
+                canvas.getContext('webgl2', {
+                    alpha: false,
+                    antialias: false,
+                    depth: false,
+                    stencil: false,
+                    premultipliedAlpha: false,
+                    preserveDrawingBuffer: true
+                });
+            } catch (ctxErr) {}
+
             // 注意：Butterchurn 的 renderToScreen 会直接以传入的 width/height 作为 WebGL 视口尺寸 (gl.viewport)
             // 因此必须将 width/height 设定为实际的 canvas 绘图物理缓冲像素尺寸 (bufferW/bufferH)，配合 pixelRatio=1，
             // 才能确保着色器 100% 铺满整个画布，杜绝只渲染左下角 1/4 屏幕导致无法全屏的缺陷！
@@ -2425,9 +2456,26 @@
                 prevPreset: () => {
                     switchPrevPreset(true);
                 },
+                togglePlaybackMode: () => {
+                    togglePlaybackMode();
+                    if (window.VRManager) {
+                        window.VRManager.updateHUD();
+                    }
+                },
+                getPlaybackMode: () => playbackMode,
+                getSongList: () => (Array.isArray(songList) ? songList : []),
+                selectSong: (song) => {
+                    selectSongByName(song);
+                },
+                getCurrentSong: () => (currentItem && currentItem.song ? currentItem.song : ''),
+                formatTrackTitle: (song) => formatTrackTitle(song, currentLanguage),
                 renderButterchurnFrame: () => {
                     if (visualizer) {
-                        visualizer.render();
+                        try {
+                            visualizer.render();
+                        } catch (e) {
+                            console.warn('[VR] visualizer.render 异常:', e);
+                        }
                     }
                 },
                 onSessionStart: () => {
@@ -2435,12 +2483,6 @@
                     if (renderAnimationFrameId) {
                         cancelAnimationFrame(renderAnimationFrameId);
                         renderAnimationFrameId = null;
-                    }
-                    // 针对 Quest 2 视网膜单眼画质与功耗优化为 1280x720
-                    if (visualizer) {
-                        canvas.width = 1280;
-                        canvas.height = 720;
-                        visualizer.setRendererSize(1280, 720, { pixelRatio: 1, textureRatio: 1.0 });
                     }
                     showToast(currentLanguage === 'zh' ? '✨ 已进入 Quest 2 VR 沉浸空间' : '✨ Entered Quest 2 VR space');
                 },
