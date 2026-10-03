@@ -89,13 +89,76 @@
         minimal_disc: null
     };
 
+    // 3D VR 立体视觉 (B+C 方案) 与地台尺寸
+    const PLATFORM_SIZES = [
+        { value: 0.7, labelEn: '0.7x Compact', labelZh: '0.7x 紧凑' },
+        { value: 1.0, labelEn: '1.0x Standard', labelZh: '1.0x 标准' },
+        { value: 1.3, labelEn: '1.3x Wide', labelZh: '1.3x 宽阔' },
+        { value: 1.6, labelEn: '1.6x Expansive', labelZh: '1.6x 广阔' }
+    ];
+
+    let vrStereoEnabled = (typeof localStorage !== 'undefined' && localStorage.getItem('dv_vr_stereo_enabled') !== null)
+        ? (localStorage.getItem('dv_vr_stereo_enabled') !== 'false')
+        : true; // 默认开启 3D 立体视觉 (B+C 方案)
+
     let platformState = {
         type: (typeof localStorage !== 'undefined' && localStorage.getItem('dv_vr_platform_type')) || 'cyber_ring',
         opacity: (typeof localStorage !== 'undefined' && localStorage.getItem('dv_vr_platform_opacity') !== null)
             ? parseFloat(localStorage.getItem('dv_vr_platform_opacity'))
-            : 0.75
+            : 0.75,
+        size: (typeof localStorage !== 'undefined' && localStorage.getItem('dv_vr_platform_size') !== null)
+            ? parseFloat(localStorage.getItem('dv_vr_platform_size'))
+            : 1.0
     };
     if (isNaN(platformState.opacity)) platformState.opacity = 0.75;
+    if (isNaN(platformState.size)) platformState.size = 1.0;
+
+    // 方案 C: 历史帧时空隧道分层 (Tunnel Echo) 状态
+    let tunnelCanvas = null;
+    let tunnelCtx = null;
+    let tunnelTexture = null;
+    let tunnelMeshScreen = null;
+    let tunnelMeshPano = null;
+    let frameCounter = 0;
+
+    // 方案 B: 实时亮度 + 音频低频能量复合深度位移着色器 (Stereoscopic Displacement Shader)
+    const stereoVertexShader = `
+        uniform sampler2D uTexture;
+        uniform float uDepthScale;
+        uniform float uAudioBass;
+        uniform float uStereoOn;
+
+        varying vec2 vUv;
+        varying vec3 vNormal;
+
+        void main() {
+            vUv = uv;
+            vNormal = normal;
+
+            // 采样 Butterchurn 视觉纹理获取像素亮度
+            vec4 texColor = texture2D(uTexture, uv);
+            float luminance = dot(texColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+
+            // Plan B: 亮度 + 低频音频能量深度位移网格
+            // 基准点 0.35：亮部 (>0.35) 凸向用户，暗部 (<0.35) 凹陷深空
+            // normal 在内凹曲面指向外侧，故 -normal 为朝向用户的法向量
+            float disp = (luminance - 0.35) * uDepthScale * (1.0 + uAudioBass * 0.45) * uStereoOn;
+            vec3 newPos = position - normal * disp;
+
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
+        }
+    `;
+
+    const stereoFragmentShader = `
+        uniform sampler2D uTexture;
+        uniform float uOpacity;
+        varying vec2 vUv;
+
+        void main() {
+            vec4 col = texture2D(uTexture, vUv);
+            gl_FragColor = vec4(col.rgb, col.a * uOpacity);
+        }
+    `;
 
     // 检查当前设备与浏览器是否支持 WebXR 沉浸式 VR
     async function checkXRSupport() {
@@ -155,6 +218,16 @@
         visualizerTexture.format = THREE.RGBAFormat;
         visualizerTexture.generateMipmaps = false;
 
+        // 初始化方案 C 历史帧时空隧道分层画布与纹理
+        tunnelCanvas = document.createElement('canvas');
+        tunnelCanvas.width = 512;
+        tunnelCanvas.height = 512;
+        tunnelCtx = tunnelCanvas.getContext('2d');
+        tunnelTexture = new THREE.CanvasTexture(tunnelCanvas);
+        tunnelTexture.minFilter = THREE.LinearFilter;
+        tunnelTexture.magFilter = THREE.LinearFilter;
+        tunnelTexture.generateMipmaps = false;
+
         // 5. 构建高耸双倍高度 IMAX 巨幕 与 360° 无缝真全景
         buildScreenAndDome();
 
@@ -170,15 +243,43 @@
         raycaster = new THREE.Raycaster();
     }
 
-    // 构建双倍高度超巨 IMAX 微曲巨幕 与 360° 无缝真全景空间
+    // 构建双倍高度超巨 IMAX 微曲立体巨幕 (Plan B) 与 360° 无缝真全景立体空间 + 时空隧道外层壳 (Plan C)
     function buildScreenAndDome() {
-        const screenMat = new THREE.MeshBasicMaterial({
-            map: visualizerTexture,
-            side: THREE.DoubleSide, // 双面渲染杜绝背面剔除
-            toneMapped: false
+        const screenShaderMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTexture: { value: visualizerTexture },
+                uDepthScale: { value: 0.55 },
+                uAudioBass: { value: 0.0 },
+                uStereoOn: { value: vrStereoEnabled ? 1.0 : 0.0 },
+                uOpacity: { value: 1.0 }
+            },
+            vertexShader: stereoVertexShader,
+            fragmentShader: stereoFragmentShader,
+            side: THREE.DoubleSide
         });
 
-        // --- 方案 A: 双倍高度超巨 IMAX 微曲巨幕 (默认推荐) ---
+        const panoShaderMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTexture: { value: visualizerTexture },
+                uDepthScale: { value: 1.35 },
+                uAudioBass: { value: 0.0 },
+                uStereoOn: { value: vrStereoEnabled ? 1.0 : 0.0 },
+                uOpacity: { value: 1.0 }
+            },
+            vertexShader: stereoVertexShader,
+            fragmentShader: stereoFragmentShader,
+            side: THREE.DoubleSide
+        });
+
+        const tunnelMat = new THREE.MeshBasicMaterial({
+            map: tunnelTexture,
+            transparent: true,
+            opacity: 0.38,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide
+        });
+
+        // --- 方案 A/B: 双倍高度超巨 IMAX 微曲立体巨幕 (128x64 细分网格位移) ---
         // 距离 4.2 米，高度翻倍至 5.2 米 (从眼平线 1.6 米处向上延伸至 4.2 米，向下延伸至 -1.0 米)
         // 弧角增至约 148° (Math.PI * 0.82)，形成震撼的上下左右全视野包裹
         const radius = 4.2;
@@ -187,21 +288,29 @@
         const thetaStart = Math.PI - arcAngle / 2; // 精确中心对齐在 -Z 轴 (用户正前方)
 
         const cylinderGeom = new THREE.CylinderGeometry(
-            radius, radius, height, 64, 1, true, thetaStart, arcAngle
+            radius, radius, height, 128, 64, true, thetaStart, arcAngle
         );
-        screenMesh = new THREE.Mesh(cylinderGeom, screenMat);
+        screenMesh = new THREE.Mesh(cylinderGeom, screenShaderMat);
         screenMesh.scale.set(-1, 1, 1); // 水平镜像翻转使纹理左右方向正确
         screenMesh.position.set(0, 1.6, 0);
         scene.add(screenMesh);
 
-        // --- 方案 B: 360° 天地全覆盖真全景球幕 (天顶、地底 100% 铺满，左右 360° 无缝对称平滑包裹) ---
-        // 采用完整球体 SphereGeometry，完全包裹天穹天顶与脚底深渊，彻底消除上下露黑问题！
-        // 结合对称镜像 UV 映射算法：在正前方(0°) U = 0.5 (正对特效最炫丽的核心舞台)，
-        // 转至 90°(右) U = 1.0，转至 180°(后) U = 0.5，转至 270°(左) U = 0.0，转回 360°(前) U = 0.5。
-        // 接缝处导数平滑对接自身，全视野转身 100% 连续无断层！
+        // --- 方案 C: 巨幕时空隧道外层壳 (半径 5.6m，后退 1.4m，叠加历史帧流动) ---
+        const tunnelRadius = 5.6;
+        const tunnelHeight = 6.9;
+        const tunnelCylinderGeom = new THREE.CylinderGeometry(
+            tunnelRadius, tunnelRadius, tunnelHeight, 64, 16, true, thetaStart, arcAngle
+        );
+        tunnelMeshScreen = new THREE.Mesh(tunnelCylinderGeom, tunnelMat);
+        tunnelMeshScreen.scale.set(-1, 1, 1);
+        tunnelMeshScreen.position.set(0, 1.6, 0);
+        tunnelMeshScreen.visible = vrStereoEnabled && (state.displayMode === 'curved_screen');
+        scene.add(tunnelMeshScreen);
+
+        // --- 方案 B: 360° 天地全覆盖真全景球幕 (96x48 细分立体网格位移) ---
         const panoRadius = 22;
-        const widthSegments = 80;
-        const heightSegments = 40;
+        const widthSegments = 96;
+        const heightSegments = 48;
         const panoGeom = new THREE.SphereGeometry(
             panoRadius, widthSegments, heightSegments, -Math.PI / 2, Math.PI * 2, 0, Math.PI
         );
@@ -231,11 +340,37 @@
         }
         uvs.needsUpdate = true;
 
-        panoramicMesh = new THREE.Mesh(panoGeom, screenMat);
+        panoramicMesh = new THREE.Mesh(panoGeom, panoShaderMat);
         panoramicMesh.scale.set(-1, 1, 1);
         panoramicMesh.position.set(0, 1.6, 0);
-        panoramicMesh.visible = false; // 默认使用 IMAX 巨幕
+        panoramicMesh.visible = (state.displayMode === 'panoramic_360');
         scene.add(panoramicMesh);
+
+        // --- 方案 C: 全景时空隧道外层球壳 (半径 26m，比主全景球大 4m) ---
+        const tunnelPanoRadius = 26;
+        const tunnelPanoGeom = new THREE.SphereGeometry(
+            tunnelPanoRadius, 64, 32, -Math.PI / 2, Math.PI * 2, 0, Math.PI
+        );
+        const tunnelUvs = tunnelPanoGeom.attributes.uv;
+        for (let j = 0; j <= 32; j++) {
+            for (let i = 0; i <= 64; i++) {
+                const idx = j * 65 + i;
+                const fracU = (j === 0 || j === 32)
+                    ? ((i + 0.5) / 64)
+                    : (i / 64);
+                const u = getMirroredU(Math.min(1.0, Math.max(0.0, fracU)));
+                tunnelUvs.setX(idx, u);
+                const v = 1.0 - (j / 32);
+                tunnelUvs.setY(idx, v);
+            }
+        }
+        tunnelUvs.needsUpdate = true;
+
+        tunnelMeshPano = new THREE.Mesh(tunnelPanoGeom, tunnelMat);
+        tunnelMeshPano.scale.set(-1, 1, 1);
+        tunnelMeshPano.position.set(0, 1.6, 0);
+        tunnelMeshPano.visible = vrStereoEnabled && (state.displayMode === 'panoramic_360');
+        scene.add(tunnelMeshPano);
     }
 
 
@@ -550,6 +685,10 @@
             }
         }
 
+        // 统一应用地台大小缩放 (0.7x ~ 1.6x)
+        const sz = platformState.size || 1.0;
+        platformGroup.scale.set(sz, 1, sz);
+
         const currentOpacity = platformState.opacity;
         if (currentOpacity <= 0.01) {
             platformGroup.visible = false;
@@ -574,6 +713,7 @@
             if (typeof localStorage !== 'undefined') {
                 localStorage.setItem('dv_vr_platform_type', platformState.type);
                 localStorage.setItem('dv_vr_platform_opacity', platformState.opacity.toString());
+                localStorage.setItem('dv_vr_platform_size', platformState.size.toString());
             }
         } catch (e) {}
     }
@@ -593,6 +733,53 @@
         const nextIdx = (idx + 1) % PLATFORM_OPACITIES.length;
         platformState.opacity = PLATFORM_OPACITIES[nextIdx].value;
         updatePlatformAppearance();
+        drawHUD();
+    }
+
+    // 切换地面平台大小
+    function cyclePlatformSize() {
+        const curSize = platformState.size;
+        const idx = PLATFORM_SIZES.findIndex(s => Math.abs(s.value - curSize) < 0.05);
+        const nextIdx = (idx + 1) % PLATFORM_SIZES.length;
+        platformState.size = PLATFORM_SIZES[nextIdx].value;
+        updatePlatformAppearance();
+        drawHUD();
+    }
+
+    function setPlatformSize(size) {
+        const num = parseFloat(size);
+        if (!isNaN(num) && num > 0) {
+            platformState.size = num;
+            updatePlatformAppearance();
+            drawHUD();
+        }
+    }
+
+    // 切换 3D VR 立体视觉开关
+    function toggleVRStereo() {
+        setVRStereoEnabled(!vrStereoEnabled);
+    }
+
+    function setVRStereoEnabled(enabled) {
+        vrStereoEnabled = !!enabled;
+        try {
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('dv_vr_stereo_enabled', String(vrStereoEnabled));
+            }
+        } catch (e) {}
+        const stereoVal = vrStereoEnabled ? 1.0 : 0.0;
+        if (screenMesh && screenMesh.material && screenMesh.material.uniforms) {
+            screenMesh.material.uniforms.uStereoOn.value = stereoVal;
+        }
+        if (panoramicMesh && panoramicMesh.material && panoramicMesh.material.uniforms) {
+            panoramicMesh.material.uniforms.uStereoOn.value = stereoVal;
+        }
+        if (tunnelMeshScreen) {
+            tunnelMeshScreen.visible = vrStereoEnabled && (state.displayMode === 'curved_screen');
+        }
+        if (tunnelMeshPano) {
+            tunnelMeshPano.visible = vrStereoEnabled && (state.displayMode === 'panoramic_360');
+        }
         drawHUD();
     }
 
@@ -931,14 +1118,14 @@
                 }
             );
 
-            // 第三行控制按钮：歌曲随机模式、巨幕/全景视角、视角居中
+            // 第三行控制按钮：歌曲随机模式、巨幕/全景视角、3D立体/2D标准、视角居中
             hudButtons.push(
                 {
                     id: 'btn-toggle-song-mode',
-                    x: 60, y: 345, w: 310, h: 68,
+                    x: 60, y: 345, w: 220, h: 68,
                     icon: isSongShuffle ? '🔀' : '🔁',
-                    labelEn: isSongShuffle ? 'Songs: Shuffle' : 'Songs: Sequential',
-                    labelZh: isSongShuffle ? '曲目: 随机播放' : '曲目: 顺序播放',
+                    labelEn: isSongShuffle ? 'Songs: Shuffle' : 'Songs: Order',
+                    labelZh: isSongShuffle ? '歌曲: 随机' : '歌曲: 顺序',
                     onClick: () => {
                         if (state.bridge && state.bridge.togglePlaybackMode) {
                             state.bridge.togglePlaybackMode();
@@ -948,36 +1135,48 @@
                 },
                 {
                     id: 'btn-toggle-display-mode',
-                    x: 385, y: 345, w: 330, h: 68,
+                    x: 290, y: 345, w: 235, h: 68,
                     icon: '🌐',
-                    labelEn: state.displayMode === 'curved_screen' ? 'View: IMAX Screen' : 'View: 360° Panorama',
-                    labelZh: state.displayMode === 'curved_screen' ? '视角: IMAX超巨幕' : '视角: 360°真全景',
+                    labelEn: state.displayMode === 'curved_screen' ? 'View: IMAX' : 'View: 360°',
+                    labelZh: state.displayMode === 'curved_screen' ? '视角: IMAX巨幕' : '视角: 360°全景',
                     onClick: () => {
                         toggleDisplayMode();
                         drawHUD();
                     }
                 },
                 {
+                    id: 'btn-toggle-vr-stereo',
+                    x: 535, y: 345, w: 255, h: 68,
+                    icon: '🧊',
+                    labelEn: vrStereoEnabled ? '3D: Depth Active' : '3D: 2D Flat',
+                    labelZh: vrStereoEnabled ? '3D立体: 已开启' : '3D立体: 2D平面',
+                    isVRStereo: true,
+                    onClick: () => {
+                        toggleVRStereo();
+                    }
+                },
+                {
                     id: 'btn-recenter',
-                    x: 730, y: 345, w: 290, h: 68,
-                    icon: '🎯', labelEn: 'Recenter View', labelZh: '视角正前居中',
+                    x: 800, y: 345, w: 220, h: 68,
+                    icon: '🎯', labelEn: 'Recenter', labelZh: '正前居中',
                     onClick: () => {
                         recenterHUD();
                     }
                 }
             );
 
-            // 第四行控制按钮：防眩晕地面平台样式与透明度调节
+            // 第四行控制按钮：防眩晕地面平台样式、透明度与尺寸调节
             const currentTypeObj = PLATFORM_TYPES.find(t => t.id === platformState.type) || PLATFORM_TYPES[0];
             const currentOpacityObj = PLATFORM_OPACITIES.find(o => Math.abs(o.value - platformState.opacity) < 0.05) || PLATFORM_OPACITIES[1];
+            const currentSizeObj = PLATFORM_SIZES.find(s => Math.abs(s.value - platformState.size) < 0.05) || PLATFORM_SIZES[1];
 
             hudButtons.push(
                 {
                     id: 'btn-cycle-platform-type',
-                    x: 60, y: 425, w: 495, h: 68,
+                    x: 60, y: 425, w: 310, h: 68,
                     icon: '🛡️',
-                    labelEn: `Platform: ${currentTypeObj.nameEn} (Cycle)`,
-                    labelZh: `地台样式: ${currentTypeObj.nameZh} (点击切换)`,
+                    labelEn: `Platform: ${currentTypeObj.nameEn}`,
+                    labelZh: `地台: ${currentTypeObj.nameZh}`,
                     isPlatformType: true,
                     onClick: () => {
                         cyclePlatformType();
@@ -985,13 +1184,24 @@
                 },
                 {
                     id: 'btn-cycle-platform-opacity',
-                    x: 570, y: 425, w: 450, h: 68,
+                    x: 385, y: 425, w: 310, h: 68,
                     icon: '🔆',
-                    labelEn: `Platform Opacity: ${currentOpacityObj.labelEn}`,
-                    labelZh: `地台透明度: ${currentOpacityObj.labelZh}`,
+                    labelEn: `Opacity: ${currentOpacityObj.labelEn}`,
+                    labelZh: `透明度: ${currentOpacityObj.labelZh}`,
                     isPlatformOpacity: true,
                     onClick: () => {
                         cyclePlatformOpacity();
+                    }
+                },
+                {
+                    id: 'btn-cycle-platform-size',
+                    x: 710, y: 425, w: 310, h: 68,
+                    icon: '📏',
+                    labelEn: `Size: ${currentSizeObj.labelEn}`,
+                    labelZh: `尺寸: ${currentSizeObj.labelZh}`,
+                    isPlatformSize: true,
+                    onClick: () => {
+                        cyclePlatformSize();
                     }
                 }
             );
@@ -1091,6 +1301,17 @@
                 ctx.lineWidth = 1.8;
                 ctx.strokeStyle = '#f59e0b';
                 ctx.stroke();
+            } else if (btn.isVRStereo) {
+                // 3D 立体视觉按钮 (紫色电光)
+                ctx.fillStyle = vrStereoEnabled ? 'rgba(168, 85, 247, 0.22)' : 'rgba(255, 255, 255, 0.08)';
+                ctx.fill();
+                ctx.lineWidth = 2.0;
+                ctx.strokeStyle = vrStereoEnabled ? '#c084fc' : 'rgba(255, 255, 255, 0.35)';
+                if (vrStereoEnabled) {
+                    ctx.shadowColor = '#c084fc';
+                    ctx.shadowBlur = 10;
+                }
+                ctx.stroke();
             } else if (btn.isPlatformType) {
                 // 地台样式按钮 (科技青色微光)
                 ctx.fillStyle = 'rgba(56, 189, 248, 0.16)';
@@ -1104,6 +1325,13 @@
                 ctx.fill();
                 ctx.lineWidth = 1.8;
                 ctx.strokeStyle = '#f472b6';
+                ctx.stroke();
+            } else if (btn.isPlatformSize) {
+                // 地台尺寸按钮 (翡翠青绿微光)
+                ctx.fillStyle = 'rgba(45, 212, 191, 0.16)';
+                ctx.fill();
+                ctx.lineWidth = 1.8;
+                ctx.strokeStyle = '#2dd4bf';
                 ctx.stroke();
             } else if (btn.isDanger) {
                 // 退出按钮
@@ -1158,7 +1386,8 @@
                     ctx.fillStyle = '#ffffff';
                     ctx.fillText(`${icon} ${actionLabel}`, centerX, centerY);
                 } else {
-                    ctx.font = '700 18px "Orbitron", -apple-system, sans-serif';
+                    const fontSize = (btn.w < 260) ? 16 : 18;
+                    ctx.font = `700 ${fontSize}px "Orbitron", -apple-system, sans-serif`;
                     ctx.fillStyle = btn.disabled ? 'rgba(255, 255, 255, 0.25)' : (isHover ? '#ffffff' : (btn.isDanger ? '#fca5a5' : '#e0f2fe'));
                     ctx.fillText(`${btn.icon || ''} ${labelText || ''}`, centerX, centerY);
                 }
@@ -1316,12 +1545,16 @@
     function toggleDisplayMode() {
         if (state.displayMode === 'curved_screen') {
             state.displayMode = 'panoramic_360';
-            screenMesh.visible = false;
-            panoramicMesh.visible = true;
+            if (screenMesh) screenMesh.visible = false;
+            if (panoramicMesh) panoramicMesh.visible = true;
+            if (tunnelMeshScreen) tunnelMeshScreen.visible = false;
+            if (tunnelMeshPano) tunnelMeshPano.visible = vrStereoEnabled;
         } else {
             state.displayMode = 'curved_screen';
-            screenMesh.visible = true;
-            panoramicMesh.visible = false;
+            if (screenMesh) screenMesh.visible = true;
+            if (panoramicMesh) panoramicMesh.visible = false;
+            if (tunnelMeshScreen) tunnelMeshScreen.visible = vrStereoEnabled;
+            if (tunnelMeshPano) tunnelMeshPano.visible = false;
         }
         drawHUD();
     }
@@ -1451,10 +1684,47 @@
             visualizerTexture.needsUpdate = true;
         }
 
-        // 2. 轮询手柄、射线与交互
+        // 2. 方案 B: 提取音频能量更新立体位移着色器
+        let bass = 0.0;
+        if (state.bridge && typeof state.bridge.getAudioBassEnergy === 'function') {
+            try {
+                bass = state.bridge.getAudioBassEnergy();
+            } catch (e) {}
+        }
+
+        const stereoActive = vrStereoEnabled ? 1.0 : 0.0;
+        if (screenMesh && screenMesh.material && screenMesh.material.uniforms) {
+            screenMesh.material.uniforms.uAudioBass.value = bass;
+            screenMesh.material.uniforms.uStereoOn.value = stereoActive;
+        }
+        if (panoramicMesh && panoramicMesh.material && panoramicMesh.material.uniforms) {
+            panoramicMesh.material.uniforms.uAudioBass.value = bass;
+            panoramicMesh.material.uniforms.uStereoOn.value = stereoActive;
+        }
+
+        // 3. 方案 C: 历史帧时空隧道分层 (每 4 帧抽样一次到 512x512 隧道画布，零额外 TBDR 开销)
+        if (vrStereoEnabled) {
+            frameCounter++;
+            if (frameCounter % 4 === 0 && tunnelCanvas && tunnelCtx && tunnelTexture) {
+                const sourceCanvas = document.getElementById('butterchurn-canvas');
+                if (sourceCanvas && sourceCanvas.width > 0 && sourceCanvas.height > 0) {
+                    try {
+                        tunnelCtx.drawImage(sourceCanvas, 0, 0, tunnelCanvas.width, tunnelCanvas.height);
+                        tunnelTexture.needsUpdate = true;
+                    } catch (e) {}
+                }
+            }
+            if (tunnelMeshScreen) tunnelMeshScreen.visible = (state.displayMode === 'curved_screen');
+            if (tunnelMeshPano) tunnelMeshPano.visible = (state.displayMode === 'panoramic_360');
+        } else {
+            if (tunnelMeshScreen) tunnelMeshScreen.visible = false;
+            if (tunnelMeshPano) tunnelMeshPano.visible = false;
+        }
+
+        // 4. 轮询手柄、射线与交互
         updateXRFrame();
 
-        // 3. 提交立体双目渲染
+        // 5. 提交立体双目渲染
         renderer.render(scene, camera);
     }
 
@@ -1546,7 +1816,13 @@
             if (state.isVRActive) {
                 drawHUD();
             }
-        }
+        },
+        toggleVRStereo,
+        setVRStereoEnabled,
+        getVRStereoEnabled: () => vrStereoEnabled,
+        cyclePlatformSize,
+        setPlatformSize,
+        getPlatformSize: () => platformState.size
     };
 
     if (typeof window !== 'undefined') {

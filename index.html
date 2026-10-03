@@ -337,7 +337,37 @@
                     </div>
                 </div>
 
-                <!-- 6. 底部操作栏 -->
+                <!-- 6. WebXR VR 沉浸式与防眩晕地台设置 (3D VR Stereo & Platform Settings) -->
+                <div class="settings-card" data-echosfall-control="true">
+                    <div class="settings-card-header" data-echosfall-control="true">
+                        <div class="settings-card-title-wrap" data-echosfall-control="true">
+                            <i class="fa-solid fa-vr-cardboard settings-card-icon"></i>
+                            <span id="i18n-vr-title" class="settings-card-label">WebXR VR 3D Vision & Platform</span>
+                        </div>
+                        <span id="vr-stereo-badge" class="settings-badge badge-purple">3D Stereo Active (B+C)</span>
+                    </div>
+                    <div id="i18n-vr-desc" class="settings-card-desc" data-echosfall-control="true">
+                        Enable real-time stereoscopic depth (Luminance Displacement + Historical Frame Tunnel) for all 1720 presets, and customize anti-vertigo ground platform size.
+                    </div>
+                    <!-- 3D VR 立体视觉开关 -->
+                    <div class="settings-segmented-group settings-segmented-2" id="vr-stereo-segmented-group" style="margin-bottom: 12px;" data-echosfall-control="true">
+                        <button type="button" class="btn-segment active" data-vr-stereo="true" data-echosfall-control="true">
+                            <i class="fa-solid fa-cube"></i> <span id="i18n-vr-stereo-on">3D Stereo (B+C Depth)</span>
+                        </button>
+                        <button type="button" class="btn-segment" data-vr-stereo="false" data-echosfall-control="true">
+                            <i class="fa-solid fa-border-none"></i> <span id="i18n-vr-stereo-off">2D Standard (Flat)</span>
+                        </button>
+                    </div>
+                    <!-- 地台大小选项 -->
+                    <div class="settings-segmented-group" id="vr-platform-size-segmented-group" data-echosfall-control="true">
+                        <button type="button" class="btn-segment" data-platform-size="0.7" data-echosfall-control="true">0.7x Compact</button>
+                        <button type="button" class="btn-segment active" data-platform-size="1.0" data-echosfall-control="true">1.0x Standard</button>
+                        <button type="button" class="btn-segment" data-platform-size="1.3" data-echosfall-control="true">1.3x Wide</button>
+                        <button type="button" class="btn-segment" data-platform-size="1.6" data-echosfall-control="true">1.6x Expansive</button>
+                    </div>
+                </div>
+
+                <!-- 7. 底部操作栏 -->
                 <div class="settings-footer" data-echosfall-control="true">
                     <button id="btn-reset-settings" type="button" class="btn-settings-reset" title="Reset to Defaults" data-echosfall-control="true">
                         <i class="fa-solid fa-rotate-left"></i> <span id="i18n-btn-reset">Reset Defaults</span>

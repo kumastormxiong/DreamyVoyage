@@ -73,6 +73,13 @@
             hudHideBadge: 'Hidden (Pure Visual)',
             hudShowBtn: 'Show Info Box',
             hudHideBtn: 'Hide (Pure Visual)',
+            vrTitle: 'WebXR VR 3D Vision & Platform',
+            vrDesc: 'Enable real-time stereoscopic depth (Luminance Displacement + Historical Frame Tunnel) for all 1720 presets, and customize anti-vertigo ground platform size.',
+            vrStereoOnBadge: '3D Stereo Active (B+C)',
+            vrStereoOffBadge: '2D Standard (Flat)',
+            vrStereoOnBtn: '3D Stereo (B+C Depth)',
+            vrStereoOffBtn: '2D Standard (Flat)',
+            vrPlatformLabels: ['0.7x Compact', '1.0x Standard', '1.3x Wide', '1.6x Expansive'],
             btnReset: 'Reset Defaults',
             btnDone: 'Done',
             pause: 'Pause',
@@ -166,6 +173,13 @@
             hudHideBadge: '隐藏 (纯净画面)',
             hudShowBtn: '显示信息框',
             hudHideBtn: '隐藏 (纯净画面)',
+            vrTitle: 'WebXR VR 3D立体视觉与地台',
+            vrDesc: '开启由实时亮度深度位移网格与时空隧道分层驱动的真3D立体视差（兼容全量1720款预设），并可调整脚下防眩晕地台尺寸。',
+            vrStereoOnBadge: '3D立体已开启 (B+C深度)',
+            vrStereoOffBadge: '2D标准 (传统平面)',
+            vrStereoOnBtn: '3D立体 (B+C深度)',
+            vrStereoOffBtn: '2D标准 (传统平面)',
+            vrPlatformLabels: ['0.7x 紧凑', '1.0x 标准', '1.3x 宽阔', '1.6x 广阔'],
             btnReset: '恢复默认设置',
             btnDone: '完成',
             pause: '暂停',
@@ -309,6 +323,13 @@
     const i18nHudHide = document.getElementById('i18n-hud-hide');
     const i18nBtnReset = document.getElementById('i18n-btn-reset');
     const i18nBtnDone = document.getElementById('i18n-btn-done');
+    const i18nVrTitle = document.getElementById('i18n-vr-title');
+    const i18nVrDesc = document.getElementById('i18n-vr-desc');
+    const i18nVrStereoOn = document.getElementById('i18n-vr-stereo-on');
+    const i18nVrStereoOff = document.getElementById('i18n-vr-stereo-off');
+    const vrStereoBadge = document.getElementById('vr-stereo-badge');
+    const vrStereoSegmentedGroup = document.getElementById('vr-stereo-segmented-group');
+    const vrPlatformSizeSegmentedGroup = document.getElementById('vr-platform-size-segmented-group');
 
     // 关于 Dreamy Voyage 模态浮层
     const btnOpenAbout = document.getElementById('btn-open-about');
@@ -376,6 +397,8 @@
     let audioContext = null;
     let sourceNode = null;
     let gainNode = null;
+    let analyserNode = null;
+    let freqDataArray = null;
     let renderAnimationFrameId = null;
     let presetAutoCycleTimer = null;
 
@@ -1192,9 +1215,30 @@
 
                 sourceNode.connect(gainNode);
                 gainNode.connect(audioContext.destination);
+
+                try {
+                    analyserNode = audioContext.createAnalyser();
+                    analyserNode.fftSize = 64;
+                    analyserNode.smoothingTimeConstant = 0.8;
+                    freqDataArray = new Uint8Array(analyserNode.frequencyBinCount);
+                    gainNode.connect(analyserNode);
+                } catch (err) {}
             }
         } catch (e) {
             console.warn('[Echosfall] Web Audio 初始化注意:', e);
+        }
+    }
+
+    // 实时提取低音频段能量 (用于 3D VR 深度呼吸脉冲)
+    function getAudioBassEnergy() {
+        if (!analyserNode || !freqDataArray) return 0.0;
+        try {
+            analyserNode.getByteFrequencyData(freqDataArray);
+            let sum = 0;
+            for (let i = 0; i < 4; i++) sum += freqDataArray[i];
+            return sum / (4 * 255);
+        } catch (e) {
+            return 0.0;
         }
     }
 
@@ -2053,6 +2097,10 @@
         if (i18nHudHide) i18nHudHide.innerText = t.hudHideBtn;
         if (i18nBtnReset) i18nBtnReset.innerText = t.btnReset;
         if (i18nBtnDone) i18nBtnDone.innerText = t.btnDone;
+        if (i18nVrTitle) i18nVrTitle.innerText = t.vrTitle;
+        if (i18nVrDesc) i18nVrDesc.innerText = t.vrDesc;
+        if (i18nVrStereoOn) i18nVrStereoOn.innerText = t.vrStereoOnBtn;
+        if (i18nVrStereoOff) i18nVrStereoOff.innerText = t.vrStereoOffBtn;
 
         // 滑块下方刻度分级文字
         if (qualityTierLabels) {
@@ -2074,6 +2122,7 @@
         updateBlendUI();
         updatePresetHudUI();
         updateSeedUI();
+        updateVRSettingsUI();
 
         // 3. 菜单控制浮层按钮与说明
         if (catalogBtnText) catalogBtnText.innerText = t.catalogBtn;
@@ -2238,6 +2287,63 @@
         }
     }
 
+    function setVRStereoEnabled(enabled) {
+        localStorage.setItem('dv_vr_stereo_enabled', String(enabled));
+        if (window.VRManager && typeof window.VRManager.setVRStereoEnabled === 'function') {
+            window.VRManager.setVRStereoEnabled(enabled);
+        }
+        updateVRSettingsUI();
+    }
+
+    function setVRPlatformSize(size) {
+        localStorage.setItem('dv_vr_platform_size', String(size));
+        if (window.VRManager && typeof window.VRManager.setPlatformSize === 'function') {
+            window.VRManager.setPlatformSize(size);
+        }
+        updateVRSettingsUI();
+    }
+
+    function updateVRSettingsUI() {
+        const vrStereoBadge = document.getElementById('vr-stereo-badge');
+        const vrStereoGroup = document.getElementById('vr-stereo-segmented-group');
+        const isEnabled = (localStorage.getItem('dv_vr_stereo_enabled') !== 'false');
+        const t = I18N[currentLanguage] || I18N.en;
+
+        if (vrStereoBadge) {
+            vrStereoBadge.innerText = isEnabled ? t.vrStereoOnBadge : t.vrStereoOffBadge;
+            vrStereoBadge.className = isEnabled ? 'settings-badge badge-purple' : 'settings-badge badge-cyan';
+        }
+
+        if (vrStereoGroup) {
+            const btns = vrStereoGroup.querySelectorAll('.btn-segment');
+            btns.forEach(btn => {
+                const val = (btn.getAttribute('data-vr-stereo') === 'true');
+                if (val === isEnabled) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        const platformGroup = document.getElementById('vr-platform-size-segmented-group');
+        if (platformGroup) {
+            const curSize = parseFloat(localStorage.getItem('dv_vr_platform_size') || '1.0');
+            const btns = platformGroup.querySelectorAll('.btn-segment');
+            btns.forEach((btn, idx) => {
+                const sz = parseFloat(btn.getAttribute('data-platform-size') || '1.0');
+                if (Math.abs(sz - curSize) < 0.05) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+                if (t.vrPlatformLabels && t.vrPlatformLabels[idx]) {
+                    btn.innerText = t.vrPlatformLabels[idx];
+                }
+            });
+        }
+    }
+
     function setCustomSeed(newSeed) {
         const cleanSeed = (newSeed || '').trim();
         if (!cleanSeed) {
@@ -2272,6 +2378,8 @@
         localStorage.removeItem('echosfall_preset_blend_seconds');
         localStorage.removeItem('echosfall_preset_hud_visible');
         localStorage.removeItem('echosfall_custom_seed');
+        localStorage.removeItem('dv_vr_stereo_enabled');
+        localStorage.removeItem('dv_vr_platform_size');
 
         currentQualityTier = 4;
         presetCycleSeconds = DEFAULT_PRESET_AUTO_CYCLE;
@@ -2279,6 +2387,8 @@
         showInfoOnPresetSwitch = true;
         currentSeed = getDailySeedString();
         isCustomSeed = false;
+        setVRStereoEnabled(true);
+        setVRPlatformSize(1.0);
 
         buildSeededSequences(true);
         applyLanguage(currentLanguage);
@@ -2514,6 +2624,7 @@
                 },
                 getCurrentSong: () => (currentItem && currentItem.song ? currentItem.song : ''),
                 formatTrackTitle: (song) => formatTrackTitle(song, currentLanguage),
+                getAudioBassEnergy: getAudioBassEnergy,
                 renderButterchurnFrame: () => {
                     if (visualizer) {
                         try {
@@ -2646,6 +2757,28 @@
                 e.stopPropagation();
                 const hudMode = segBtn.getAttribute('data-hud');
                 setPresetHudVisibility(hudMode === 'show');
+            });
+        }
+
+        if (vrStereoSegmentedGroup) {
+            vrStereoSegmentedGroup.addEventListener('click', (e) => {
+                const segBtn = e.target.closest('.btn-segment');
+                if (!segBtn) return;
+                e.stopPropagation();
+                const stereoVal = (segBtn.getAttribute('data-vr-stereo') === 'true');
+                setVRStereoEnabled(stereoVal);
+            });
+        }
+
+        if (vrPlatformSizeSegmentedGroup) {
+            vrPlatformSizeSegmentedGroup.addEventListener('click', (e) => {
+                const segBtn = e.target.closest('.btn-segment');
+                if (!segBtn) return;
+                e.stopPropagation();
+                const sz = parseFloat(segBtn.getAttribute('data-platform-size'));
+                if (!isNaN(sz)) {
+                    setVRPlatformSize(sz);
+                }
             });
         }
 
