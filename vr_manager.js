@@ -27,7 +27,7 @@
     const state = {
         isVRActive: false,
         isSupported: false,
-        displayMode: 'curved_screen', // 'curved_screen' (IMAX巨幕) | 'panoramic_360' (360°无缝全景)
+        displayMode: 'panoramic_360', // 'panoramic_360' (360°无缝全景) | 'curved_screen' (IMAX巨幕)
         menuVisible: false, // 默认进入 VR 隐藏菜单，纯净呈现巨幕
         currentView: 'player', // 'player' (主播放控制) | 'tracklist' (选曲列表)
         tracklistPage: 0,
@@ -58,6 +58,18 @@
     let controllerRays = [];
     let reticleMesh = null;
     let raycaster = null;
+
+    // 裸手追踪 (WebXR Hand Tracking) 与 Shader 手部模型系统
+    let hands = [];
+    let handModels = [];
+    let handPinchBurstMesh = null;
+    let handRaycaster = null;
+    let handPointingRays = [];
+
+    // 残影与光带系统 (Ribbon Trails & Motion Echo Ghosts)
+    const TRAIL_HISTORY_LEN = 24;
+    let handTrails = [];
+    let handGhosts = [];
 
     // 3D 浮动 HUD 菜单
     let hudMesh = null;
@@ -160,6 +172,71 @@
         }
     `;
 
+    // 360° 无畸变三平面非同质投影着色器 (Triplanar Spherical Mapping Shaders)
+    // 彻底解决两极菊花状畸变 (Zenith/Nadir Pinching) 与左右镜像穿帮 (Mirroring)
+    const triplanarPanoVertexShader = `
+        uniform float uAudioBass;
+        uniform float uStereoOn;
+        varying vec3 vWorldPos;
+        varying vec3 vNormal;
+
+        void main() {
+            vNormal = normal;
+            vWorldPos = position;
+
+            // 随音乐低音能量产生轻微的全景空间呼吸律动
+            float bassPulse = uAudioBass * 0.35 * uStereoOn;
+            vec3 displaced = position + normal * bassPulse;
+
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+        }
+    `;
+
+    const triplanarPanoFragmentShader = `
+        uniform sampler2D uTexture;
+        uniform float uOpacity;
+        uniform float uAudioBass;
+        varying vec3 vWorldPos;
+        varying vec3 vNormal;
+
+        void main() {
+            // 球心指向当前片元的 3D 归一化方向向量
+            vec3 n = normalize(vWorldPos);
+
+            // 三向混合权重：高次幂 (6.0) 保证三轴过渡极其自然平滑，杜绝重影
+            vec3 blendWeights = pow(abs(n), vec3(6.0));
+            blendWeights /= (blendWeights.x + blendWeights.y + blendWeights.z);
+
+            // 1. Z 轴正交投影 (正前 / 正后视野)
+            vec2 uvZ = vec2(n.x, n.y) * 0.5 + 0.5;
+
+            // 2. X 轴正交投影 (正左 / 正右视野)
+            // 关键：旋转 90 度并加入非对称相位偏移，彻底打破左右镜像对称！
+            vec2 uvX = vec2(n.z, n.y) * 0.5 + 0.5;
+            uvX = vec2(uvX.y, 1.0 - uvX.x) + vec2(0.37, 0.63);
+
+            // 3. Y 轴正交投影 (天顶头顶 / 地底脚底视野)
+            // 关键：正交平铺俯视，完全消除极点收缩与螺旋畸变！
+            vec2 uvY = vec2(n.x, n.z) * 0.5 + 0.5;
+            uvY = vec2(1.0 - uvY.x, uvY.y) + vec2(0.5, 0.5);
+
+            // 采样 Butterchurn 2D 纹理 (fract 保证连续无缝平铺)
+            vec4 colZ = texture2D(uTexture, fract(uvZ));
+            vec4 colX = texture2D(uTexture, fract(uvX));
+            vec4 colY = texture2D(uTexture, fract(uvY));
+
+            // 三平面平滑加权融合
+            vec4 finalColor = colZ * blendWeights.z + 
+                              colX * blendWeights.x + 
+                              colY * blendWeights.y;
+
+            // 低音能量注入微妙微光增益
+            finalColor.rgb += finalColor.rgb * (uAudioBass * 0.12);
+
+            gl_FragColor = vec4(finalColor.rgb, finalColor.a * uOpacity);
+        }
+    `;
+
     // 检查当前设备与浏览器是否支持 WebXR 沉浸式 VR
     async function checkXRSupport() {
         if (typeof navigator !== 'undefined' && navigator.xr && typeof navigator.xr.isSessionSupported === 'function') {
@@ -240,6 +317,9 @@
         // 8. 构建手柄控制器与射线
         setupControllers();
 
+        // 9. 构建 WebXR 裸手追踪与炫酷 Shader 残影系统
+        setupHands();
+
         raycaster = new THREE.Raycaster();
     }
 
@@ -261,14 +341,28 @@
         const panoShaderMat = new THREE.ShaderMaterial({
             uniforms: {
                 uTexture: { value: visualizerTexture },
-                uDepthScale: { value: 1.35 },
                 uAudioBass: { value: 0.0 },
                 uStereoOn: { value: vrStereoEnabled ? 1.0 : 0.0 },
                 uOpacity: { value: 1.0 }
             },
-            vertexShader: stereoVertexShader,
-            fragmentShader: stereoFragmentShader,
-            side: THREE.DoubleSide
+            vertexShader: triplanarPanoVertexShader,
+            fragmentShader: triplanarPanoFragmentShader,
+            side: THREE.BackSide
+        });
+
+        const tunnelPanoMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTexture: { value: tunnelTexture },
+                uAudioBass: { value: 0.0 },
+                uStereoOn: { value: vrStereoEnabled ? 1.0 : 0.0 },
+                uOpacity: { value: 0.38 }
+            },
+            vertexShader: triplanarPanoVertexShader,
+            fragmentShader: triplanarPanoFragmentShader,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            side: THREE.BackSide,
+            depthWrite: false
         });
 
         const tunnelMat = new THREE.MeshBasicMaterial({
@@ -307,38 +401,13 @@
         tunnelMeshScreen.visible = vrStereoEnabled && (state.displayMode === 'curved_screen');
         scene.add(tunnelMeshScreen);
 
-        // --- 方案 B: 360° 天地全覆盖真全景球幕 (96x48 细分立体网格位移) ---
+        // --- 方案 B: 360° 天地全覆盖真全景球幕 (三平面无畸变非镜像投影) ---
         const panoRadius = 22;
         const widthSegments = 96;
         const heightSegments = 48;
         const panoGeom = new THREE.SphereGeometry(
-            panoRadius, widthSegments, heightSegments, -Math.PI / 2, Math.PI * 2, 0, Math.PI
+            panoRadius, widthSegments, heightSegments
         );
-
-        function getMirroredU(frac) {
-            if (frac <= 0.25) {
-                return 0.5 + 2.0 * frac;
-            } else if (frac <= 0.75) {
-                return 1.5 - 2.0 * frac;
-            } else {
-                return 2.0 * frac - 1.5;
-            }
-        }
-
-        const uvs = panoGeom.attributes.uv;
-        for (let j = 0; j <= heightSegments; j++) {
-            for (let i = 0; i <= widthSegments; i++) {
-                const idx = j * (widthSegments + 1) + i;
-                const fracU = (j === 0 || j === heightSegments)
-                    ? ((i + 0.5) / widthSegments)
-                    : (i / widthSegments);
-                const u = getMirroredU(Math.min(1.0, Math.max(0.0, fracU)));
-                uvs.setX(idx, u);
-                const v = 1.0 - (j / heightSegments);
-                uvs.setY(idx, v);
-            }
-        }
-        uvs.needsUpdate = true;
 
         panoramicMesh = new THREE.Mesh(panoGeom, panoShaderMat);
         panoramicMesh.scale.set(-1, 1, 1);
@@ -346,27 +415,13 @@
         panoramicMesh.visible = (state.displayMode === 'panoramic_360');
         scene.add(panoramicMesh);
 
-        // --- 方案 C: 全景时空隧道外层球壳 (半径 26m，比主全景球大 4m) ---
+        // --- 方案 C: 全景时空隧道外层球壳 (三平面无畸变时空回响) ---
         const tunnelPanoRadius = 26;
         const tunnelPanoGeom = new THREE.SphereGeometry(
-            tunnelPanoRadius, 64, 32, -Math.PI / 2, Math.PI * 2, 0, Math.PI
+            tunnelPanoRadius, 64, 32
         );
-        const tunnelUvs = tunnelPanoGeom.attributes.uv;
-        for (let j = 0; j <= 32; j++) {
-            for (let i = 0; i <= 64; i++) {
-                const idx = j * 65 + i;
-                const fracU = (j === 0 || j === 32)
-                    ? ((i + 0.5) / 64)
-                    : (i / 64);
-                const u = getMirroredU(Math.min(1.0, Math.max(0.0, fracU)));
-                tunnelUvs.setX(idx, u);
-                const v = 1.0 - (j / 32);
-                tunnelUvs.setY(idx, v);
-            }
-        }
-        tunnelUvs.needsUpdate = true;
 
-        tunnelMeshPano = new THREE.Mesh(tunnelPanoGeom, tunnelMat);
+        tunnelMeshPano = new THREE.Mesh(tunnelPanoGeom, tunnelPanoMat);
         tunnelMeshPano.scale.set(-1, 1, 1);
         tunnelMeshPano.position.set(0, 1.6, 0);
         tunnelMeshPano.visible = vrStereoEnabled && (state.displayMode === 'panoramic_360');
@@ -1470,6 +1525,594 @@
         scene.add(reticleMesh);
     }
 
+    // ==========================================
+    // 裸手追踪 (WebXR Hand Tracking) 与 Shader 手部特效系统
+    // ==========================================
+
+    const JOINT_NAMES = [
+        'wrist',
+        'thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip',
+        'index-finger-metacarpal', 'index-finger-phalanx-proximal', 'index-finger-phalanx-intermediate', 'index-finger-phalanx-distal', 'index-finger-tip',
+        'middle-finger-metacarpal', 'middle-finger-phalanx-proximal', 'middle-finger-phalanx-intermediate', 'middle-finger-phalanx-distal', 'middle-finger-tip',
+        'ring-finger-metacarpal', 'ring-finger-phalanx-proximal', 'ring-finger-phalanx-intermediate', 'ring-finger-phalanx-distal', 'ring-finger-tip',
+        'pinky-finger-metacarpal', 'pinky-finger-phalanx-proximal', 'pinky-finger-phalanx-intermediate', 'pinky-finger-phalanx-distal', 'pinky-finger-tip'
+    ];
+
+    const BONE_CONNECTIONS = [
+        ['wrist', 'thumb-metacarpal'],
+        ['thumb-metacarpal', 'thumb-phalanx-proximal'],
+        ['thumb-phalanx-proximal', 'thumb-phalanx-distal'],
+        ['thumb-phalanx-distal', 'thumb-tip'],
+        ['wrist', 'index-finger-metacarpal'],
+        ['index-finger-metacarpal', 'index-finger-phalanx-proximal'],
+        ['index-finger-phalanx-proximal', 'index-finger-phalanx-intermediate'],
+        ['index-finger-phalanx-intermediate', 'index-finger-phalanx-distal'],
+        ['index-finger-phalanx-distal', 'index-finger-tip'],
+        ['wrist', 'middle-finger-metacarpal'],
+        ['middle-finger-metacarpal', 'middle-finger-phalanx-proximal'],
+        ['middle-finger-phalanx-proximal', 'middle-finger-phalanx-intermediate'],
+        ['middle-finger-phalanx-intermediate', 'middle-finger-phalanx-distal'],
+        ['middle-finger-phalanx-distal', 'middle-finger-tip'],
+        ['wrist', 'ring-finger-metacarpal'],
+        ['ring-finger-metacarpal', 'ring-finger-phalanx-proximal'],
+        ['ring-finger-phalanx-proximal', 'ring-finger-phalanx-intermediate'],
+        ['ring-finger-phalanx-intermediate', 'ring-finger-phalanx-distal'],
+        ['ring-finger-phalanx-distal', 'ring-finger-tip'],
+        ['wrist', 'pinky-finger-metacarpal'],
+        ['pinky-finger-metacarpal', 'pinky-finger-phalanx-proximal'],
+        ['pinky-finger-phalanx-proximal', 'pinky-finger-phalanx-intermediate'],
+        ['pinky-finger-phalanx-intermediate', 'pinky-finger-phalanx-distal'],
+        ['pinky-finger-phalanx-distal', 'pinky-finger-tip']
+    ];
+
+    function setupHands() {
+        handRaycaster = new THREE.Raycaster();
+
+        // 捏合光爆环特效
+        const burstGeom = new THREE.RingGeometry(0.008, 0.032, 24);
+        const burstMat = new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            transparent: true,
+            opacity: 0.0,
+            blending: THREE.AdditiveBlending,
+            side: THREE.DoubleSide,
+            depthWrite: false
+        });
+        handPinchBurstMesh = new THREE.Mesh(burstGeom, burstMat);
+        handPinchBurstMesh.visible = false;
+        scene.add(handPinchBurstMesh);
+
+        for (let i = 0; i < 2; i++) {
+            const hand = renderer.xr.getHand(i);
+            scene.add(hand);
+            hands.push(hand);
+
+            const isLeft = (i === 0);
+            const mainColorHex = isLeft ? 0x06b6d4 : 0xa855f7; // 左手赛博青，右手电光紫
+            const accentColorHex = isLeft ? 0x38bdf8 : 0xc084fc;
+
+            // 1. 关节能量球 Shader
+            const jointGeom = new THREE.SphereGeometry(1, 10, 8);
+            const jointMat = new THREE.ShaderMaterial({
+                uniforms: {
+                    uColor: { value: new THREE.Color(mainColorHex) },
+                    uAudioBass: { value: 0.0 }
+                },
+                vertexShader: `
+                    varying vec3 vNormal;
+                    void main() {
+                        vNormal = normalize(normalMatrix * normal);
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 uColor;
+                    uniform float uAudioBass;
+                    varying vec3 vNormal;
+                    void main() {
+                        float rim = 1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
+                        rim = pow(rim, 1.5);
+                        vec3 col = uColor * (1.2 + uAudioBass * 0.9) + vec3(rim * 0.7);
+                        gl_FragColor = vec4(col, 0.88);
+                    }
+                `,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+
+            // 2. 骨骼流光管 Shader
+            const boneGeom = new THREE.CylinderGeometry(0.0032, 0.0032, 1, 8);
+            const boneMat = new THREE.ShaderMaterial({
+                uniforms: {
+                    uColor: { value: new THREE.Color(accentColorHex) },
+                    uAudioBass: { value: 0.0 }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    varying vec3 vNormal;
+                    void main() {
+                        vUv = uv;
+                        vNormal = normalize(normalMatrix * normal);
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 uColor;
+                    uniform float uAudioBass;
+                    varying vec2 vUv;
+                    varying vec3 vNormal;
+                    void main() {
+                        float rim = 1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
+                        float pulse = sin(vUv.y * 14.0) * 0.2 + 0.8;
+                        vec3 col = uColor * pulse * (1.1 + uAudioBass * 0.7) + vec3(rim * 0.5);
+                        gl_FragColor = vec4(col, 0.72);
+                    }
+                `,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+
+            // 关节模型字典
+            const jointMeshes = {};
+            JOINT_NAMES.forEach(jName => {
+                const mesh = new THREE.Mesh(jointGeom, jointMat);
+                let radius = 0.0068;
+                if (jName === 'wrist') radius = 0.013;
+                else if (jName.endsWith('-tip')) radius = 0.0055;
+                mesh.scale.set(radius, radius, radius);
+                mesh.visible = false;
+                scene.add(mesh);
+                jointMeshes[jName] = mesh;
+            });
+
+            // 骨骼光管列表
+            const boneMeshes = [];
+            BONE_CONNECTIONS.forEach(([jA, jB]) => {
+                const mesh = new THREE.Mesh(boneGeom, boneMat);
+                mesh.visible = false;
+                scene.add(mesh);
+                boneMeshes.push({ mesh, jA, jB });
+            });
+
+            // 指尖指向激光
+            const rayGeom = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(0, 0, -2.8)
+            ]);
+            const rayMat = new THREE.LineBasicMaterial({
+                color: mainColorHex,
+                transparent: true,
+                opacity: 0.65,
+                blending: THREE.AdditiveBlending
+            });
+            const handRayLine = new THREE.Line(rayGeom, rayMat);
+            handRayLine.visible = false;
+            scene.add(handRayLine);
+            handPointingRays.push(handRayLine);
+
+            // 捏合聚能环
+            const pinchAuraGeom = new THREE.TorusGeometry(0.015, 0.0028, 8, 24);
+            const pinchAuraMat = new THREE.MeshBasicMaterial({
+                color: 0x38bdf8,
+                transparent: true,
+                opacity: 0.0,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            const pinchAura = new THREE.Mesh(pinchAuraGeom, pinchAuraMat);
+            pinchAura.visible = false;
+            scene.add(pinchAura);
+
+            // 保存手部容器状态
+            handModels.push({
+                hand,
+                index: i,
+                jointMat,
+                boneMat,
+                jointMeshes,
+                boneMeshes,
+                pinchAura,
+                handRayLine,
+                isPinching: false,
+                lastPinchActionTime: 0,
+                handedness: isLeft ? 'left' : 'right',
+                active: false
+            });
+
+            // 构建手指跟随流光光带 (Ribbon Trail)
+            const trailGeom = new THREE.BufferGeometry();
+            const maxVertices = TRAIL_HISTORY_LEN * 2;
+            const trailPositions = new Float32Array(maxVertices * 3);
+            const trailUvs = new Float32Array(maxVertices * 2);
+            trailGeom.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+            trailGeom.setAttribute('uv', new THREE.BufferAttribute(trailUvs, 2));
+
+            for (let k = 0; k < TRAIL_HISTORY_LEN; k++) {
+                const u = k / (TRAIL_HISTORY_LEN - 1);
+                trailUvs[(k * 2) * 2] = u;
+                trailUvs[(k * 2) * 2 + 1] = 0.0;
+                trailUvs[(k * 2 + 1) * 2] = u;
+                trailUvs[(k * 2 + 1) * 2 + 1] = 1.0;
+            }
+            trailGeom.attributes.uv.needsUpdate = true;
+
+            const trailShaderMat = new THREE.ShaderMaterial({
+                uniforms: {
+                    uHeadColor: { value: new THREE.Color(mainColorHex) },
+                    uTailColor: { value: new THREE.Color(accentColorHex) },
+                    uAudioBass: { value: 0.0 },
+                    uTime: { value: 0.0 }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform vec3 uHeadColor;
+                    uniform vec3 uTailColor;
+                    uniform float uAudioBass;
+                    uniform float uTime;
+                    varying vec2 vUv;
+
+                    void main() {
+                        float alpha = pow(vUv.x, 2.2);
+                        float edge = sin(vUv.y * 3.1415926);
+                        vec3 col = mix(uTailColor, uHeadColor, vUv.x);
+                        col += vec3(0.25, 0.2, 0.15) * uAudioBass;
+                        float pulse = sin(uTime * 8.0 + vUv.x * 6.28) * 0.15 + 0.85;
+                        gl_FragColor = vec4(col * pulse, alpha * edge * 0.82 * (0.8 + uAudioBass * 0.4));
+                    }
+                `,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+
+            const trailMesh = new THREE.Mesh(trailGeom, trailShaderMat);
+            trailMesh.frustumCulled = false;
+            scene.add(trailMesh);
+
+            handTrails.push({
+                mesh: trailMesh,
+                material: trailShaderMat,
+                history: []
+            });
+
+            // 监听 WebXR Hand 原生事件
+            hand.addEventListener('connected', (event) => {
+                const handedness = (event.data && event.data.handedness) || (i === 0 ? 'left' : 'right');
+                handModels[i].handedness = handedness;
+            });
+            hand.addEventListener('pinchstart', () => onHandPinchTrigger(i, true));
+            hand.addEventListener('pinchend', () => onHandPinchTrigger(i, false));
+        }
+
+        // 构建时空虚影分身池 (每手 6 个残影)
+        const GHOST_COUNT_PER_HAND = 6;
+        for (let i = 0; i < 2; i++) {
+            const ghostsForHand = [];
+            const isLeft = (i === 0);
+            const ghostColorHex = isLeft ? 0x06b6d4 : 0xa855f7;
+
+            for (let g = 0; g < GHOST_COUNT_PER_HAND; g++) {
+                const ghostGroup = new THREE.Group();
+                ghostGroup.visible = false;
+
+                const ghostMat = new THREE.MeshBasicMaterial({
+                    color: ghostColorHex,
+                    transparent: true,
+                    opacity: 0.0,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    wireframe: true
+                });
+
+                const ghostJoints = [];
+                for (let k = 0; k < 10; k++) {
+                    const sp = new THREE.Mesh(new THREE.SphereGeometry(0.005, 6, 6), ghostMat);
+                    ghostGroup.add(sp);
+                    ghostJoints.push(sp);
+                }
+
+                scene.add(ghostGroup);
+                ghostsForHand.push({
+                    group: ghostGroup,
+                    material: ghostMat,
+                    joints: ghostJoints,
+                    life: 0.0,
+                    maxLife: 0.42,
+                    active: false
+                });
+            }
+            handGhosts.push(ghostsForHand);
+        }
+    }
+
+    // 捏合动作统一处理器 (Quest 标准交互: 空中捏合呼出/隐藏菜单，对准按钮捏合触发点击)
+    function onHandPinchTrigger(handIndex, isStart) {
+        if (!isStart) return;
+
+        const now = performance.now();
+        const hModel = handModels[handIndex];
+        if (!hModel) return;
+        if (now - (hModel.lastPinchActionTime || 0) < 280) return; // 防抖 280ms
+        hModel.lastPinchActionTime = now;
+
+        // 触发光爆环特效
+        const hand = hands[handIndex];
+        const indexTip = hand && hand.joints && hand.joints['index-finger-tip'];
+        if (handPinchBurstMesh && indexTip && indexTip.visible) {
+            handPinchBurstMesh.position.copy(indexTip.position);
+            handPinchBurstMesh.lookAt(camera.position);
+            handPinchBurstMesh.scale.set(1, 1, 1);
+            handPinchBurstMesh.material.opacity = 0.95;
+            handPinchBurstMesh.visible = true;
+        }
+
+        // 1. 如果菜单处于隐藏状态：空中捏合直接唤出菜单与星尘
+        if (!state.menuVisible) {
+            showMenu();
+            return;
+        }
+
+        // 2. 如果菜单处于打开状态：检查是否命中了 HUD 按钮
+        if (state.hoveredButtonId) {
+            const btn = hudButtons.find(b => b.id === state.hoveredButtonId);
+            if (btn && !btn.disabled && typeof btn.onClick === 'function') {
+                pulseControllerHaptic(handIndex, 0.5, 60);
+                btn.onClick();
+                return;
+            }
+        }
+
+        // 3. 空白区域捏合：自然隐藏菜单
+        hideMenu();
+    }
+
+    // 每帧更新裸手追踪、骨骼位置、捏合状态、流光残影与分身虚影
+    function updateHandTracking(timestamp, bass) {
+        let anyHandActive = false;
+        let handHoveredBtn = null;
+        let handHitPoint = null;
+
+        for (let i = 0; i < handModels.length; i++) {
+            const hModel = handModels[i];
+            const hand = hands[i];
+            if (!hand || !hand.joints) continue;
+
+            const wrist = hand.joints['wrist'];
+            const isHandVisible = !!(wrist && wrist.visible);
+
+            if (isHandVisible) {
+                anyHandActive = true;
+                hModel.active = true;
+
+                // 裸手激活时，隐藏传统手柄实体与射线
+                if (controllerGrips[i]) controllerGrips[i].visible = false;
+                if (controllerRays[i]) controllerRays[i].visible = false;
+
+                // 更新关节着色器 Uniforms
+                hModel.jointMat.uniforms.uAudioBass.value = bass;
+                hModel.boneMat.uniforms.uAudioBass.value = bass;
+
+                // 更新 25 个关节位置
+                JOINT_NAMES.forEach(jName => {
+                    const jObj = hand.joints[jName];
+                    const mObj = hModel.jointMeshes[jName];
+                    if (jObj && jObj.visible) {
+                        mObj.position.copy(jObj.position);
+                        mObj.visible = true;
+                    } else if (mObj) {
+                        mObj.visible = false;
+                    }
+                });
+
+                // 更新 24 根骨骼光管位置与方向
+                hModel.boneMeshes.forEach(({ mesh, jA, jB }) => {
+                    const objA = hand.joints[jA];
+                    const objB = hand.joints[jB];
+                    if (objA && objA.visible && objB && objB.visible) {
+                        const pA = objA.position;
+                        const pB = objB.position;
+                        mesh.position.set((pA.x + pB.x) * 0.5, (pA.y + pB.y) * 0.5, (pA.z + pB.z) * 0.5);
+                        const dist = pA.distanceTo(pB);
+                        mesh.scale.set(1, Math.max(dist, 0.001), 1);
+                        const dir = new THREE.Vector3().subVectors(pB, pA).normalize();
+                        mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+                        mesh.visible = true;
+                    } else {
+                        mesh.visible = false;
+                    }
+                });
+
+                // 实时距离计算辅助判断捏合 (Double-check pinch)
+                const thumbTip = hand.joints['thumb-tip'];
+                const indexTip = hand.joints['index-finger-tip'];
+                if (thumbTip && thumbTip.visible && indexTip && indexTip.visible) {
+                    const pinchDist = thumbTip.position.distanceTo(indexTip.position);
+                    const pinchCenter = new THREE.Vector3().addVectors(thumbTip.position, indexTip.position).multiplyScalar(0.5);
+                    hModel.pinchAura.position.copy(pinchCenter);
+
+                    if (pinchDist < 0.022 && !hModel.isPinching) {
+                        hModel.isPinching = true;
+                        onHandPinchTrigger(i, true);
+                    } else if (pinchDist > 0.032 && hModel.isPinching) {
+                        hModel.isPinching = false;
+                        onHandPinchTrigger(i, false);
+                    }
+
+                    if (hModel.isPinching) {
+                        hModel.pinchAura.visible = true;
+                        hModel.pinchAura.scale.setScalar(1.2 + Math.sin(timestamp * 0.02) * 0.25);
+                        hModel.pinchAura.material.opacity = 0.92;
+                    } else {
+                        hModel.pinchAura.visible = false;
+                    }
+                }
+
+                // 指尖射线与 HUD 碰撞检测
+                const indexIntermediate = hand.joints['index-finger-phalanx-intermediate'];
+                if (indexTip && indexTip.visible && indexIntermediate && indexIntermediate.visible) {
+                    const rayDir = new THREE.Vector3().subVectors(indexTip.position, indexIntermediate.position).normalize();
+                    hModel.handRayLine.position.copy(indexTip.position);
+                    hModel.handRayLine.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), rayDir);
+                    hModel.handRayLine.visible = state.menuVisible;
+
+                    if (state.menuVisible && hudMesh && hudMesh.visible) {
+                        handRaycaster.set(indexTip.position, rayDir);
+                        const intersects = handRaycaster.intersectObject(hudMesh);
+                        if (intersects.length > 0) {
+                            const hit = intersects[0];
+                            const uv = hit.uv;
+                            const canvasX = uv.x * hudCanvas.width;
+                            const canvasY = (1 - uv.y) * hudCanvas.height;
+
+                            for (const btn of hudButtons) {
+                                if (canvasX >= btn.x && canvasX <= btn.x + btn.w &&
+                                    canvasY >= btn.y && canvasY <= btn.y + btn.h) {
+                                    handHoveredBtn = btn.id;
+                                    handHitPoint = hit.point;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 流光光带跟随特效更新
+                const trail = handTrails[i];
+                if (indexTip && indexTip.visible) {
+                    const pIndex = indexTip.position.clone();
+                    const pinkyTip = hand.joints['pinky-finger-tip'];
+                    const pPinky = (pinkyTip && pinkyTip.visible)
+                        ? pinkyTip.position.clone()
+                        : pIndex.clone().add(new THREE.Vector3(0.04, 0, 0));
+
+                    trail.history.unshift({ index: pIndex, pinky: pPinky });
+                    if (trail.history.length > TRAIL_HISTORY_LEN) trail.history.pop();
+
+                    const posAttr = trail.mesh.geometry.attributes.position;
+                    for (let k = 0; k < trail.history.length; k++) {
+                        const h = trail.history[k];
+                        posAttr.setXYZ(k * 2, h.index.x, h.index.y, h.index.z);
+                        posAttr.setXYZ(k * 2 + 1, h.pinky.x, h.pinky.y, h.pinky.z);
+                    }
+                    if (trail.history.length > 0) {
+                        const lastH = trail.history[trail.history.length - 1];
+                        for (let k = trail.history.length; k < TRAIL_HISTORY_LEN; k++) {
+                            posAttr.setXYZ(k * 2, lastH.index.x, lastH.index.y, lastH.index.z);
+                            posAttr.setXYZ(k * 2 + 1, lastH.pinky.x, lastH.pinky.y, lastH.pinky.z);
+                        }
+                    }
+                    posAttr.needsUpdate = true;
+                    trail.material.uniforms.uAudioBass.value = bass;
+                    trail.material.uniforms.uTime.value = timestamp * 0.001;
+                    trail.mesh.visible = true;
+                }
+
+                // 时空虚影残影分身检测与释放
+                if (!hModel.lastWristPos) hModel.lastWristPos = wrist.position.clone();
+                const speed = wrist.position.distanceTo(hModel.lastWristPos) * 60.0;
+                hModel.lastWristPos.copy(wrist.position);
+
+                const nowTime = performance.now();
+                if (speed > 0.20 && (nowTime - (hModel.lastGhostTime || 0)) > 60) {
+                    hModel.lastGhostTime = nowTime;
+                    const ghosts = handGhosts[i];
+                    const freeGhost = ghosts.find(g => !g.active) || ghosts[0];
+                    freeGhost.active = true;
+                    freeGhost.life = freeGhost.maxLife;
+                    freeGhost.group.position.copy(wrist.position);
+                    freeGhost.group.scale.set(1.0, 1.0, 1.0);
+                    freeGhost.material.opacity = 0.65;
+                    freeGhost.group.visible = true;
+
+                    const snapJoints = [
+                        'thumb-tip', 'thumb-phalanx-proximal',
+                        'index-finger-tip', 'index-finger-phalanx-proximal',
+                        'middle-finger-tip', 'middle-finger-phalanx-proximal',
+                        'ring-finger-tip', 'ring-finger-phalanx-proximal',
+                        'pinky-finger-tip', 'pinky-finger-phalanx-proximal'
+                    ];
+                    snapJoints.forEach((jName, idx) => {
+                        if (idx < freeGhost.joints.length && hand.joints[jName] && hand.joints[jName].visible) {
+                            freeGhost.joints[idx].position.subVectors(hand.joints[jName].position, wrist.position);
+                            freeGhost.joints[idx].visible = true;
+                        }
+                    });
+                }
+            } else {
+                hModel.active = false;
+                Object.values(hModel.jointMeshes).forEach(m => m.visible = false);
+                hModel.boneMeshes.forEach(b => b.mesh.visible = false);
+                if (hModel.pinchAura) hModel.pinchAura.visible = false;
+                if (hModel.handRayLine) hModel.handRayLine.visible = false;
+                if (handTrails[i] && handTrails[i].mesh) handTrails[i].mesh.visible = false;
+            }
+
+            // 更新手部正在消散的残影分身
+            const ghosts = handGhosts[i];
+            if (ghosts) {
+                ghosts.forEach(g => {
+                    if (g.active) {
+                        g.life -= 0.016;
+                        if (g.life <= 0) {
+                            g.active = false;
+                            g.group.visible = false;
+                        } else {
+                            const progress = 1.0 - (g.life / g.maxLife);
+                            g.material.opacity = (1.0 - progress) * 0.6;
+                            g.group.scale.setScalar(1.0 + progress * 0.12);
+                        }
+                    }
+                });
+            }
+        }
+
+        // 光爆环消散动效
+        if (handPinchBurstMesh && handPinchBurstMesh.visible) {
+            handPinchBurstMesh.scale.addScalar(0.08);
+            handPinchBurstMesh.material.opacity -= 0.06;
+            if (handPinchBurstMesh.material.opacity <= 0.01) {
+                handPinchBurstMesh.visible = false;
+            }
+        }
+
+        return {
+            anyActive: anyHandActive,
+            hoveredBtn: handHoveredBtn,
+            hitPoint: handHitPoint
+        };
+    }
+
+    function cleanUpHands() {
+        handModels.forEach(hm => {
+            hm.active = false;
+            hm.isPinching = false;
+            if (hm.pinchAura) hm.pinchAura.visible = false;
+            if (hm.handRayLine) hm.handRayLine.visible = false;
+            Object.values(hm.jointMeshes).forEach(m => m.visible = false);
+            hm.boneMeshes.forEach(b => b.mesh.visible = false);
+        });
+        handTrails.forEach(t => {
+            t.history = [];
+            if (t.mesh) t.mesh.visible = false;
+        });
+        handGhosts.forEach(ghosts => {
+            ghosts.forEach(g => {
+                g.active = false;
+                if (g.group) g.group.visible = false;
+            });
+        });
+        if (handPinchBurstMesh) handPinchBurstMesh.visible = false;
+    }
+
     // 扳机键 (Trigger) 点击处理
     function onControllerSelect(controller, controllerIndex) {
         if (!state.menuVisible) {
@@ -1559,93 +2202,114 @@
         drawHUD();
     }
 
-    // 每帧交互轮询：射线检测、手柄按键与摇杆盲操
-    function updateXRFrame() {
+    // 每帧交互轮询：射线检测、手柄按键与摇杆盲操、裸手追踪与特效
+    function updateXRFrame(timestamp = performance.now(), bass = 0.0) {
         if (!xrSession) return;
 
-        // 1. 摇杆与按键盲操检测
-        const now = performance.now();
-        if (now - state.lastThumbstickTime > state.thumbstickCooldown) {
-            for (let i = 0; i < xrSession.inputSources.length; i++) {
-                const source = xrSession.inputSources[i];
-                if (!source || !source.gamepad) continue;
-                const gp = source.gamepad;
+        // 0. 更新裸手追踪、Shader手部模型、捏合识别、流光残影与分身虚影
+        const handResult = updateHandTracking(timestamp, bass);
 
-                const stickX = gp.axes.length >= 4 ? gp.axes[2] : (gp.axes[0] || 0);
-                const stickY = gp.axes.length >= 4 ? gp.axes[3] : (gp.axes[1] || 0);
-
-                // 摇杆左右倾斜：切换预设
-                if (stickX > 0.62) {
-                    state.lastThumbstickTime = now;
-                    pulseControllerHaptic(i, 0.35, 40);
-                    if (state.bridge && state.bridge.nextPreset) state.bridge.nextPreset();
-                    drawHUD();
-                    break;
-                } else if (stickX < -0.62) {
-                    state.lastThumbstickTime = now;
-                    pulseControllerHaptic(i, 0.35, 40);
-                    if (state.bridge && state.bridge.prevPreset) state.bridge.prevPreset();
-                    drawHUD();
-                    break;
-                }
-
-                // 摇杆上下倾斜：切歌
-                if (stickY > 0.65) {
-                    state.lastThumbstickTime = now;
-                    pulseControllerHaptic(i, 0.35, 40);
-                    if (state.bridge && state.bridge.nextTrack) state.bridge.nextTrack();
-                    drawHUD();
-                    break;
-                } else if (stickY < -0.65) {
-                    state.lastThumbstickTime = now;
-                    pulseControllerHaptic(i, 0.35, 40);
-                    if (state.bridge && state.bridge.prevTrack) state.bridge.prevTrack();
-                    drawHUD();
-                    break;
-                }
-
-                // 按键检测：Button 4 (A 或 X 键) 切换菜单与星尘显隐
-                if (gp.buttons && gp.buttons.length > 4 && gp.buttons[4].pressed) {
-                    state.lastThumbstickTime = now;
-                    if (state.menuVisible) {
-                        hideMenu();
-                    } else {
-                        showMenu();
-                    }
-                    break;
-                }
-            }
-        }
-
-        // 2. 射线拾取 HUD 按钮 (仅在菜单可见时执行拾取运算)
         let anyHover = null;
         let hitPoint = null;
 
-        if (state.menuVisible && hudMesh && hudMesh.visible) {
-            const tempMatrix = new THREE.Matrix4();
-            for (let i = 0; i < controllers.length; i++) {
-                const controller = controllers[i];
-                tempMatrix.identity().extractRotation(controller.matrixWorld);
+        if (handResult.anyActive) {
+            // 裸手处于激活状态：隐藏控制器握把与射线
+            for (let i = 0; i < controllerGrips.length; i++) {
+                if (controllerGrips[i]) controllerGrips[i].visible = false;
+                if (controllerRays[i]) controllerRays[i].visible = false;
+            }
+            if (handResult.hoveredBtn) {
+                anyHover = handResult.hoveredBtn;
+                hitPoint = handResult.hitPoint;
+            }
+        } else {
+            // 裸手未激活时：恢复手柄实体与射线
+            for (let i = 0; i < controllerGrips.length; i++) {
+                if (controllerGrips[i]) controllerGrips[i].visible = true;
+                if (controllerRays[i]) controllerRays[i].visible = state.menuVisible;
+            }
 
-                raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-                raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+            // 1. 摇杆与按键盲操检测
+            const now = performance.now();
+            if (now - state.lastThumbstickTime > state.thumbstickCooldown) {
+                for (let i = 0; i < xrSession.inputSources.length; i++) {
+                    const source = xrSession.inputSources[i];
+                    if (!source || !source.gamepad) continue;
+                    const gp = source.gamepad;
 
-                const intersects = raycaster.intersectObject(hudMesh);
-                if (intersects.length > 0) {
-                    const hit = intersects[0];
-                    hitPoint = hit.point;
-                    const uv = hit.uv;
-                    const canvasX = uv.x * hudCanvas.width;
-                    const canvasY = (1 - uv.y) * hudCanvas.height;
+                    const stickX = gp.axes.length >= 4 ? gp.axes[2] : (gp.axes[0] || 0);
+                    const stickY = gp.axes.length >= 4 ? gp.axes[3] : (gp.axes[1] || 0);
 
-                    for (const btn of hudButtons) {
-                        if (canvasX >= btn.x && canvasX <= btn.x + btn.w &&
-                            canvasY >= btn.y && canvasY <= btn.y + btn.h) {
-                            anyHover = btn.id;
-                            break;
-                        }
+                    // 摇杆左右倾斜：切换预设
+                    if (stickX > 0.62) {
+                        state.lastThumbstickTime = now;
+                        pulseControllerHaptic(i, 0.35, 40);
+                        if (state.bridge && state.bridge.nextPreset) state.bridge.nextPreset();
+                        drawHUD();
+                        break;
+                    } else if (stickX < -0.62) {
+                        state.lastThumbstickTime = now;
+                        pulseControllerHaptic(i, 0.35, 40);
+                        if (state.bridge && state.bridge.prevPreset) state.bridge.prevPreset();
+                        drawHUD();
+                        break;
                     }
-                    if (anyHover) break;
+
+                    // 摇杆上下倾斜：切歌
+                    if (stickY > 0.65) {
+                        state.lastThumbstickTime = now;
+                        pulseControllerHaptic(i, 0.35, 40);
+                        if (state.bridge && state.bridge.nextTrack) state.bridge.nextTrack();
+                        drawHUD();
+                        break;
+                    } else if (stickY < -0.65) {
+                        state.lastThumbstickTime = now;
+                        pulseControllerHaptic(i, 0.35, 40);
+                        if (state.bridge && state.bridge.prevTrack) state.bridge.prevTrack();
+                        drawHUD();
+                        break;
+                    }
+
+                    // 按键检测：Button 4 (A 或 X 键) 切换菜单与星尘显隐
+                    if (gp.buttons && gp.buttons.length > 4 && gp.buttons[4].pressed) {
+                        state.lastThumbstickTime = now;
+                        if (state.menuVisible) {
+                            hideMenu();
+                        } else {
+                            showMenu();
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // 2. 控制器射线拾取 HUD 按钮
+            if (state.menuVisible && hudMesh && hudMesh.visible) {
+                const tempMatrix = new THREE.Matrix4();
+                for (let i = 0; i < controllers.length; i++) {
+                    const controller = controllers[i];
+                    tempMatrix.identity().extractRotation(controller.matrixWorld);
+
+                    raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+                    raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+
+                    const intersects = raycaster.intersectObject(hudMesh);
+                    if (intersects.length > 0) {
+                        const hit = intersects[0];
+                        hitPoint = hit.point;
+                        const uv = hit.uv;
+                        const canvasX = uv.x * hudCanvas.width;
+                        const canvasY = (1 - uv.y) * hudCanvas.height;
+
+                        for (const btn of hudButtons) {
+                            if (canvasX >= btn.x && canvasX <= btn.x + btn.w &&
+                                canvasY >= btn.y && canvasY <= btn.y + btn.h) {
+                                anyHover = btn.id;
+                                break;
+                            }
+                        }
+                        if (anyHover) break;
+                    }
                 }
             }
         }
@@ -1721,8 +2385,8 @@
             if (tunnelMeshPano) tunnelMeshPano.visible = false;
         }
 
-        // 4. 轮询手柄、射线与交互
-        updateXRFrame();
+        // 4. 轮询手柄、裸手与交互
+        updateXRFrame(timestamp, bass);
 
         // 5. 提交立体双目渲染
         renderer.render(scene, camera);
@@ -1796,6 +2460,8 @@
         if (state.bridge && state.bridge.onSessionEnd) {
             state.bridge.onSessionEnd();
         }
+
+        cleanUpHands();
 
         console.log('[VRManager] WebXR 沉浸式 VR 会话已安全退出');
     }
