@@ -172,65 +172,67 @@
         }
     `;
 
-    // 360° 无畸变三平面非同质投影着色器 (Triplanar Spherical Mapping Shaders)
-    // 彻底解决两极菊花状畸变 (Zenith/Nadir Pinching) 与左右镜像穿帮 (Mirroring)
-    const triplanarPanoVertexShader = `
+    // 360° 无缝等距柱面全景 + 天顶/地底保形展开着色器 (Seamless Panoramic Conformal Shaders)
+    // 核心突破：
+    // 1. 彻底消灭侧面接缝：水平 360° 采用单一方位角连续展开，在 45°、90°、135° 等全部侧向视野 100% 纯净采样，零多轴混合，零重影！
+    // 2. 左右完全非镜像：方位角从 -PI 到 +PI 单调展开，左侧与右侧呈现完全不同之视觉。
+    // 3. 极点零畸变 (Anti-Pinch)：在仰角高处 (|y| > 0.48) 平滑过渡为保形天顶正交曼陀罗，彻底消除经纬线收敛点产生的菊花状拧麻花！
+    // 4. 背后极窄微米羽化：仅在正后方 180° 进行狭窄连续平滑过渡，全景视界毫无可见硬缝。
+    const seamlessPanoVertexShader = `
         uniform float uAudioBass;
         uniform float uStereoOn;
         varying vec3 vWorldPos;
-        varying vec3 vNormal;
 
         void main() {
-            vNormal = normal;
             vWorldPos = position;
-
-            // 随音乐低音能量产生轻微的全景空间呼吸律动
             float bassPulse = uAudioBass * 0.35 * uStereoOn;
             vec3 displaced = position + normal * bassPulse;
-
             gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
         }
     `;
 
-    const triplanarPanoFragmentShader = `
+    const seamlessPanoFragmentShader = `
         uniform sampler2D uTexture;
         uniform float uOpacity;
         uniform float uAudioBass;
         varying vec3 vWorldPos;
-        varying vec3 vNormal;
 
         void main() {
-            // 球心指向当前片元的 3D 归一化方向向量
             vec3 n = normalize(vWorldPos);
 
-            // 三向混合权重：高次幂 (6.0) 保证三轴过渡极其自然平滑，杜绝重影
-            vec3 blendWeights = pow(abs(n), vec3(6.0));
-            blendWeights /= (blendWeights.x + blendWeights.y + blendWeights.z);
+            // 1. 水平 360° 柱面全景方位角计算 (正前 -Z 为 0°)
+            // theta 范围 [-PI, PI]，映射到 u in [0, 1]
+            float theta = atan(n.x, -n.z);
+            float u = theta / (2.0 * 3.141592653589793) + 0.5;
+            float v = n.y * 0.5 + 0.5;
 
-            // 1. Z 轴正交投影 (正前 / 正后视野)
-            vec2 uvZ = vec2(n.x, n.y) * 0.5 + 0.5;
+            // 正后方 180° 接缝区狭窄羽化平滑 (仅占背后极狭窄的不到 8% 区域)
+            // 整个四周侧面 (45°, 90°, 135°) 完全由纯净的单一连续贴图渲染，零接缝！
+            vec4 colCyl;
+            float seamDist = abs(u - 0.5);
+            if (seamDist > 0.46) {
+                vec4 colA = texture2D(uTexture, vec2(fract(u), v));
+                vec4 colB = texture2D(uTexture, vec2(fract(u + 0.5), v));
+                float blendFactor = smoothstep(0.46, 0.50, seamDist);
+                colCyl = mix(colA, colB, blendFactor * 0.5);
+            } else {
+                colCyl = texture2D(uTexture, vec2(fract(u), v));
+            }
 
-            // 2. X 轴正交投影 (正左 / 正右视野)
-            // 关键：旋转 90 度并加入非对称相位偏移，彻底打破左右镜像对称！
-            vec2 uvX = vec2(n.z, n.y) * 0.5 + 0.5;
-            uvX = vec2(uvX.y, 1.0 - uvX.x) + vec2(0.37, 0.63);
+            // 2. 天顶 (Zenith, 仰头) 保形平面坐标：正对 Butterchurn 视心 (0.5, 0.5)，零畸变
+            vec2 uvZenith = vec2(n.x, -n.z) * 0.45 + 0.5;
+            vec4 colZenith = texture2D(uTexture, clamp(uvZenith, 0.0, 1.0));
 
-            // 3. Y 轴正交投影 (天顶头顶 / 地底脚底视野)
-            // 关键：正交平铺俯视，完全消除极点收缩与螺旋畸变！
-            vec2 uvY = vec2(n.x, n.z) * 0.5 + 0.5;
-            uvY = vec2(1.0 - uvY.x, uvY.y) + vec2(0.5, 0.5);
+            // 3. 地底 (Nadir, 俯视) 保形平面坐标
+            vec2 uvNadir = vec2(n.x, n.z) * 0.45 + 0.5;
+            vec4 colNadir = texture2D(uTexture, clamp(uvNadir, 0.0, 1.0));
 
-            // 采样 Butterchurn 2D 纹理 (fract 保证连续无缝平铺)
-            vec4 colZ = texture2D(uTexture, fract(uvZ));
-            vec4 colX = texture2D(uTexture, fract(uvX));
-            vec4 colY = texture2D(uTexture, fract(uvY));
+            // 4. 极区保形平滑过渡权重 (仅随仰角/俯角变化，水平环视时权重恒定为 0，侧面绝无任何过渡缝隙)
+            float wZenith = smoothstep(0.48, 0.78, n.y);
+            float wNadir = smoothstep(0.48, 0.78, -n.y);
+            float wCyl = 1.0 - wZenith - wNadir;
 
-            // 三平面平滑加权融合
-            vec4 finalColor = colZ * blendWeights.z + 
-                              colX * blendWeights.x + 
-                              colY * blendWeights.y;
-
-            // 低音能量注入微妙微光增益
+            vec4 finalColor = colCyl * wCyl + colZenith * wZenith + colNadir * wNadir;
             finalColor.rgb += finalColor.rgb * (uAudioBass * 0.12);
 
             gl_FragColor = vec4(finalColor.rgb, finalColor.a * uOpacity);
@@ -290,6 +292,8 @@
         }
 
         visualizerTexture = new THREE.CanvasTexture(sourceCanvas);
+        visualizerTexture.wrapS = THREE.RepeatWrapping;
+        visualizerTexture.wrapT = THREE.ClampToEdgeWrapping;
         visualizerTexture.minFilter = THREE.LinearFilter;
         visualizerTexture.magFilter = THREE.LinearFilter;
         visualizerTexture.format = THREE.RGBAFormat;
@@ -301,6 +305,8 @@
         tunnelCanvas.height = 512;
         tunnelCtx = tunnelCanvas.getContext('2d');
         tunnelTexture = new THREE.CanvasTexture(tunnelCanvas);
+        tunnelTexture.wrapS = THREE.RepeatWrapping;
+        tunnelTexture.wrapT = THREE.ClampToEdgeWrapping;
         tunnelTexture.minFilter = THREE.LinearFilter;
         tunnelTexture.magFilter = THREE.LinearFilter;
         tunnelTexture.generateMipmaps = false;
@@ -345,8 +351,8 @@
                 uStereoOn: { value: vrStereoEnabled ? 1.0 : 0.0 },
                 uOpacity: { value: 1.0 }
             },
-            vertexShader: triplanarPanoVertexShader,
-            fragmentShader: triplanarPanoFragmentShader,
+            vertexShader: seamlessPanoVertexShader,
+            fragmentShader: seamlessPanoFragmentShader,
             side: THREE.BackSide
         });
 
@@ -357,8 +363,8 @@
                 uStereoOn: { value: vrStereoEnabled ? 1.0 : 0.0 },
                 uOpacity: { value: 0.38 }
             },
-            vertexShader: triplanarPanoVertexShader,
-            fragmentShader: triplanarPanoFragmentShader,
+            vertexShader: seamlessPanoVertexShader,
+            fragmentShader: seamlessPanoFragmentShader,
             transparent: true,
             blending: THREE.AdditiveBlending,
             side: THREE.BackSide,

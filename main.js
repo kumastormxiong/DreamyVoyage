@@ -1250,10 +1250,10 @@
         let screenW = Math.max(window.innerWidth || 0, 320);
         let screenH = Math.max(window.innerHeight || 0, 320);
         
-        // VR 沉浸模式或 Quest 设备下，基准视口强制对齐 16:9 全高清 (1920x1080)，杜绝移动端小视口造成的画质模糊
+        // VR 沉浸模式或 Quest 设备下，基准视口强制对齐 2:1 全景标准分辨率 (2048x1024)，杜绝拉伸与模糊
         if (isQuest || isVR) {
-            screenW = 1920;
-            screenH = 1080;
+            screenW = 2048;
+            screenH = 1024;
         }
 
         const isPortrait = isMobile && screenH > screenW;
