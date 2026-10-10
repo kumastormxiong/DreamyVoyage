@@ -358,6 +358,20 @@
                             <i class="fa-solid fa-border-none"></i> <span id="i18n-vr-stereo-off">2D Standard (Flat)</span>
                         </button>
                     </div>
+                    <!-- VR 裸手光影跟随特效 (5 种模式切换) -->
+                    <div style="margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;" data-echosfall-control="true">
+                        <span id="i18n-vr-handfx-title" style="font-size: 13px; font-weight: 700; color: #a5f3fc;" data-echosfall-control="true">
+                            <i class="fa-solid fa-hand-sparkles"></i> 裸手跟随光影特效 (WebXR Hand VFX)
+                        </span>
+                        <span id="vr-handfx-badge" class="settings-badge badge-cyan" data-echosfall-control="true">⚡ 赛博霓虹</span>
+                    </div>
+                    <div class="settings-segmented-group" id="vr-handfx-segmented-group" style="margin-bottom: 12px;" data-echosfall-control="true">
+                        <button type="button" class="btn-segment active" data-hand-fx="cyber_neon" data-echosfall-control="true">⚡ 赛博霓虹</button>
+                        <button type="button" class="btn-segment" data-hand-fx="quantum_dust" data-echosfall-control="true">✨ 量子星尘</button>
+                        <button type="button" class="btn-segment" data-hand-fx="taichi_qi" data-echosfall-control="true">☯ 太极流金</button>
+                        <button type="button" class="btn-segment" data-hand-fx="time_echo" data-echosfall-control="true">⏳ 时空分身</button>
+                        <button type="button" class="btn-segment" data-hand-fx="prismatic_arc" data-echosfall-control="true">🔮 离子电弧</button>
+                    </div>
                     <!-- 地台大小选项 -->
                     <div class="settings-segmented-group" id="vr-platform-size-segmented-group" data-echosfall-control="true">
                         <button type="button" class="btn-segment" data-platform-size="0.7" data-echosfall-control="true">0.7x Compact</button>

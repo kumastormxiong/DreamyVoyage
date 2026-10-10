@@ -59,7 +59,20 @@
     let reticleMesh = null;
     let raycaster = null;
 
-    // 裸手追踪 (WebXR Hand Tracking) 与 Shader 手部模型系统
+    // 裸手追踪 (WebXR Hand Tracking) 与 5 套炫酷光影特效体系 (Hand VFX Modes)
+    const HAND_FX_MODES = [
+        { id: 'cyber_neon', nameEn: 'Cyber Neon', nameZh: '赛博霓虹', icon: '⚡' },
+        { id: 'quantum_dust', nameEn: 'Quantum Dust', nameZh: '量子星尘', icon: '✨' },
+        { id: 'taichi_qi', nameEn: 'Tai Chi Qi', nameZh: '太极流金', icon: '☯' },
+        { id: 'time_echo', nameEn: 'Time Echo', nameZh: '时空分身', icon: '⏳' },
+        { id: 'prismatic_arc', nameEn: 'Plasma Arc', nameZh: '离子电弧', icon: '🔮' }
+    ];
+
+    let currentHandFx = (typeof localStorage !== 'undefined' && localStorage.getItem('dv_vr_hand_fx')) || 'cyber_neon';
+    if (!HAND_FX_MODES.some(m => m.id === currentHandFx)) {
+        currentHandFx = 'cyber_neon';
+    }
+
     let hands = [];
     let handModels = [];
     let handPinchBurstMesh = null;
@@ -70,6 +83,14 @@
     const TRAIL_HISTORY_LEN = 24;
     let handTrails = [];
     let handGhosts = [];
+
+    // 连续动态量子星尘粒子流系统 (Continuous Stardust Particle Engine)
+    const MAX_HAND_PARTICLES = 500;
+    let handParticleSystem = null;
+    let handParticleData = null;
+
+    // 棱镜离子电弧动态闪电网格 (Plasma Lightning Arcs)
+    let handLightningLines = [];
 
     // 3D 浮动 HUD 菜单
     let hudMesh = null;
@@ -201,22 +222,29 @@
             vec3 n = normalize(vWorldPos);
 
             // 1. 水平 360° 柱面全景方位角计算 (正前 -Z 为 0°)
-            // theta 范围 [-PI, PI]，映射到 u in [0, 1]
-            float theta = atan(n.x, -n.z);
-            float u = theta / (2.0 * 3.141592653589793) + 0.5;
             float v = n.y * 0.5 + 0.5;
-
-            // 正后方 180° 接缝区狭窄羽化平滑 (仅占背后极狭窄的不到 8% 区域)
-            // 整个四周侧面 (45°, 90°, 135°) 完全由纯净的单一连续贴图渲染，零接缝！
             vec4 colCyl;
-            float seamDist = abs(u - 0.5);
-            if (seamDist > 0.46) {
-                vec4 colA = texture2D(uTexture, vec2(fract(u), v));
-                vec4 colB = texture2D(uTexture, vec2(fract(u + 0.5), v));
-                float blendFactor = smoothstep(0.46, 0.50, seamDist);
-                colCyl = mix(colA, colB, blendFactor * 0.5);
+
+            const float PI = 3.14159265358979323846;
+            const float SEAM_BETA = 0.22; // 约 12.6° 背后无缝极细羽化交织区
+
+            // 当且仅当朝向正后方 (+Z 区域) 且处于 SEAM_BETA 极狭窄交界窗口内时执行 C1 平滑对穿交叉混合
+            // 彻底消灭 180° 背面跳变缝隙，零重影，零硬切！
+            if (n.z > 0.0 && abs(atan(n.x, n.z)) < SEAM_BETA) {
+                float phiBack = atan(n.x, n.z); // [-SEAM_BETA, +SEAM_BETA]
+                float t = smoothstep(-SEAM_BETA, SEAM_BETA, phiBack);
+
+                // 在背面交界缝隙两侧，左边缘 uL 自 0 连续延伸，右边缘 uR 自 1 连续延伸
+                float uL = abs(phiBack) / (2.0 * PI);
+                float uR = 1.0 - abs(phiBack) / (2.0 * PI);
+
+                vec4 colL = texture2D(uTexture, vec2(clamp(uL, 0.001, 0.999), v));
+                vec4 colR = texture2D(uTexture, vec2(clamp(uR, 0.001, 0.999), v));
+                colCyl = mix(colL, colR, t);
             } else {
-                colCyl = texture2D(uTexture, vec2(fract(u), v));
+                float theta = atan(n.x, -n.z); // [-PI, PI]
+                float u = theta / (2.0 * PI) + 0.5;
+                colCyl = texture2D(uTexture, vec2(clamp(u, 0.001, 0.999), v));
             }
 
             // 2. 天顶 (Zenith, 仰头) 保形平面坐标：正对 Butterchurn 视心 (0.5, 0.5)，零畸变
@@ -1267,22 +1295,34 @@
                 }
             );
 
-            // 第五行控制按钮：退出 VR 与 隐藏菜单
+            // 第五行控制按钮：退出 VR、裸手5大光效切换 与 隐藏菜单
+            const currentHandFxObj = HAND_FX_MODES.find(m => m.id === currentHandFx) || HAND_FX_MODES[0];
             hudButtons.push(
                 {
                     id: 'btn-exit-vr',
-                    x: 60, y: 505, w: 530, h: 68,
+                    x: 60, y: 505, w: 270, h: 68,
                     isDanger: true,
-                    icon: '🚪', labelEn: 'Exit VR Mode', labelZh: '退出 VR 沉浸模式',
+                    icon: '🚪', labelEn: 'Exit VR', labelZh: '退出 VR',
                     onClick: () => {
                         exitVR();
                     }
                 },
                 {
+                    id: 'btn-cycle-hand-fx',
+                    x: 345, y: 505, w: 375, h: 68,
+                    icon: currentHandFxObj.icon,
+                    labelEn: `Hand FX: ${currentHandFxObj.nameEn}`,
+                    labelZh: `裸手光效: ${currentHandFxObj.nameZh}`,
+                    isHandFx: true,
+                    onClick: () => {
+                        cycleHandFx();
+                    }
+                },
+                {
                     id: 'btn-hide-hud',
-                    x: 605, y: 505, w: 415, h: 68,
+                    x: 735, y: 505, w: 285, h: 68,
                     isOutline: true,
-                    icon: '✕', labelEn: 'Hide Menu (Pure Visual)', labelZh: '隐藏菜单 (纯享视觉)',
+                    icon: '✕', labelEn: 'Hide Menu', labelZh: '隐藏菜单 (纯享)',
                     onClick: () => {
                         hideMenu();
                     }
@@ -1318,11 +1358,11 @@
                 ctx.stroke();
             } else if (isHover) {
                 // 悬停高亮发光
-                ctx.fillStyle = btn.isDanger ? 'rgba(239, 68, 68, 0.45)' : 'rgba(56, 189, 248, 0.38)';
+                ctx.fillStyle = btn.isDanger ? 'rgba(239, 68, 68, 0.45)' : (btn.isHandFx ? 'rgba(192, 132, 252, 0.45)' : 'rgba(56, 189, 248, 0.38)');
                 ctx.fill();
                 ctx.lineWidth = 3;
-                ctx.strokeStyle = btn.isDanger ? '#ef4444' : '#38bdf8';
-                ctx.shadowColor = btn.isDanger ? '#ef4444' : '#38bdf8';
+                ctx.strokeStyle = btn.isDanger ? '#ef4444' : (btn.isHandFx ? '#c084fc' : '#38bdf8');
+                ctx.shadowColor = btn.isDanger ? '#ef4444' : (btn.isHandFx ? '#c084fc' : '#38bdf8');
                 ctx.shadowBlur = 18;
                 ctx.stroke();
             } else if (btn.isSongItem) {
@@ -1394,6 +1434,19 @@
                 ctx.lineWidth = 1.8;
                 ctx.strokeStyle = '#2dd4bf';
                 ctx.stroke();
+            } else if (btn.isHandFx) {
+                // 裸手光效专属渐变发光底板
+                const fxGrad = ctx.createLinearGradient(btn.x, btn.y, btn.x + btn.w, btn.y + btn.h);
+                fxGrad.addColorStop(0, '#00f2fe');
+                fxGrad.addColorStop(0.5, '#c084fc');
+                fxGrad.addColorStop(1, '#f472b6');
+                ctx.fillStyle = 'rgba(168, 85, 247, 0.22)';
+                ctx.fill();
+                ctx.lineWidth = 2.0;
+                ctx.strokeStyle = fxGrad;
+                ctx.shadowColor = '#c084fc';
+                ctx.shadowBlur = 8;
+                ctx.stroke();
             } else if (btn.isDanger) {
                 // 退出按钮
                 ctx.fillStyle = 'rgba(239, 68, 68, 0.14)';
@@ -1446,6 +1499,10 @@
                     ctx.font = '800 24px "Orbitron", sans-serif';
                     ctx.fillStyle = '#ffffff';
                     ctx.fillText(`${icon} ${actionLabel}`, centerX, centerY);
+                } else if (btn.isHandFx) {
+                    ctx.font = '700 16px "Orbitron", -apple-system, sans-serif';
+                    ctx.fillStyle = isHover ? '#ffffff' : '#f5d0fe';
+                    ctx.fillText(`${btn.icon || ''} ${labelText || ''}`, centerX, centerY);
                 } else {
                     const fontSize = (btn.w < 260) ? 16 : 18;
                     ctx.font = `700 ${fontSize}px "Orbitron", -apple-system, sans-serif`;
@@ -1571,6 +1628,264 @@
         ['pinky-finger-phalanx-distal', 'pinky-finger-tip']
     ];
 
+    // ==========================================
+    // 裸手追踪 (WebXR Hand Tracking) 与 5 套炫酷光影特效体系
+    // 1. cyber_neon    (赛博霓虹流光)
+    // 2. quantum_dust  (量子星尘粒子流)
+    // 3. taichi_qi     (太极流金气韵)
+    // 4. time_echo     (时空多重分身)
+    // 5. prismatic_arc (棱镜离子电弧)
+    // ==========================================
+
+    // 连续动态量子星尘粒子流系统初始化 (500 颗粒子物理池)
+    function setupHandParticles() {
+        if (handParticleSystem) return;
+        const geom = new THREE.BufferGeometry();
+        const positions = new Float32Array(MAX_HAND_PARTICLES * 3);
+        const colors = new Float32Array(MAX_HAND_PARTICLES * 3);
+        const sizes = new Float32Array(MAX_HAND_PARTICLES);
+        const alphas = new Float32Array(MAX_HAND_PARTICLES);
+
+        geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geom.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+        geom.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+        geom.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1));
+
+        const pMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0.0 }
+            },
+            vertexShader: `
+                attribute vec3 aColor;
+                attribute float aSize;
+                attribute float aAlpha;
+                varying vec3 vColor;
+                varying float vAlpha;
+                void main() {
+                    vColor = aColor;
+                    vAlpha = aAlpha;
+                    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+                    gl_PointSize = aSize * (150.0 / max(-mvPos.z, 0.2));
+                    gl_Position = projectionMatrix * mvPos;
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vColor;
+                varying float vAlpha;
+                void main() {
+                    vec2 coord = gl_PointCoord - vec2(0.5);
+                    float d = length(coord);
+                    if (d > 0.5) discard;
+                    float soft = 1.0 - smoothstep(0.0, 0.5, d);
+                    gl_FragColor = vec4(vColor, vAlpha * soft);
+                }
+            `,
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+
+        handParticleSystem = new THREE.Points(geom, pMat);
+        handParticleSystem.frustumCulled = false;
+        scene.add(handParticleSystem);
+
+        handParticleData = {
+            velocities: new Float32Array(MAX_HAND_PARTICLES * 3),
+            lives: new Float32Array(MAX_HAND_PARTICLES),
+            maxLives: new Float32Array(MAX_HAND_PARTICLES),
+            baseSizes: new Float32Array(MAX_HAND_PARTICLES),
+            nextIndex: 0
+        };
+    }
+
+    // 发射单颗星尘粒子
+    function spawnHandParticle(x, y, z, vx, vy, vz, r, g, b, size, life) {
+        if (!handParticleData || !handParticleSystem) return;
+        const idx = handParticleData.nextIndex;
+        handParticleData.nextIndex = (handParticleData.nextIndex + 1) % MAX_HAND_PARTICLES;
+
+        const pos = handParticleSystem.geometry.attributes.position.array;
+        const col = handParticleSystem.geometry.attributes.aColor.array;
+        const sz = handParticleSystem.geometry.attributes.aSize.array;
+        const alp = handParticleSystem.geometry.attributes.aAlpha.array;
+
+        pos[idx * 3] = x;
+        pos[idx * 3 + 1] = y;
+        pos[idx * 3 + 2] = z;
+
+        col[idx * 3] = r;
+        col[idx * 3 + 1] = g;
+        col[idx * 3 + 2] = b;
+
+        sz[idx] = size;
+        alp[idx] = 0.95;
+
+        handParticleData.velocities[idx * 3] = vx;
+        handParticleData.velocities[idx * 3 + 1] = vy;
+        handParticleData.velocities[idx * 3 + 2] = vz;
+
+        handParticleData.lives[idx] = life;
+        handParticleData.maxLives[idx] = life;
+        handParticleData.baseSizes[idx] = size;
+    }
+
+    // 每帧更新粒子物理演化
+    function updateHandParticles(dt, bass, timestamp) {
+        if (!handParticleData || !handParticleSystem) return;
+
+        const pos = handParticleSystem.geometry.attributes.position.array;
+        const sz = handParticleSystem.geometry.attributes.aSize.array;
+        const alp = handParticleSystem.geometry.attributes.aAlpha.array;
+        const vel = handParticleData.velocities;
+        const lives = handParticleData.lives;
+        const maxLives = handParticleData.maxLives;
+        const baseSizes = handParticleData.baseSizes;
+
+        let hasActive = false;
+
+        for (let i = 0; i < MAX_HAND_PARTICLES; i++) {
+            if (lives[i] > 0) {
+                hasActive = true;
+                lives[i] -= dt;
+                if (lives[i] <= 0) {
+                    alp[i] = 0.0;
+                    sz[i] = 0.0;
+                } else {
+                    const progress = 1.0 - (lives[i] / maxLives[i]);
+
+                    pos[i * 3] += vel[i * 3] * dt;
+                    pos[i * 3 + 1] += vel[i * 3 + 1] * dt + 0.018 * dt; // 微小反重力浮力
+                    pos[i * 3 + 2] += vel[i * 3 + 2] * dt;
+
+                    // 空间微流体阻尼
+                    vel[i * 3] *= 0.94;
+                    vel[i * 3 + 1] *= 0.94;
+                    vel[i * 3 + 2] *= 0.94;
+
+                    alp[i] = (1.0 - progress) * (0.85 + bass * 0.45);
+                    sz[i] = baseSizes[i] * (0.35 + 0.65 * (1.0 - progress));
+                }
+            }
+        }
+
+        handParticleSystem.geometry.attributes.position.needsUpdate = true;
+        handParticleSystem.geometry.attributes.aAlpha.needsUpdate = true;
+        handParticleSystem.geometry.attributes.aSize.needsUpdate = true;
+        handParticleSystem.geometry.attributes.aColor.needsUpdate = true;
+        handParticleSystem.visible = hasActive;
+    }
+
+    // 棱镜离子电弧动态闪电网格初始化
+    function setupHandLightning() {
+        handLightningLines = [];
+        const VERTEX_COUNT = 24;
+        for (let i = 0; i < 2; i++) {
+            const isLeft = (i === 0);
+            const lineGeom = new THREE.BufferGeometry();
+            const linePositions = new Float32Array(VERTEX_COUNT * 3);
+            lineGeom.setAttribute('position', new THREE.BufferAttribute(linePositions, 3));
+
+            const lineMat = new THREE.LineBasicMaterial({
+                color: isLeft ? 0x00f2fe : 0xf43f5e,
+                transparent: true,
+                opacity: 0.85,
+                blending: THREE.AdditiveBlending,
+                linewidth: 2
+            });
+
+            const lineMesh = new THREE.LineSegments(lineGeom, lineMat);
+            lineMesh.frustumCulled = false;
+            lineMesh.visible = false;
+            scene.add(lineMesh);
+            handLightningLines.push(lineMesh);
+        }
+    }
+
+    // 应用当前手部光效体系的主题色与着色器参数
+    function applyHandFxStyles() {
+        const fxObj = HAND_FX_MODES.find(m => m.id === currentHandFx) || HAND_FX_MODES[0];
+        const fxIndex = HAND_FX_MODES.indexOf(fxObj);
+
+        let leftMain, leftAccent, rightMain, rightAccent;
+        switch (currentHandFx) {
+            case 'quantum_dust':
+                leftMain = 0x2dd4bf; leftAccent = 0x7dd3fc;
+                rightMain = 0xf43f5e; rightAccent = 0xfde047;
+                break;
+            case 'taichi_qi':
+                leftMain = 0xfef08a; leftAccent = 0xf59e0b; // 白金暖玉 (阳)
+                rightMain = 0x8b5cf6; rightAccent = 0xfbbf24; // 紫墨金纹 (阴)
+                break;
+            case 'time_echo':
+                leftMain = 0xa3e635; leftAccent = 0x06b6d4;
+                rightMain = 0xec4899; rightAccent = 0x818cf8;
+                break;
+            case 'prismatic_arc':
+                leftMain = 0x0ea5e9; leftAccent = 0x67e8f9;
+                rightMain = 0xa855f7; rightAccent = 0xf43f5e;
+                break;
+            case 'cyber_neon':
+            default:
+                leftMain = 0x00f2fe; leftAccent = 0x38bdf8;
+                rightMain = 0xf72585; rightAccent = 0xc084fc;
+                break;
+        }
+
+        handModels.forEach((hm, idx) => {
+            const isLeft = (idx === 0);
+            const mainColor = isLeft ? leftMain : rightMain;
+            const accentColor = isLeft ? leftAccent : rightAccent;
+
+            if (hm.jointMat && hm.jointMat.uniforms) {
+                hm.jointMat.uniforms.uColor.value.setHex(mainColor);
+                if (hm.jointMat.uniforms.uFxMode) hm.jointMat.uniforms.uFxMode.value = fxIndex;
+            }
+            if (hm.boneMat && hm.boneMat.uniforms) {
+                hm.boneMat.uniforms.uColor.value.setHex(accentColor);
+                if (hm.boneMat.uniforms.uFxMode) hm.boneMat.uniforms.uFxMode.value = fxIndex;
+            }
+            if (hm.handRayLine && hm.handRayLine.material) {
+                hm.handRayLine.material.color.setHex(mainColor);
+            }
+            if (hm.pinchAura && hm.pinchAura.material) {
+                hm.pinchAura.material.color.setHex(accentColor);
+            }
+        });
+
+        handTrails.forEach((t, idx) => {
+            const isLeft = (idx === 0);
+            if (t.material && t.material.uniforms) {
+                t.material.uniforms.uHeadColor.value.setHex(isLeft ? leftMain : rightMain);
+                t.material.uniforms.uTailColor.value.setHex(isLeft ? leftAccent : rightAccent);
+                if (t.material.uniforms.uFxMode) t.material.uniforms.uFxMode.value = fxIndex;
+            }
+        });
+
+        if (handLightningLines) {
+            handLightningLines.forEach((l, idx) => {
+                const isLeft = (idx === 0);
+                l.material.color.setHex(isLeft ? leftMain : rightMain);
+                l.visible = (currentHandFx === 'prismatic_arc');
+            });
+        }
+    }
+
+    function cycleHandFx() {
+        const idx = HAND_FX_MODES.findIndex(m => m.id === currentHandFx);
+        const nextIdx = (idx + 1) % HAND_FX_MODES.length;
+        setHandFxMode(HAND_FX_MODES[nextIdx].id);
+    }
+
+    function setHandFxMode(modeId) {
+        if (!HAND_FX_MODES.some(m => m.id === modeId)) return;
+        currentHandFx = modeId;
+        if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('dv_vr_hand_fx', currentHandFx);
+        }
+        applyHandFxStyles();
+        drawHUD();
+    }
+
     function setupHands() {
         handRaycaster = new THREE.Raycaster();
 
@@ -1594,15 +1909,17 @@
             hands.push(hand);
 
             const isLeft = (i === 0);
-            const mainColorHex = isLeft ? 0x06b6d4 : 0xa855f7; // 左手赛博青，右手电光紫
+            const mainColorHex = isLeft ? 0x00f2fe : 0xf72585;
             const accentColorHex = isLeft ? 0x38bdf8 : 0xc084fc;
 
-            // 1. 关节能量球 Shader
+            // 1. 关节能量球 Shader (支持 5 大光效模式差异化着色)
             const jointGeom = new THREE.SphereGeometry(1, 10, 8);
             const jointMat = new THREE.ShaderMaterial({
                 uniforms: {
                     uColor: { value: new THREE.Color(mainColorHex) },
-                    uAudioBass: { value: 0.0 }
+                    uAudioBass: { value: 0.0 },
+                    uFxMode: { value: 0.0 },
+                    uTime: { value: 0.0 }
                 },
                 vertexShader: `
                     varying vec3 vNormal;
@@ -1614,12 +1931,31 @@
                 fragmentShader: `
                     uniform vec3 uColor;
                     uniform float uAudioBass;
+                    uniform float uFxMode;
+                    uniform float uTime;
                     varying vec3 vNormal;
                     void main() {
                         float rim = 1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
-                        rim = pow(rim, 1.5);
+                        rim = pow(rim, 1.6);
                         vec3 col = uColor * (1.2 + uAudioBass * 0.9) + vec3(rim * 0.7);
-                        gl_FragColor = vec4(col, 0.88);
+
+                        if (uFxMode > 3.5) {
+                            // 5. prismatic_arc: 电浆高频震荡闪烁
+                            float spark = sin(uTime * 35.0 + vNormal.x * 20.0) * 0.25;
+                            col += vec3(0.3, 0.5, 0.8) * spark;
+                        } else if (uFxMode > 2.5) {
+                            // 4. time_echo: 棱镜色散三相光斑
+                            vec3 prism = vec3(sin(uTime * 4.0), sin(uTime * 4.0 + 2.09), sin(uTime * 4.0 + 4.18)) * 0.2 + 0.8;
+                            col *= prism;
+                        } else if (uFxMode > 1.5) {
+                            // 3. taichi_qi: 太极气韵流金呼吸
+                            float breath = sin(uTime * 3.0) * 0.15 + 0.85;
+                            col = mix(col, vec3(1.0, 0.9, 0.6) * 1.3, rim * 0.6) * breath;
+                        } else if (uFxMode > 0.5) {
+                            // 2. quantum_dust: 晶体量子微光
+                            col = mix(col, vec3(0.8, 1.0, 1.0), rim * 0.8);
+                        }
+                        gl_FragColor = vec4(col, 0.90);
                     }
                 `,
                 transparent: true,
@@ -1632,7 +1968,9 @@
             const boneMat = new THREE.ShaderMaterial({
                 uniforms: {
                     uColor: { value: new THREE.Color(accentColorHex) },
-                    uAudioBass: { value: 0.0 }
+                    uAudioBass: { value: 0.0 },
+                    uFxMode: { value: 0.0 },
+                    uTime: { value: 0.0 }
                 },
                 vertexShader: `
                     varying vec2 vUv;
@@ -1646,13 +1984,22 @@
                 fragmentShader: `
                     uniform vec3 uColor;
                     uniform float uAudioBass;
+                    uniform float uFxMode;
+                    uniform float uTime;
                     varying vec2 vUv;
                     varying vec3 vNormal;
                     void main() {
                         float rim = 1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
-                        float pulse = sin(vUv.y * 14.0) * 0.2 + 0.8;
+                        float pulse = sin(vUv.y * 14.0 - uTime * 6.0) * 0.25 + 0.75;
                         vec3 col = uColor * pulse * (1.1 + uAudioBass * 0.7) + vec3(rim * 0.5);
-                        gl_FragColor = vec4(col, 0.72);
+
+                        if (uFxMode > 3.5) {
+                            float arcP = step(0.85, sin(vUv.y * 30.0 + uTime * 20.0));
+                            col += vec3(0.4, 0.7, 1.0) * arcP * 0.8;
+                        } else if (uFxMode > 1.5 && uFxMode < 2.5) {
+                            col = mix(col, vec3(1.0, 0.85, 0.4), sin(vUv.y * 6.28) * 0.35 + 0.35);
+                        }
+                        gl_FragColor = vec4(col, 0.75);
                     }
                 `,
                 transparent: true,
@@ -1727,7 +2074,7 @@
                 active: false
             });
 
-            // 构建手指跟随流光光带 (Ribbon Trail)
+            // 构建手指跟随流光光带 (Ribbon Trail，支持 5 套独立算法着色)
             const trailGeom = new THREE.BufferGeometry();
             const maxVertices = TRAIL_HISTORY_LEN * 2;
             const trailPositions = new Float32Array(maxVertices * 3);
@@ -1749,7 +2096,8 @@
                     uHeadColor: { value: new THREE.Color(mainColorHex) },
                     uTailColor: { value: new THREE.Color(accentColorHex) },
                     uAudioBass: { value: 0.0 },
-                    uTime: { value: 0.0 }
+                    uTime: { value: 0.0 },
+                    uFxMode: { value: 0.0 }
                 },
                 vertexShader: `
                     varying vec2 vUv;
@@ -1763,15 +2111,46 @@
                     uniform vec3 uTailColor;
                     uniform float uAudioBass;
                     uniform float uTime;
+                    uniform float uFxMode;
                     varying vec2 vUv;
 
                     void main() {
-                        float alpha = pow(vUv.x, 2.2);
+                        float alpha = pow(vUv.x, 2.0);
                         float edge = sin(vUv.y * 3.1415926);
                         vec3 col = mix(uTailColor, uHeadColor, vUv.x);
                         col += vec3(0.25, 0.2, 0.15) * uAudioBass;
+
+                        if (uFxMode < 0.5) {
+                            // 1. cyber_neon: 赛博霓虹双频扫描光纤
+                            float scanline = sin(vUv.x * 40.0 - uTime * 14.0) * 0.3 + 0.7;
+                            col *= scanline;
+                            float core = pow(edge, 3.0);
+                            col += vec3(0.6, 0.9, 1.0) * core * 0.7;
+                        } else if (uFxMode < 1.5) {
+                            // 2. quantum_dust: 梦幻星尘微光带 (让位给真实连续粒子云)
+                            float starlight = sin(vUv.x * 20.0 + uTime * 6.0) * 0.25 + 0.75;
+                            alpha *= 0.55 * starlight;
+                        } else if (uFxMode < 2.5) {
+                            // 3. taichi_qi: 太极流金气韵，如丝如绢的流体羽化
+                            edge = exp(-pow(vUv.y - 0.5, 2.0) * 10.0);
+                            float silkFlow = sin(vUv.x * 12.0 - uTime * 4.0) * 0.2 + 0.8;
+                            col = mix(col, vec3(1.0, 0.88, 0.45), (1.0 - vUv.x) * 0.6) * silkFlow;
+                            alpha = pow(vUv.x, 1.4) * 0.92;
+                        } else if (uFxMode < 3.5) {
+                            // 4. time_echo: 时空帧步进残影条
+                            float stepGrid = floor(vUv.x * 12.0) / 12.0;
+                            alpha = pow(stepGrid, 1.8) * 0.85;
+                            col.r *= 1.2;
+                            col.b *= sin(vUv.x * 6.28) * 0.4 + 0.8;
+                        } else {
+                            // 5. prismatic_arc: 棱镜离子电浆撕裂
+                            float arcNoise = sin(vUv.x * 60.0 + sin(uTime * 25.0) * 10.0) * 0.4 + 0.6;
+                            col += vec3(0.3, 0.6, 1.0) * arcNoise * 0.8;
+                            alpha *= arcNoise;
+                        }
+
                         float pulse = sin(uTime * 8.0 + vUv.x * 6.28) * 0.15 + 0.85;
-                        gl_FragColor = vec4(col * pulse, alpha * edge * 0.82 * (0.8 + uAudioBass * 0.4));
+                        gl_FragColor = vec4(col * pulse, alpha * edge * 0.85 * (0.8 + uAudioBass * 0.4));
                     }
                 `,
                 transparent: true,
@@ -1799,19 +2178,21 @@
             hand.addEventListener('pinchend', () => onHandPinchTrigger(i, false));
         }
 
-        // 构建时空虚影分身池 (每手 6 个残影)
-        const GHOST_COUNT_PER_HAND = 6;
+        // 构建时空虚影分身池 (每手 10 个全彩色散残影)
+        const GHOST_COUNT_PER_HAND = 10;
+        const CHROMATIC_LEFT = [0x00f2fe, 0xa3e635, 0x38bdf8, 0x67e8f9, 0x22d3ee, 0x06b6d4, 0x4ade80, 0x2dd4bf, 0x38bdf8, 0xffffff];
+        const CHROMATIC_RIGHT = [0xf72585, 0xfacc15, 0xa855f7, 0xf43f5e, 0xec4899, 0xc084fc, 0xfb923c, 0xe879f9, 0xf472b6, 0xffffff];
+
         for (let i = 0; i < 2; i++) {
             const ghostsForHand = [];
-            const isLeft = (i === 0);
-            const ghostColorHex = isLeft ? 0x06b6d4 : 0xa855f7;
+            const palette = (i === 0) ? CHROMATIC_LEFT : CHROMATIC_RIGHT;
 
             for (let g = 0; g < GHOST_COUNT_PER_HAND; g++) {
                 const ghostGroup = new THREE.Group();
                 ghostGroup.visible = false;
 
                 const ghostMat = new THREE.MeshBasicMaterial({
-                    color: ghostColorHex,
+                    color: palette[g % palette.length],
                     transparent: true,
                     opacity: 0.0,
                     blending: THREE.AdditiveBlending,
@@ -1820,7 +2201,7 @@
                 });
 
                 const ghostJoints = [];
-                for (let k = 0; k < 10; k++) {
+                for (let k = 0; k < 12; k++) {
                     const sp = new THREE.Mesh(new THREE.SphereGeometry(0.005, 6, 6), ghostMat);
                     ghostGroup.add(sp);
                     ghostJoints.push(sp);
@@ -1832,12 +2213,17 @@
                     material: ghostMat,
                     joints: ghostJoints,
                     life: 0.0,
-                    maxLife: 0.42,
+                    maxLife: 0.45,
                     active: false
                 });
             }
             handGhosts.push(ghostsForHand);
         }
+
+        // 初始化量子星尘粒子流与棱镜离子电弧系统
+        setupHandParticles();
+        setupHandLightning();
+        applyHandFxStyles();
     }
 
     // 捏合动作统一处理器 (Quest 标准交互: 空中捏合呼出/隐藏菜单，对准按钮捏合触发点击)
@@ -1850,15 +2236,38 @@
         if (now - (hModel.lastPinchActionTime || 0) < 280) return; // 防抖 280ms
         hModel.lastPinchActionTime = now;
 
-        // 触发光爆环特效
+        // 触发光爆环与模式专属粒子爆发
         const hand = hands[handIndex];
         const indexTip = hand && hand.joints && hand.joints['index-finger-tip'];
-        if (handPinchBurstMesh && indexTip && indexTip.visible) {
-            handPinchBurstMesh.position.copy(indexTip.position);
-            handPinchBurstMesh.lookAt(camera.position);
-            handPinchBurstMesh.scale.set(1, 1, 1);
-            handPinchBurstMesh.material.opacity = 0.95;
-            handPinchBurstMesh.visible = true;
+        if (indexTip && indexTip.visible) {
+            if (handPinchBurstMesh) {
+                handPinchBurstMesh.position.copy(indexTip.position);
+                handPinchBurstMesh.lookAt(camera.position);
+                handPinchBurstMesh.scale.set(1, 1, 1);
+                handPinchBurstMesh.material.opacity = 0.95;
+                handPinchBurstMesh.visible = true;
+            }
+
+            // 模式特异性捏合粒子爆发
+            const tipPos = indexTip.position;
+            const isLeft = (handIndex === 0);
+            const particleCount = (currentHandFx === 'quantum_dust') ? 28 : (currentHandFx === 'taichi_qi' ? 18 : 12);
+            for (let p = 0; p < particleCount; p++) {
+                const angle = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                const speed = 0.08 + Math.random() * 0.18;
+                const vx = Math.sin(phi) * Math.cos(angle) * speed;
+                const vy = Math.cos(phi) * speed;
+                const vz = Math.sin(phi) * Math.sin(angle) * speed;
+
+                let pr = 0.2, pg = 0.9, pb = 1.0;
+                if (currentHandFx === 'taichi_qi') {
+                    pr = 1.0; pg = 0.88; pb = 0.45;
+                } else if (!isLeft) {
+                    pr = 1.0; pg = 0.3; pb = 0.85;
+                }
+                spawnHandParticle(tipPos.x, tipPos.y, tipPos.z, vx, vy, vz, pr, pg, pb, 0.024, 0.75);
+            }
         }
 
         // 1. 如果菜单处于隐藏状态：空中捏合直接唤出菜单与星尘
@@ -1881,7 +2290,7 @@
         hideMenu();
     }
 
-    // 每帧更新裸手追踪、骨骼位置、捏合状态、流光残影与分身虚影
+    // 每帧更新裸手追踪、骨骼位置、捏合状态、流光残影、离子电弧与量子星尘粒子流
     function updateHandTracking(timestamp, bass) {
         let anyHandActive = false;
         let handHoveredBtn = null;
@@ -1894,6 +2303,7 @@
 
             const wrist = hand.joints['wrist'];
             const isHandVisible = !!(wrist && wrist.visible);
+            const isLeft = (i === 0);
 
             if (isHandVisible) {
                 anyHandActive = true;
@@ -1903,9 +2313,11 @@
                 if (controllerGrips[i]) controllerGrips[i].visible = false;
                 if (controllerRays[i]) controllerRays[i].visible = false;
 
-                // 更新关节着色器 Uniforms
+                // 更新着色器 Uniforms
                 hModel.jointMat.uniforms.uAudioBass.value = bass;
+                hModel.jointMat.uniforms.uTime.value = timestamp * 0.001;
                 hModel.boneMat.uniforms.uAudioBass.value = bass;
+                hModel.boneMat.uniforms.uTime.value = timestamp * 0.001;
 
                 // 更新 25 个关节位置
                 JOINT_NAMES.forEach(jName => {
@@ -2022,13 +2434,95 @@
                     trail.mesh.visible = true;
                 }
 
-                // 时空虚影残影分身检测与释放
+                // 棱镜离子电弧特效 (prismatic_arc 模式专属 3D 闪电折线)
+                if (currentHandFx === 'prismatic_arc' && handLightningLines[i]) {
+                    const tipKeys = ['thumb-tip', 'index-finger-tip', 'middle-finger-tip', 'ring-finger-tip', 'pinky-finger-tip'];
+                    const lineAttr = handLightningLines[i].geometry.attributes.position;
+                    let vIdx = 0;
+                    for (let t = 0; t < 4; t++) {
+                        const jA = hand.joints[tipKeys[t]];
+                        const jB = hand.joints[tipKeys[t + 1]];
+                        if (jA && jA.visible && jB && jB.visible) {
+                            const pA = jA.position;
+                            const pB = jB.position;
+
+                            // 2 个随机电弧抖动中间点
+                            const jit1 = (Math.random() - 0.5) * 0.012;
+                            const jit2 = (Math.random() - 0.5) * 0.012;
+                            const m1x = pA.x * 0.67 + pB.x * 0.33 + jit1;
+                            const m1y = pA.y * 0.67 + pB.y * 0.33 + jit2;
+                            const m1z = pA.z * 0.67 + pB.z * 0.33 + jit1;
+
+                            const m2x = pA.x * 0.33 + pB.x * 0.67 + jit2;
+                            const m2y = pA.y * 0.33 + pB.y * 0.67 + jit1;
+                            const m2z = pA.z * 0.33 + pB.z * 0.67 + jit2;
+
+                            // 3 段微闪电折线
+                            lineAttr.setXYZ(vIdx++, pA.x, pA.y, pA.z);
+                            lineAttr.setXYZ(vIdx++, m1x, m1y, m1z);
+
+                            lineAttr.setXYZ(vIdx++, m1x, m1y, m1z);
+                            lineAttr.setXYZ(vIdx++, m2x, m2y, m2z);
+
+                            lineAttr.setXYZ(vIdx++, m2x, m2y, m2z);
+                            lineAttr.setXYZ(vIdx++, pB.x, pB.y, pB.z);
+                        }
+                    }
+                    lineAttr.needsUpdate = true;
+                    handLightningLines[i].visible = true;
+                } else if (handLightningLines[i]) {
+                    handLightningLines[i].visible = false;
+                }
+
+                // 手部运动速度计算
                 if (!hModel.lastWristPos) hModel.lastWristPos = wrist.position.clone();
                 const speed = wrist.position.distanceTo(hModel.lastWristPos) * 60.0;
                 hModel.lastWristPos.copy(wrist.position);
 
+                // 连续动态量子星尘粒子流发射
+                if (currentHandFx === 'quantum_dust') {
+                    const tipKeys = ['thumb-tip', 'index-finger-tip', 'middle-finger-tip', 'ring-finger-tip', 'pinky-finger-tip'];
+                    tipKeys.forEach(tKey => {
+                        const tJoint = hand.joints[tKey];
+                        if (tJoint && tJoint.visible && (speed > 0.06 || Math.random() < 0.4)) {
+                            const tp = tJoint.position;
+                            const vx = (Math.random() - 0.5) * 0.06;
+                            const vy = (Math.random() - 0.5) * 0.06 + 0.012;
+                            const vz = (Math.random() - 0.5) * 0.06;
+                            const r = isLeft ? 0.15 + Math.random() * 0.25 : 0.96;
+                            const g = isLeft ? 0.88 : 0.25 + Math.random() * 0.45;
+                            const b = isLeft ? 0.98 : 0.65 + Math.random() * 0.35;
+                            spawnHandParticle(tp.x, tp.y, tp.z, vx, vy, vz, r, g, b, 0.022, 0.68);
+                        }
+                    });
+                } else if (currentHandFx === 'taichi_qi') {
+                    // 太极流金气韵：温润金玉气雾呼吸
+                    if (Math.random() < 0.65) {
+                        const vx = (Math.random() - 0.5) * 0.02;
+                        const vy = (Math.random() - 0.5) * 0.02 + 0.015;
+                        const vz = (Math.random() - 0.5) * 0.02;
+                        const r = isLeft ? 1.0 : 0.72;
+                        const g = isLeft ? 0.92 : 0.45;
+                        const b = isLeft ? 0.55 : 0.95;
+                        spawnHandParticle(wrist.position.x, wrist.position.y, wrist.position.z, vx, vy, vz, r, g, b, 0.026, 0.85);
+                    }
+                } else if (speed > 0.32) {
+                    // 其他模式高速舞动时的微粒光尾
+                    const indexTipJoint = hand.joints['index-finger-tip'];
+                    if (indexTipJoint && indexTipJoint.visible) {
+                        const tp = indexTipJoint.position;
+                        const vx = (Math.random() - 0.5) * 0.04;
+                        const vy = (Math.random() - 0.5) * 0.04;
+                        const vz = (Math.random() - 0.5) * 0.04;
+                        spawnHandParticle(tp.x, tp.y, tp.z, vx, vy, vz, isLeft ? 0.2 : 0.95, isLeft ? 0.8 : 0.3, 1.0, 0.018, 0.45);
+                    }
+                }
+
+                // 时空虚影残影分身检测与释放 (time_echo 模式下更灵敏释放多重残影)
+                const ghostThreshold = (currentHandFx === 'time_echo') ? 0.12 : 0.20;
+                const ghostInterval = (currentHandFx === 'time_echo') ? 45 : 60;
                 const nowTime = performance.now();
-                if (speed > 0.20 && (nowTime - (hModel.lastGhostTime || 0)) > 60) {
+                if (speed > ghostThreshold && (nowTime - (hModel.lastGhostTime || 0)) > ghostInterval) {
                     hModel.lastGhostTime = nowTime;
                     const ghosts = handGhosts[i];
                     const freeGhost = ghosts.find(g => !g.active) || ghosts[0];
@@ -2036,7 +2530,7 @@
                     freeGhost.life = freeGhost.maxLife;
                     freeGhost.group.position.copy(wrist.position);
                     freeGhost.group.scale.set(1.0, 1.0, 1.0);
-                    freeGhost.material.opacity = 0.65;
+                    freeGhost.material.opacity = (currentHandFx === 'time_echo') ? 0.82 : 0.65;
                     freeGhost.group.visible = true;
 
                     const snapJoints = [
@@ -2044,7 +2538,8 @@
                         'index-finger-tip', 'index-finger-phalanx-proximal',
                         'middle-finger-tip', 'middle-finger-phalanx-proximal',
                         'ring-finger-tip', 'ring-finger-phalanx-proximal',
-                        'pinky-finger-tip', 'pinky-finger-phalanx-proximal'
+                        'pinky-finger-tip', 'pinky-finger-phalanx-proximal',
+                        'wrist', 'index-finger-metacarpal'
                     ];
                     snapJoints.forEach((jName, idx) => {
                         if (idx < freeGhost.joints.length && hand.joints[jName] && hand.joints[jName].visible) {
@@ -2060,6 +2555,7 @@
                 if (hModel.pinchAura) hModel.pinchAura.visible = false;
                 if (hModel.handRayLine) hModel.handRayLine.visible = false;
                 if (handTrails[i] && handTrails[i].mesh) handTrails[i].mesh.visible = false;
+                if (handLightningLines[i]) handLightningLines[i].visible = false;
             }
 
             // 更新手部正在消散的残影分身
@@ -2073,8 +2569,8 @@
                             g.group.visible = false;
                         } else {
                             const progress = 1.0 - (g.life / g.maxLife);
-                            g.material.opacity = (1.0 - progress) * 0.6;
-                            g.group.scale.setScalar(1.0 + progress * 0.12);
+                            g.material.opacity = (1.0 - progress) * 0.65;
+                            g.group.scale.setScalar(1.0 + progress * 0.14);
                         }
                     }
                 });
@@ -2089,6 +2585,9 @@
                 handPinchBurstMesh.visible = false;
             }
         }
+
+        // 统一演化星尘粒子
+        updateHandParticles(0.016, bass, timestamp);
 
         return {
             anyActive: anyHandActive,
@@ -2116,6 +2615,15 @@
                 if (g.group) g.group.visible = false;
             });
         });
+        if (handLightningLines) {
+            handLightningLines.forEach(l => l.visible = false);
+        }
+        if (handParticleSystem) {
+            handParticleSystem.visible = false;
+        }
+        if (handParticleData) {
+            handParticleData.lives.fill(0);
+        }
         if (handPinchBurstMesh) handPinchBurstMesh.visible = false;
     }
 
@@ -2494,7 +3002,11 @@
         getVRStereoEnabled: () => vrStereoEnabled,
         cyclePlatformSize,
         setPlatformSize,
-        getPlatformSize: () => platformState.size
+        getPlatformSize: () => platformState.size,
+        cycleHandFx,
+        setHandFxMode,
+        getHandFxMode: () => currentHandFx,
+        getHandFxModes: () => HAND_FX_MODES
     };
 
     if (typeof window !== 'undefined') {

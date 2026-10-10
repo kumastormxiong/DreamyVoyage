@@ -79,6 +79,21 @@
             vrStereoOffBadge: '2D Standard (Flat)',
             vrStereoOnBtn: '3D Stereo (B+C Depth)',
             vrStereoOffBtn: '2D Standard (Flat)',
+            vrHandFxTitle: 'Bare Hand Motion VFX (WebXR Hand FX)',
+            vrHandFxBadges: {
+                cyber_neon: '⚡ Cyber Neon',
+                quantum_dust: '✨ Quantum Dust',
+                taichi_qi: '☯ Tai Chi Qi',
+                time_echo: '⏳ Time Echo',
+                prismatic_arc: '🔮 Plasma Arc'
+            },
+            vrHandFxLabels: {
+                cyber_neon: '⚡ Cyber Neon',
+                quantum_dust: '✨ Quantum Dust',
+                taichi_qi: '☯ Tai Chi Qi',
+                time_echo: '⏳ Time Echo',
+                prismatic_arc: '🔮 Plasma Arc'
+            },
             vrPlatformLabels: ['0.7x Compact', '1.0x Standard', '1.3x Wide', '1.6x Expansive'],
             btnReset: 'Reset Defaults',
             btnDone: 'Done',
@@ -179,6 +194,21 @@
             vrStereoOffBadge: '2D标准 (传统平面)',
             vrStereoOnBtn: '3D立体 (B+C深度)',
             vrStereoOffBtn: '2D标准 (传统平面)',
+            vrHandFxTitle: '裸手跟随光影特效 (WebXR Hand VFX)',
+            vrHandFxBadges: {
+                cyber_neon: '⚡ 赛博霓虹',
+                quantum_dust: '✨ 量子星尘',
+                taichi_qi: '☯ 太极流金',
+                time_echo: '⏳ 时空分身',
+                prismatic_arc: '🔮 离子电弧'
+            },
+            vrHandFxLabels: {
+                cyber_neon: '⚡ 赛博霓虹',
+                quantum_dust: '✨ 量子星尘',
+                taichi_qi: '☯ 太极流金',
+                time_echo: '⏳ 时空分身',
+                prismatic_arc: '🔮 离子电弧'
+            },
             vrPlatformLabels: ['0.7x 紧凑', '1.0x 标准', '1.3x 宽阔', '1.6x 广阔'],
             btnReset: '恢复默认设置',
             btnDone: '完成',
@@ -329,6 +359,7 @@
     const i18nVrStereoOff = document.getElementById('i18n-vr-stereo-off');
     const vrStereoBadge = document.getElementById('vr-stereo-badge');
     const vrStereoSegmentedGroup = document.getElementById('vr-stereo-segmented-group');
+    const vrHandFxSegmentedGroup = document.getElementById('vr-handfx-segmented-group');
     const vrPlatformSizeSegmentedGroup = document.getElementById('vr-platform-size-segmented-group');
 
     // 关于 Dreamy Voyage 模态浮层
@@ -2101,6 +2132,8 @@
         if (i18nVrDesc) i18nVrDesc.innerText = t.vrDesc;
         if (i18nVrStereoOn) i18nVrStereoOn.innerText = t.vrStereoOnBtn;
         if (i18nVrStereoOff) i18nVrStereoOff.innerText = t.vrStereoOffBtn;
+        const i18nVrHandFxTitle = document.getElementById('i18n-vr-handfx-title');
+        if (i18nVrHandFxTitle) i18nVrHandFxTitle.innerHTML = `<i class="fa-solid fa-hand-sparkles"></i> ${t.vrHandFxTitle}`;
 
         // 滑块下方刻度分级文字
         if (qualityTierLabels) {
@@ -2326,6 +2359,29 @@
             });
         }
 
+        const vrHandFxBadge = document.getElementById('vr-handfx-badge');
+        const vrHandFxGroup = document.getElementById('vr-handfx-segmented-group');
+        const curHandFx = (localStorage.getItem('dv_vr_hand_fx') || 'cyber_neon');
+
+        if (vrHandFxBadge && t.vrHandFxBadges) {
+            vrHandFxBadge.innerText = t.vrHandFxBadges[curHandFx] || t.vrHandFxBadges.cyber_neon;
+        }
+
+        if (vrHandFxGroup) {
+            const btns = vrHandFxGroup.querySelectorAll('.btn-segment');
+            btns.forEach(btn => {
+                const fxId = btn.getAttribute('data-hand-fx');
+                if (fxId === curHandFx) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+                if (t.vrHandFxLabels && t.vrHandFxLabels[fxId]) {
+                    btn.innerText = t.vrHandFxLabels[fxId];
+                }
+            });
+        }
+
         const platformGroup = document.getElementById('vr-platform-size-segmented-group');
         if (platformGroup) {
             const curSize = parseFloat(localStorage.getItem('dv_vr_platform_size') || '1.0');
@@ -2342,6 +2398,14 @@
                 }
             });
         }
+    }
+
+    function setVRHandFxMode(fxMode) {
+        localStorage.setItem('dv_vr_hand_fx', fxMode);
+        if (window.VRManager && typeof window.VRManager.setHandFxMode === 'function') {
+            window.VRManager.setHandFxMode(fxMode);
+        }
+        updateVRSettingsUI();
     }
 
     function setCustomSeed(newSeed) {
@@ -2380,6 +2444,7 @@
         localStorage.removeItem('echosfall_custom_seed');
         localStorage.removeItem('dv_vr_stereo_enabled');
         localStorage.removeItem('dv_vr_platform_size');
+        localStorage.removeItem('dv_vr_hand_fx');
 
         currentQualityTier = 4;
         presetCycleSeconds = DEFAULT_PRESET_AUTO_CYCLE;
@@ -2389,6 +2454,7 @@
         isCustomSeed = false;
         setVRStereoEnabled(true);
         setVRPlatformSize(1.0);
+        setVRHandFxMode('cyber_neon');
 
         buildSeededSequences(true);
         applyLanguage(currentLanguage);
@@ -2767,6 +2833,18 @@
                 e.stopPropagation();
                 const stereoVal = (segBtn.getAttribute('data-vr-stereo') === 'true');
                 setVRStereoEnabled(stereoVal);
+            });
+        }
+
+        if (vrHandFxSegmentedGroup) {
+            vrHandFxSegmentedGroup.addEventListener('click', (e) => {
+                const segBtn = e.target.closest('.btn-segment');
+                if (!segBtn) return;
+                e.stopPropagation();
+                const fxId = segBtn.getAttribute('data-hand-fx');
+                if (fxId) {
+                    setVRHandFxMode(fxId);
+                }
             });
         }
 
