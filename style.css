@@ -1701,6 +1701,10 @@ html, body {
     grid-template-columns: repeat(2, 1fr);
 }
 
+.settings-segmented-group.settings-segmented-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
 .btn-segment {
     padding: 0.45rem 0.25rem;
     border-radius: 0.55rem;

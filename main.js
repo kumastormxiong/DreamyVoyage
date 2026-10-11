@@ -81,18 +81,29 @@
             vrStereoOffBtn: '2D Standard (Flat)',
             vrHandFxTitle: 'Bare Hand Motion VFX (WebXR Hand FX)',
             vrHandFxBadges: {
-                cyber_neon: '⚡ Cyber Neon',
-                quantum_dust: '✨ Quantum Dust',
-                taichi_qi: '☯ Tai Chi Qi',
-                time_echo: '⏳ Time Echo',
-                prismatic_arc: '🔮 Plasma Arc'
+                constellation: '✨ Holo Constellation',
+                liquid_glass: '💎 Liquid Glass',
+                aurora_ribbon: '🌌 Aurora Ribbons',
+                particle_avatar: '🫧 Particle Avatar',
+                spirit_flame: '🔥 Spirit Flame'
             },
             vrHandFxLabels: {
-                cyber_neon: '⚡ Cyber Neon',
-                quantum_dust: '✨ Quantum Dust',
-                taichi_qi: '☯ Tai Chi Qi',
-                time_echo: '⏳ Time Echo',
-                prismatic_arc: '🔮 Plasma Arc'
+                constellation: '✨ Constellation',
+                liquid_glass: '💎 Liquid Glass',
+                aurora_ribbon: '🌌 Aurora',
+                particle_avatar: '🫧 Particles',
+                spirit_flame: '🔥 Spirit Flame'
+            },
+            vrProjectionTitle: '360° Panorama Projection',
+            vrProjectionBadges: {
+                tunnel: '🌀 Tunnel Sphere (seamless)',
+                dome_lake: '🌅 Dome + Lake (seamless)',
+                cylinder: '🎞️ Cylinder+ (classic)'
+            },
+            vrProjectionLabels: {
+                tunnel: '🌀 Tunnel Sphere',
+                dome_lake: '🌅 Dome + Lake',
+                cylinder: '🎞️ Cylinder+'
             },
             vrPlatformLabels: ['0.7x Compact', '1.0x Standard', '1.3x Wide', '1.6x Expansive'],
             btnReset: 'Reset Defaults',
@@ -196,18 +207,29 @@
             vrStereoOffBtn: '2D标准 (传统平面)',
             vrHandFxTitle: '裸手跟随光影特效 (WebXR Hand VFX)',
             vrHandFxBadges: {
-                cyber_neon: '⚡ 赛博霓虹',
-                quantum_dust: '✨ 量子星尘',
-                taichi_qi: '☯ 太极流金',
-                time_echo: '⏳ 时空分身',
-                prismatic_arc: '🔮 离子电弧'
+                constellation: '✨ 全息星座',
+                liquid_glass: '💎 液态玻璃',
+                aurora_ribbon: '🌌 极光丝带',
+                particle_avatar: '🫧 粒子化身',
+                spirit_flame: '🔥 灵焰'
             },
             vrHandFxLabels: {
-                cyber_neon: '⚡ 赛博霓虹',
-                quantum_dust: '✨ 量子星尘',
-                taichi_qi: '☯ 太极流金',
-                time_echo: '⏳ 时空分身',
-                prismatic_arc: '🔮 离子电弧'
+                constellation: '✨ 全息星座',
+                liquid_glass: '💎 液态玻璃',
+                aurora_ribbon: '🌌 极光丝带',
+                particle_avatar: '🫧 粒子化身',
+                spirit_flame: '🔥 灵焰'
+            },
+            vrProjectionTitle: '360° 全景投影方式',
+            vrProjectionBadges: {
+                tunnel: '🌀 隧道球 (无接缝)',
+                dome_lake: '🌅 穹顶镜湖 (无接缝)',
+                cylinder: '🎞️ 改良柱面 (经典)'
+            },
+            vrProjectionLabels: {
+                tunnel: '🌀 隧道球',
+                dome_lake: '🌅 穹顶镜湖',
+                cylinder: '🎞️ 改良柱面'
             },
             vrPlatformLabels: ['0.7x 紧凑', '1.0x 标准', '1.3x 宽阔', '1.6x 广阔'],
             btnReset: '恢复默认设置',
@@ -360,6 +382,7 @@
     const vrStereoBadge = document.getElementById('vr-stereo-badge');
     const vrStereoSegmentedGroup = document.getElementById('vr-stereo-segmented-group');
     const vrHandFxSegmentedGroup = document.getElementById('vr-handfx-segmented-group');
+    const vrProjectionSegmentedGroup = document.getElementById('vr-projection-segmented-group');
     const vrPlatformSizeSegmentedGroup = document.getElementById('vr-platform-size-segmented-group');
 
     // 关于 Dreamy Voyage 模态浮层
@@ -1281,10 +1304,17 @@
         let screenW = Math.max(window.innerWidth || 0, 320);
         let screenH = Math.max(window.innerHeight || 0, 320);
         
-        // VR 沉浸模式或 Quest 设备下，基准视口强制对齐 2:1 全景标准分辨率 (2048x1024)，杜绝拉伸与模糊
+        // Quest 网页端：2:1 (2048x1024)；VR 沉浸中：由当前投影决定 (隧道球/穹顶镜湖为 1536² 方形，柱面/巨幕为 2:1)
         if (isQuest || isVR) {
             screenW = 2048;
             screenH = 1024;
+            if (isVR && window.VRManager && typeof window.VRManager.getDesiredVisualizerSize === 'function') {
+                const vrSize = window.VRManager.getDesiredVisualizerSize();
+                if (vrSize && vrSize.w && vrSize.h) {
+                    screenW = vrSize.w;
+                    screenH = vrSize.h;
+                }
+            }
         }
 
         const isPortrait = isMobile && screenH > screenW;
@@ -2134,6 +2164,8 @@
         if (i18nVrStereoOff) i18nVrStereoOff.innerText = t.vrStereoOffBtn;
         const i18nVrHandFxTitle = document.getElementById('i18n-vr-handfx-title');
         if (i18nVrHandFxTitle) i18nVrHandFxTitle.innerHTML = `<i class="fa-solid fa-hand-sparkles"></i> ${t.vrHandFxTitle}`;
+        const i18nVrProjectionTitle = document.getElementById('i18n-vr-projection-title');
+        if (i18nVrProjectionTitle && t.vrProjectionTitle) i18nVrProjectionTitle.innerHTML = `<i class="fa-solid fa-globe"></i> ${t.vrProjectionTitle}`;
 
         // 滑块下方刻度分级文字
         if (qualityTierLabels) {
@@ -2361,10 +2393,10 @@
 
         const vrHandFxBadge = document.getElementById('vr-handfx-badge');
         const vrHandFxGroup = document.getElementById('vr-handfx-segmented-group');
-        const curHandFx = (localStorage.getItem('dv_vr_hand_fx') || 'cyber_neon');
+        const curHandFx = (localStorage.getItem('dv_vr_hand_fx') || 'constellation');
 
         if (vrHandFxBadge && t.vrHandFxBadges) {
-            vrHandFxBadge.innerText = t.vrHandFxBadges[curHandFx] || t.vrHandFxBadges.cyber_neon;
+            vrHandFxBadge.innerText = t.vrHandFxBadges[curHandFx] || t.vrHandFxBadges.constellation;
         }
 
         if (vrHandFxGroup) {
@@ -2379,6 +2411,19 @@
                 if (t.vrHandFxLabels && t.vrHandFxLabels[fxId]) {
                     btn.innerText = t.vrHandFxLabels[fxId];
                 }
+            });
+        }
+
+        const vrProjectionBadge = document.getElementById('vr-projection-badge');
+        const curProjection = (localStorage.getItem('dv_vr_projection') || 'tunnel');
+        if (vrProjectionBadge && t.vrProjectionBadges) {
+            vrProjectionBadge.innerText = t.vrProjectionBadges[curProjection] || t.vrProjectionBadges.tunnel;
+        }
+        if (vrProjectionSegmentedGroup) {
+            vrProjectionSegmentedGroup.querySelectorAll('.btn-segment').forEach(btn => {
+                const pid = btn.getAttribute('data-projection');
+                btn.classList.toggle('active', pid === curProjection);
+                if (t.vrProjectionLabels && t.vrProjectionLabels[pid]) btn.innerText = t.vrProjectionLabels[pid];
             });
         }
 
@@ -2398,6 +2443,14 @@
                 }
             });
         }
+    }
+
+    function setVRProjectionMode(projId) {
+        localStorage.setItem('dv_vr_projection', projId);
+        if (window.VRManager && typeof window.VRManager.setProjectionMode === 'function') {
+            window.VRManager.setProjectionMode(projId);
+        }
+        updateVRSettingsUI();
     }
 
     function setVRHandFxMode(fxMode) {
@@ -2445,6 +2498,8 @@
         localStorage.removeItem('dv_vr_stereo_enabled');
         localStorage.removeItem('dv_vr_platform_size');
         localStorage.removeItem('dv_vr_hand_fx');
+        localStorage.removeItem('dv_vr_projection');
+        localStorage.removeItem('dv_vr_foveation');
 
         currentQualityTier = 4;
         presetCycleSeconds = DEFAULT_PRESET_AUTO_CYCLE;
@@ -2454,7 +2509,8 @@
         isCustomSeed = false;
         setVRStereoEnabled(true);
         setVRPlatformSize(1.0);
-        setVRHandFxMode('cyber_neon');
+        setVRHandFxMode('constellation');
+        setVRProjectionMode('tunnel');
 
         buildSeededSequences(true);
         applyLanguage(currentLanguage);
@@ -2691,6 +2747,32 @@
                 getCurrentSong: () => (currentItem && currentItem.song ? currentItem.song : ''),
                 formatTrackTitle: (song) => formatTrackTitle(song, currentLanguage),
                 getAudioBassEnergy: getAudioBassEnergy,
+                // 32 段频谱 (每帧读取一次，VR 端自行计算低音与 8 段能量)
+                getAudioSpectrum: () => {
+                    if (!analyserNode || !freqDataArray) return null;
+                    try {
+                        analyserNode.getByteFrequencyData(freqDataArray);
+                        return freqDataArray;
+                    } catch (e) {
+                        return null;
+                    }
+                },
+                // Butterchurn 内部音频电平 (bass/mid/treb 为相对长期均值的比值，用于鼓点检测)
+                getAudioLevels: () => {
+                    const r = visualizer && visualizer.renderer;
+                    const lv = r && r.audioLevels;
+                    if (!lv) return null;
+                    return { bass: lv.bass, bass_att: lv.bass_att, mid: lv.mid, treb: lv.treb };
+                },
+                // Butterchurn 当前输出尺寸 (共享 GL 模式下用于分配 FBO)
+                getVisualizerSize: () => {
+                    const r = visualizer && visualizer.renderer;
+                    if (!r || !r.width || !r.height) return null;
+                    return { w: r.width, h: r.height };
+                },
+                resizeVisualizer: () => {
+                    resizeVisualizer();
+                },
                 renderButterchurnFrame: () => {
                     if (visualizer) {
                         try {
@@ -2833,6 +2915,18 @@
                 e.stopPropagation();
                 const stereoVal = (segBtn.getAttribute('data-vr-stereo') === 'true');
                 setVRStereoEnabled(stereoVal);
+            });
+        }
+
+        if (vrProjectionSegmentedGroup) {
+            vrProjectionSegmentedGroup.addEventListener('click', (e) => {
+                const segBtn = e.target.closest('.btn-segment');
+                if (!segBtn) return;
+                e.stopPropagation();
+                const pid = segBtn.getAttribute('data-projection');
+                if (pid) {
+                    setVRProjectionMode(pid);
+                }
             });
         }
 
