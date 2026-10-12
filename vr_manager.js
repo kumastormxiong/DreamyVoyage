@@ -93,6 +93,28 @@
         ? parseFloat(localStorage.getItem('dv_vr_foveation')) : 0;
     if (isNaN(foveationLevel)) foveationLevel = 0;
 
+    // 全景球幕半径 (米，圆心在眼睛高度)
+    const PANO_BASE_RADIUS = 22;
+    const PANO_RADIUS_KEY = 'dv_vr_pano_radius';
+    const PANO_RADII = [8, 12, 22, 40, 80];
+    let panoRadius = 22;
+    try {
+        const r = parseFloat(localStorage.getItem(PANO_RADIUS_KEY));
+        if (PANO_RADII.includes(r)) panoRadius = r;
+    } catch (e) {}
+
+    function applyPanoRadius() {
+        if (panoramicMesh) panoramicMesh.scale.setScalar(panoRadius / PANO_BASE_RADIUS);
+    }
+
+    function cyclePanoRadius() {
+        const idx = (PANO_RADII.indexOf(panoRadius) + 1) % PANO_RADII.length;
+        panoRadius = PANO_RADII[idx];
+        try { localStorage.setItem(PANO_RADIUS_KEY, String(panoRadius)); } catch (e) {}
+        applyPanoRadius();
+        drawHUD();
+    }
+
     let perfVisible = false;
     let perfMesh = null;
     let perfCanvas = null;
@@ -487,6 +509,7 @@
         panoramicMesh.position.set(0, 1.6, 0);
         panoramicMesh.renderOrder = -10;
         panoramicMesh.frustumCulled = false;
+        applyPanoRadius();
         panoramicMesh.visible = (state.displayMode === 'panoramic_360');
         scene.add(panoramicMesh);
     }
@@ -1524,6 +1547,17 @@
                     onClick: () => {
                         cycleFoveation();
                     }
+                },
+                {
+                    id: 'btn-cycle-pano-radius',
+                    x: 60, y: 652, w: 960, h: 50,
+                    icon: '🌐',
+                    labelEn: `Dome Radius: ${panoRadius} m`,
+                    labelZh: `球幕半径: ${panoRadius} 米 (点击切换 8/12/22/40/80)`,
+                    accent: '#c084fc',
+                    onClick: () => {
+                        cyclePanoRadius();
+                    }
                 }
             );
 
@@ -1535,7 +1569,7 @@
             const hintText = isZh
                 ? '✋ 掌心朝向自己捏住 0.6 秒 唤出/收起菜单 · 指向按钮捏合再松开 = 点击 · 手柄: 扳机点击 / A·X 开关菜单'
                 : '✋ Palm toward you + hold pinch 0.6s: menu · Point & pinch-release: click · Controller: Trigger / A·X';
-            ctx.fillText(hintText, w / 2, 670);
+            ctx.fillText(hintText, w / 2, 716);
             ctx.restore();
         }
 
