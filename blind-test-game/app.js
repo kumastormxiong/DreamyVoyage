@@ -546,7 +546,7 @@ class BlindTestApp {
         if (!rangeEl) return;
         rangeEl.addEventListener('input', (e) => {
             const val = parseInt(e.target.value, 10);
-            if (displayEl) displayEl.textContent = val;
+            if (displayEl) displayEl.textContent = `✓ ${val}`;
             onSetScore(val);
             this.markStageScored(stageNum);
             this.updateFinalScore();
@@ -558,7 +558,7 @@ class BlindTestApp {
                 if (!btn || btn.disabled) return;
                 const val = parseInt(btn.dataset.val, 10);
                 rangeEl.value = val;
-                if (displayEl) displayEl.textContent = val;
+                if (displayEl) displayEl.textContent = `✓ ${val}`;
                 window.CyberFX.playClick();
                 onSetScore(val);
                 this.markStageScored(stageNum);
@@ -605,7 +605,7 @@ class BlindTestApp {
 
         // Scrub lock display
         if (this.elScrubIndicator) {
-            this.elScrubIndicator.innerHTML = '<i class="fa-solid fa-lock"></i> UNLOCKS IN 15s';
+            this.elScrubIndicator.innerHTML = '<i class="fa-solid fa-lock"></i> 15s LOCK';
             this.elScrubIndicator.classList.remove('unlocked');
         }
         if (this.elSeekBarTrack) {
@@ -709,7 +709,7 @@ class BlindTestApp {
             if (!this.elSeekBarTrack.classList.contains('scrubbable')) {
                 this.elSeekBarTrack.classList.add('scrubbable');
                 if (this.elScrubIndicator) {
-                    this.elScrubIndicator.innerHTML = '<i class="fa-solid fa-lock-open"></i> FREE SEEKING UNLOCKED';
+                    this.elScrubIndicator.innerHTML = '<i class="fa-solid fa-lock-open"></i> UNLOCKED';
                     this.elScrubIndicator.classList.add('unlocked');
                 }
                 if (this.elScrubStatusTop) {
@@ -761,7 +761,7 @@ class BlindTestApp {
         if (card) card.className = 'dock-stage-capsule scored';
         const val = stageNum === 1 ? this.score1 : (stageNum === 2 ? this.score2 : this.score3);
         if (badge) badge.textContent = '✓ SCORED';
-        if (display && val !== null) display.textContent = `${val}`;
+        if (display && val !== null) display.textContent = `✓ ${val}`;
     }
 
     flashScrubWarning() {

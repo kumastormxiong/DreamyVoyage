@@ -11,7 +11,7 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" href="../favicon_circle.png">
-    <link rel="stylesheet" href="style.css?v=6">
+    <link rel="stylesheet" href="style.css?v=8">
 </head>
 <body class="cyber-theme bottom-dock-layout">
     <!-- 1. Butterchurn Fullscreen Visualizer Canvas (Audio Reactive Background: >90% Screen Space) -->
@@ -82,11 +82,13 @@
 
                 <div class="dock-player-details">
                     <div class="dock-time-status-row">
-                        <span class="dock-time-current" id="time-current">00:00</span>
-                        <span class="dock-time-divider">/</span>
-                        <span class="dock-time-total" id="time-total">--:--</span>
+                        <div class="dock-time-counter">
+                            <span class="dock-time-current" id="time-current">00:00</span>
+                            <span class="dock-time-divider">/</span>
+                            <span class="dock-time-total" id="time-total">--:--</span>
+                        </div>
                         <span class="dock-scrub-badge" id="scrub-indicator" title="Anti-rush protection: progress bar locked during first 15s">
-                            <i class="fa-solid fa-lock"></i> UNLOCKS IN 15s
+                            <i class="fa-solid fa-lock"></i> 15s LOCK
                         </span>
                     </div>
 
@@ -117,19 +119,28 @@
                 <!-- Stage 1 (10s) -->
                 <div class="dock-stage-capsule locked" id="stage-card-1">
                     <div class="dock-stage-top">
-                        <span class="stage-num">01</span>
-                        <span class="stage-name">FIRST IMPRESSION (10s)</span>
-                        <span class="stage-status" id="stage-badge-1">🔒 LOCKED</span>
-                        <span class="stage-val-badge" id="display-s1">--</span>
+                        <div class="stage-identity">
+                            <span class="stage-num">01</span>
+                            <span class="stage-name">FIRST IMPRESSION</span>
+                        </div>
+                        <div class="stage-state">
+                            <span class="stage-time-tag">10s</span>
+                            <span class="stage-val-badge" id="display-s1">--</span>
+                            <span class="stage-status" id="stage-badge-1" style="display:none;"></span>
+                        </div>
                     </div>
-                    <div class="dock-stage-controls">
-                        <input type="range" class="dock-range" id="range-s1" min="0" max="100" value="80" disabled>
+                    <div class="dock-stage-slider-row">
+                        <span class="range-bound range-min">59</span>
+                        <input type="range" class="dock-range" id="range-s1" min="59" max="100" value="80" disabled>
+                        <span class="range-bound range-max">100</span>
+                    </div>
+                    <div class="dock-stage-pills-row">
                         <div class="dock-quick-pills" id="pills-s1">
+                            <button type="button" class="mini-pill" data-val="60" disabled>60</button>
                             <button type="button" class="mini-pill" data-val="70" disabled>70</button>
                             <button type="button" class="mini-pill" data-val="80" disabled>80</button>
-                            <button type="button" class="mini-pill" data-val="85" disabled>85</button>
                             <button type="button" class="mini-pill" data-val="90" disabled>90</button>
-                            <button type="button" class="mini-pill" data-val="95" disabled>95</button>
+                            <button type="button" class="mini-pill" data-val="100" disabled>100</button>
                         </div>
                     </div>
                 </div>
@@ -137,19 +148,28 @@
                 <!-- Stage 2 (60s) -->
                 <div class="dock-stage-capsule locked" id="stage-card-2">
                     <div class="dock-stage-top">
-                        <span class="stage-num">02</span>
-                        <span class="stage-name">DEVELOPMENT (60s)</span>
-                        <span class="stage-status" id="stage-badge-2">🔒 LOCKED</span>
-                        <span class="stage-val-badge" id="display-s2">--</span>
+                        <div class="stage-identity">
+                            <span class="stage-num">02</span>
+                            <span class="stage-name">DEVELOPMENT</span>
+                        </div>
+                        <div class="stage-state">
+                            <span class="stage-time-tag">60s</span>
+                            <span class="stage-val-badge" id="display-s2">--</span>
+                            <span class="stage-status" id="stage-badge-2" style="display:none;"></span>
+                        </div>
                     </div>
-                    <div class="dock-stage-controls">
-                        <input type="range" class="dock-range" id="range-s2" min="0" max="100" value="80" disabled>
+                    <div class="dock-stage-slider-row">
+                        <span class="range-bound range-min">59</span>
+                        <input type="range" class="dock-range" id="range-s2" min="59" max="100" value="80" disabled>
+                        <span class="range-bound range-max">100</span>
+                    </div>
+                    <div class="dock-stage-pills-row">
                         <div class="dock-quick-pills" id="pills-s2">
+                            <button type="button" class="mini-pill" data-val="60" disabled>60</button>
                             <button type="button" class="mini-pill" data-val="70" disabled>70</button>
                             <button type="button" class="mini-pill" data-val="80" disabled>80</button>
-                            <button type="button" class="mini-pill" data-val="85" disabled>85</button>
                             <button type="button" class="mini-pill" data-val="90" disabled>90</button>
-                            <button type="button" class="mini-pill" data-val="95" disabled>95</button>
+                            <button type="button" class="mini-pill" data-val="100" disabled>100</button>
                         </div>
                     </div>
                 </div>
@@ -157,19 +177,28 @@
                 <!-- Stage 3 (Outro) -->
                 <div class="dock-stage-capsule locked" id="stage-card-3">
                     <div class="dock-stage-top">
-                        <span class="stage-num">03</span>
-                        <span class="stage-name">OUTRO & RESOLUTION</span>
-                        <span class="stage-status" id="stage-badge-3">🔒 LOCKED</span>
-                        <span class="stage-val-badge" id="display-s3">--</span>
+                        <div class="stage-identity">
+                            <span class="stage-num">03</span>
+                            <span class="stage-name">OUTRO</span>
+                        </div>
+                        <div class="stage-state">
+                            <span class="stage-time-tag">OUTRO</span>
+                            <span class="stage-val-badge" id="display-s3">--</span>
+                            <span class="stage-status" id="stage-badge-3" style="display:none;"></span>
+                        </div>
                     </div>
-                    <div class="dock-stage-controls">
-                        <input type="range" class="dock-range" id="range-s3" min="0" max="100" value="80" disabled>
+                    <div class="dock-stage-slider-row">
+                        <span class="range-bound range-min">59</span>
+                        <input type="range" class="dock-range" id="range-s3" min="59" max="100" value="80" disabled>
+                        <span class="range-bound range-max">100</span>
+                    </div>
+                    <div class="dock-stage-pills-row">
                         <div class="dock-quick-pills" id="pills-s3">
+                            <button type="button" class="mini-pill" data-val="60" disabled>60</button>
                             <button type="button" class="mini-pill" data-val="70" disabled>70</button>
                             <button type="button" class="mini-pill" data-val="80" disabled>80</button>
-                            <button type="button" class="mini-pill" data-val="85" disabled>85</button>
                             <button type="button" class="mini-pill" data-val="90" disabled>90</button>
-                            <button type="button" class="mini-pill" data-val="95" disabled>95</button>
+                            <button type="button" class="mini-pill" data-val="100" disabled>100</button>
                         </div>
                     </div>
                 </div>
@@ -371,8 +400,8 @@
     <script src="../presets/preset-names.js"></script>
     <script src="../presets/presets-data.js"></script>
     <script src="../song-list.js"></script>
-    <script src="butterchurn_engine.js?v=6"></script>
-    <script src="shader.js?v=6"></script>
-    <script src="app.js?v=6"></script>
+    <script src="butterchurn_engine.js?v=8"></script>
+    <script src="shader.js?v=8"></script>
+    <script src="app.js?v=8"></script>
 </body>
 </html>
