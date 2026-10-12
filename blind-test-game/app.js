@@ -277,13 +277,16 @@ class BlindTestApp {
         this.elSubjectCode = document.getElementById('hud-subject-code');
         this.elGlitchHash = document.getElementById('glitch-hash');
 
-        // Modal elements
         this.elModal = document.getElementById('reveal-modal');
         this.elBtnCloseModal = document.getElementById('btn-close-modal');
         this.elBtnShareBadge = document.getElementById('btn-share-badge');
         this.elBtnCopyReddit = document.getElementById('btn-copy-reddit');
         this.elBtnNextTrack = document.getElementById('btn-next-track');
         this.badgeCaptureArea = document.getElementById('badge-capture-area');
+
+        // Welcome / Rules Modal
+        this.elWelcomeModal = document.getElementById('welcome-modal');
+        this.elBtnStartExperiment = document.getElementById('btn-start-experiment');
     }
 
     bindEvents() {
@@ -292,11 +295,20 @@ class BlindTestApp {
             this.elPlayBtn.addEventListener('click', () => this.togglePlay());
         }
 
-        // Prime 7 Next Track button
+        // Welcome Modal Start Button: dismiss modal and start playback!
+        if (this.elBtnStartExperiment) {
+            this.elBtnStartExperiment.addEventListener('click', () => {
+                window.CyberFX.playClick();
+                if (this.elWelcomeModal) this.elWelcomeModal.classList.remove('show');
+                this.playAudio();
+            });
+        }
+
+        // Prime 7 Next Track button -> Auto-play next track!
         if (this.elBtnNextPrime7) {
             this.elBtnNextPrime7.addEventListener('click', () => {
                 window.CyberFX.playClick();
-                this.switchPrime7Track(1);
+                this.switchPrime7Track(1, true);
             });
         }
 
@@ -308,7 +320,7 @@ class BlindTestApp {
             });
         }
 
-        // Prime 7 Matrix Click
+        // Prime 7 Matrix Click -> Auto-play selected track!
         if (this.prime7Matrix) {
             this.prime7Matrix.addEventListener('click', (e) => {
                 const pill = e.target.closest('.prime7-track-pill');
@@ -316,7 +328,7 @@ class BlindTestApp {
                 const idx = parseInt(pill.dataset.index, 10);
                 if (!isNaN(idx)) {
                     window.CyberFX.playClick();
-                    this.loadTrackByIndex(idx);
+                    this.loadTrackByIndex(idx, true);
                 }
             });
         }
@@ -426,12 +438,12 @@ class BlindTestApp {
             this.elBtnCopyReddit.addEventListener('click', () => this.copyShareText());
         }
 
-        // Next Track
+        // Next Track (Modal button -> Close modal and auto-play next track!)
         if (this.elBtnNextTrack) {
             this.elBtnNextTrack.addEventListener('click', () => {
                 window.CyberFX.playClick();
                 this.elModal.classList.remove('show');
-                this.switchPrime7Track(1);
+                this.switchPrime7Track(1, true);
             });
         }
     }
@@ -446,17 +458,17 @@ class BlindTestApp {
         }
     }
 
-    switchPrime7Track(delta = 1) {
+    switchPrime7Track(delta = 1, autoPlay = true) {
         if (!this.currentTrack) {
-            this.loadTrackByIndex(0);
+            this.loadTrackByIndex(0, autoPlay);
             return;
         }
         const currentIndex = this.tracks.findIndex(t => t.id === this.currentTrack.id);
         const nextIndex = (currentIndex + delta + this.tracks.length) % this.tracks.length;
-        this.loadTrackByIndex(nextIndex);
+        this.loadTrackByIndex(nextIndex, autoPlay);
     }
 
-    loadTrackByIndex(index) {
+    loadTrackByIndex(index, autoPlay = false) {
         if (index < 0 || index >= this.tracks.length) index = 0;
         const picked = this.tracks[index];
         this.currentTrack = picked;
@@ -464,10 +476,9 @@ class BlindTestApp {
         // Reset state
         this.resetTrackState();
 
-        // Update Mystery Mask Display (Prime 7 Anonymous)
-        const hex = picked.id.toString(16).toUpperCase().padStart(2, '0');
-        if (this.elSubjectCode) this.elSubjectCode.textContent = `FREQ_#${picked.id}`;
-        if (this.elGlitchHash) this.elGlitchHash.textContent = `[0x${hex}]`;
+        // 100% Anonymous display: NEVER reveal track ID or sequence!
+        if (this.elSubjectCode) this.elSubjectCode.textContent = 'ANONYMOUS STREAM';
+        if (this.elGlitchHash) this.elGlitchHash.textContent = '[0x????]';
 
         // Update Prime 7 Matrix pills
         this.updatePrime7MatrixUI();
@@ -481,6 +492,14 @@ class BlindTestApp {
         const audioSrc = `../mp3s/${encodeURIComponent(picked.file)}`;
         this.audio.src = audioSrc;
         this.audio.load();
+
+        if (autoPlay) {
+            const onCanPlay = () => {
+                this.playAudio().catch(() => {});
+            };
+            this.audio.addEventListener('canplay', onCanPlay, { once: true });
+            this.playAudio().catch(() => {});
+        }
     }
 
     updatePrime7MatrixUI() {
@@ -623,24 +642,31 @@ class BlindTestApp {
         if (this.elBtnSubmit) this.elBtnSubmit.disabled = true;
     }
 
-    togglePlay() {
+    playAudio() {
         window.CyberFX.init();
         this.initAudioContext();
+        if (this.audioContext && this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
 
+        return this.audio.play().then(() => {
+            this.isPlaying = true;
+            if (this.elPlayIcon) this.elPlayIcon.className = 'fa-solid fa-pause';
+            if (this.elPlayText) this.elPlayText.textContent = 'PAUSE FREQUENCY';
+            const tag = document.getElementById('audio-status-tag');
+            if (tag) {
+                tag.textContent = 'ACTIVE STREAM';
+                tag.className = 'panel-status';
+            }
+        }).catch(err => {
+            console.warn('Audio play failed, activating synthetic audio fallback:', err);
+            this.startSyntheticAudioFallback();
+        });
+    }
+
+    togglePlay() {
         if (this.audio.paused) {
-            this.audio.play().then(() => {
-                this.isPlaying = true;
-                if (this.elPlayIcon) this.elPlayIcon.className = 'fa-solid fa-pause';
-                if (this.elPlayText) this.elPlayText.textContent = 'PAUSE FREQUENCY';
-                const tag = document.getElementById('audio-status-tag');
-                if (tag) {
-                    tag.textContent = 'ACTIVE STREAM';
-                    tag.className = 'panel-status';
-                }
-            }).catch(err => {
-                console.warn('Audio play failed, activating synthetic audio fallback:', err);
-                this.startSyntheticAudioFallback();
-            });
+            this.playAudio();
         } else {
             this.audio.pause();
             this.isPlaying = false;
@@ -940,13 +966,13 @@ class BlindTestApp {
             return {
                 tag: "DUAL RESONANCE SPECTRUM",
                 icon: '<i class="fa-solid fa-atom"></i>',
-                desc: "Your auditory response aligns in close harmony with creator DTY's studio benchmark while matching the collective median. Music appreciation is entirely subjective—your reaction naturally bridges the creator's intent with broad public resonance."
+                desc: "Your auditory response aligns in close harmony with creator 虚FFVoid's studio benchmark while matching the collective median. Music appreciation is entirely subjective—your reaction naturally bridges the creator's intent with broad public resonance."
             };
         } else if (deltaCreator <= 2 && deltaComm > 2) {
             return {
                 tag: "STUDIO-ALIGNED WAVELENGTH",
                 icon: '<i class="fa-solid fa-microchip"></i>',
-                desc: "Your impression connects directly with creator DTY's baseline while taking an independent path from the broader consensus. Artistic perception is inherently personal; you engaged with specific elements that resonated privately with the creator's studio vision."
+                desc: "Your impression connects directly with creator 虚FFVoid's baseline while taking an independent path from the broader consensus. Artistic perception is inherently personal; you engaged with specific elements that resonated privately with the creator's studio vision."
             };
         } else if (deltaComm <= 2 && deltaCreator > 2) {
             return {
@@ -989,7 +1015,7 @@ class BlindTestApp {
         const medianScore = this.communityStats ? this.communityStats.median : authorScore;
 
         const shareTitle = `Dreamy Voyage // Blind Audio Perception Test - #${t.id} ${t.titleEN}`;
-        const shareText = `I scored #${t.id} "${t.titleEN}" at ${userScore} pts on Dreamy Voyage Blind Test! (Creator DTY: ${authorScore} / Community Median: ${medianScore})`;
+        const shareText = `I scored #${t.id} "${t.titleEN}" at ${userScore} pts on Dreamy Voyage Blind Test! (Creator 虚FFVoid: ${authorScore} / Community Median: ${medianScore})`;
 
         canvas.toBlob(async (blob) => {
             if (!blob) return;
@@ -1145,10 +1171,10 @@ class BlindTestApp {
         ctx.font = '13px Orbitron, sans-serif';
         ctx.fillText(typeStr.toUpperCase(), 95, 498);
 
-        // Column 2: CREATOR (DTY)
+        // Column 2: CREATOR (虚FFVoid)
         ctx.fillStyle = '#8899b7';
         ctx.font = 'bold 16px Orbitron, sans-serif';
-        ctx.fillText('CREATOR (DTY)', 470, 360);
+        ctx.fillText('CREATOR (虚FFVoid)', 470, 360);
         ctx.fillStyle = '#00f3ff';
         ctx.font = 'bold 64px Orbitron, sans-serif';
         ctx.fillText(`${authorScore}`, 470, 435);
@@ -1252,7 +1278,7 @@ class BlindTestApp {
         const text = `🎧 DREAMY.VOYAGE // BLIND TEST AUDIT
 Track: #${t.id} ${t.titleEN} (${t.titleZH})
 My Score: ${userScore} [Stages: ${s1Txt} · ${s2Txt} · ${s3Txt}]
-Creator (DTY): ${authorScore} (Similarity: ${creatorSim}%)
+Creator (虚FFVoid): ${authorScore} (Similarity: ${creatorSim}%)
 Community Median: ${medianScore} (${count} Scorers | Consensus: ${commSim}%)
 Taste Signature: ${archetype.tag} [${uniquenessTag}]
 "All music appreciation is inherently personal and subjective."

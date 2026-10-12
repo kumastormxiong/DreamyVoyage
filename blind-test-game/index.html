@@ -11,7 +11,7 @@
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" href="../favicon_circle.png">
-    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body class="cyber-theme bottom-dock-layout">
     <!-- 1. Butterchurn Fullscreen Visualizer Canvas (Audio Reactive Background: >90% Screen Space) -->
@@ -30,25 +30,25 @@
             <span class="brand-beacon"></span>
             <span class="top-brand-text">DREAMY<span class="neon-cyan">.VOYAGE</span></span>
             <span class="badge-prime">PRIME 7</span>
-            <span class="top-track-anon" id="hud-subject-code">FREQ_#??</span>
+            <span class="top-track-anon" id="hud-subject-code">ANONYMOUS STREAM</span>
             <span class="top-tested-count" id="hud-tested-count">TESTED: 0 / 9</span>
         </div>
 
-        <!-- 9 Prime 7 Tracks Quick Step Selector -->
+        <!-- 9 Prime 7 Tracks Quick Step Selector (Letter-based Anonymous Pool) -->
         <div class="top-prime7-strip">
             <span class="strip-label"><i class="fa-solid fa-compact-disc"></i> ARCHIVE POOL:</span>
             <div class="prime7-matrix" id="prime7-matrix">
-                <button class="prime7-track-pill active" data-index="0" data-id="69">#1</button>
-                <button class="prime7-track-pill" data-index="1" data-id="70">#2</button>
-                <button class="prime7-track-pill" data-index="2" data-id="71">#3</button>
-                <button class="prime7-track-pill" data-index="3" data-id="72">#4</button>
-                <button class="prime7-track-pill" data-index="4" data-id="73">#5</button>
-                <button class="prime7-track-pill" data-index="5" data-id="74">#6</button>
-                <button class="prime7-track-pill" data-index="6" data-id="75">#7</button>
-                <button class="prime7-track-pill" data-index="7" data-id="76">#8</button>
-                <button class="prime7-track-pill" data-index="8" data-id="77">#9</button>
+                <button class="prime7-track-pill active" data-index="0" data-id="69">A</button>
+                <button class="prime7-track-pill" data-index="1" data-id="70">B</button>
+                <button class="prime7-track-pill" data-index="2" data-id="71">C</button>
+                <button class="prime7-track-pill" data-index="3" data-id="72">D</button>
+                <button class="prime7-track-pill" data-index="4" data-id="73">E</button>
+                <button class="prime7-track-pill" data-index="5" data-id="74">F</button>
+                <button class="prime7-track-pill" data-index="6" data-id="75">G</button>
+                <button class="prime7-track-pill" data-index="7" data-id="76">H</button>
+                <button class="prime7-track-pill" data-index="8" data-id="77">I</button>
             </div>
-            <button class="cyber-btn-mini cyber-btn-accent" id="btn-next-prime7-track" title="Switch to next Prime 7 track (Smooth visualizer transition)">
+            <button class="cyber-btn-mini cyber-btn-accent" id="btn-next-prime7-track" title="Switch to next track and auto-play">
                 <i class="fa-solid fa-forward-step"></i> <span>NEXT TRACK</span>
             </button>
         </div>
@@ -204,7 +204,58 @@
     <!-- Hidden Offscreen Canvas for Spectrum (compat) -->
     <canvas id="audio-meter-canvas" width="10" height="10" style="display:none;"></canvas>
 
-    <!-- REVEAL MODAL & CLEARANCE BADGE (UNIFIED DUAL-BENCHMARK SINGLE WINDOW) -->
+    <!-- 1. WELCOME & RULES MODAL (Center floating window on entry with 1-click start) -->
+    <div class="modal-backdrop show" id="welcome-modal">
+        <div class="modal-card welcome-modal-card">
+            <div class="welcome-header">
+                <div class="welcome-chip"><i class="fa-solid fa-satellite-dish"></i> PROTOCOL ARCHIVE // PRIME 7</div>
+                <h2 class="welcome-title">BLIND TEST EXPERIMENT</h2>
+                <p class="welcome-subtitle">A sensory blind audition exploring personal electronic music perception</p>
+            </div>
+
+            <div class="welcome-rules-grid">
+                <div class="welcome-rule-item">
+                    <div class="rule-icon"><i class="fa-solid fa-mask"></i></div>
+                    <div class="rule-text">
+                        <h4>100% Anonymous Audition</h4>
+                        <p>Track titles, numbers, and artist metadata are encrypted. Listen purely with your ears—zero bias.</p>
+                    </div>
+                </div>
+
+                <div class="welcome-rule-item">
+                    <div class="rule-icon"><i class="fa-solid fa-stopwatch"></i></div>
+                    <div class="rule-text">
+                        <h4>3 Progressive Time Stages</h4>
+                        <p>Rate First Impression (10s), Development (60s), and Outro Culmination as the music unfolds.</p>
+                    </div>
+                </div>
+
+                <div class="welcome-rule-item">
+                    <div class="rule-icon"><i class="fa-solid fa-sliders"></i></div>
+                    <div class="rule-text">
+                        <h4>Flexible Adaptive Scoring</h4>
+                        <p>Unrated stages stay unrated. 1 stage = exact score, 2 stages = average, 3 stages = RMS composite.</p>
+                    </div>
+                </div>
+
+                <div class="welcome-rule-item">
+                    <div class="rule-icon"><i class="fa-solid fa-chart-line"></i></div>
+                    <div class="rule-text">
+                        <h4>Clearance & Community Median</h4>
+                        <p>Unveil creator benchmark and global live median. Celebrate your authentic acoustic individuality.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="welcome-actions">
+                <button class="cyber-btn cyber-btn-primary welcome-start-btn" id="btn-start-experiment">
+                    <i class="fa-solid fa-play"></i> <span>START LISTENING</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. REVEAL MODAL & CLEARANCE BADGE (UNIFIED DUAL-BENCHMARK SINGLE WINDOW) -->
     <div class="modal-backdrop" id="reveal-modal">
         <div class="modal-card">
             <!-- Modal Close button -->
@@ -257,7 +308,7 @@
 
                         <!-- 2. VS Creator -->
                         <div class="comp-card target-card">
-                            <span class="comp-title">CREATOR (DTY)</span>
+                            <span class="comp-title">CREATOR (虚FFVoid)</span>
                             <div class="comp-number neon-cyan" id="badge-target-score">87</div>
                             <span class="comp-breakdown">Studio Benchmark</span>
                             <div class="comp-badge-pill pill-cyan" id="badge-creator-sim">SIMILARITY 92%</div>
@@ -320,8 +371,8 @@
     <script src="../presets/preset-names.js"></script>
     <script src="../presets/presets-data.js"></script>
     <script src="../song-list.js"></script>
-    <script src="butterchurn_engine.js?v=5"></script>
-    <script src="shader.js?v=5"></script>
-    <script src="app.js?v=5"></script>
+    <script src="butterchurn_engine.js?v=6"></script>
+    <script src="shader.js?v=6"></script>
+    <script src="app.js?v=6"></script>
 </body>
 </html>
