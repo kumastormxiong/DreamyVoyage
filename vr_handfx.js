@@ -1374,6 +1374,13 @@
                     if (ev.judge) this._judgement(ev.judge, ev.pos, h);
                     break;
                 }
+                case 'swipe': {
+                    // 捏住滑动：沿滑动方向喷出一束火花 + 一个星芒
+                    const col = this.handColor(h, 0);
+                    this._spawnQuad(1, ev.pos, 0.05, 0.22, 0.4, col, this._white);
+                    this.sparks.burst(t, ev.pos, 32, 1.3, 0.55, 0.009, col, ev.vec, 0.35);
+                    break;
+                }
                 case 'summon': {
                     this._spawnQuad(1, ev.pos, 0.06, 0.16, 0.35, this._white, this.handColor(h, 0));
                     this._spawnQuad(0, ev.pos, 0.03, 0.22, 0.45, this.handColor(h, 0), this._white);

@@ -26,6 +26,13 @@
         'pinky-finger-metacarpal', 'pinky-finger-phalanx-proximal', 'pinky-finger-phalanx-intermediate', 'pinky-finger-phalanx-distal', 'pinky-finger-tip'
     ];
     const NJ = JOINT_NAMES.length; // 25
+
+    // 捏住滑动手势参数
+    const SWIPE_WINDOW = 0.3;      // 统计最近多少秒的轨迹
+    const SWIPE_MIN_DIST = 0.12;   // 最小位移 (米)
+    const SWIPE_MIN_SPEED = 0.8;   // 最小平均速度 (米/秒)
+    const SWIPE_AXIS_RATIO = 1.6;  // 主方向分量需比另一方向大这么多倍
+    const SWIPE_COOLDOWN = 0.5;    // 两次滑动最小间隔 (秒)
     const JI = {};
     JOINT_NAMES.forEach((n, i) => { JI[n] = i; });
 
@@ -84,7 +91,12 @@
         filter(raw, out, dt) {
             const n3 = this.n * 3;
             if (!this.init || dt <= 0) {
-                for (let i = 0; i < n3; i++) { this.x[i] = raw[i]; this.dx[i] = 0; out[i] = raw[i]; }
+                for (let i = 0; i < n3; i++) {
+                    const v = Number.isFinite(raw[i]) ? raw[i] : 0;
+                    this.x[i] = v;
+                    this.dx[i] = 0;
+                    out[i] = v;
+                }
                 this.init = true;
                 return;
             }
@@ -93,15 +105,23 @@
                 const o = j * 3;
                 let sp2 = 0;
                 for (let k = 0; k < 3; k++) {
-                    const d = (raw[o + k] - this.x[o + k]) / dt;
-                    this.dx[o + k] += ad * (d - this.dx[o + k]);
-                    sp2 += this.dx[o + k] * this.dx[o + k];
+                    const idx = o + k;
+                    const r = Number.isFinite(raw[idx]) ? raw[idx] : this.x[idx];
+                    const prevX = Number.isFinite(this.x[idx]) ? this.x[idx] : r;
+                    const d = (r - prevX) / dt;
+                    this.dx[idx] += ad * (d - this.dx[idx]);
+                    if (!Number.isFinite(this.dx[idx])) this.dx[idx] = 0;
+                    sp2 += this.dx[idx] * this.dx[idx];
                 }
                 const cutoff = this.minCutoff + this.beta * Math.sqrt(sp2);
                 const a = smoothingAlpha(cutoff, dt);
                 for (let k = 0; k < 3; k++) {
-                    this.x[o + k] += a * (raw[o + k] - this.x[o + k]);
-                    out[o + k] = this.x[o + k];
+                    const idx = o + k;
+                    const r = Number.isFinite(raw[idx]) ? raw[idx] : this.x[idx];
+                    const prevX = Number.isFinite(this.x[idx]) ? this.x[idx] : r;
+                    const updated = prevX + a * (r - prevX);
+                    this.x[idx] = Number.isFinite(updated) ? updated : r;
+                    out[idx] = this.x[idx];
                 }
             }
         }
@@ -195,6 +215,9 @@
             pinchSummon: false,
             summonProgress: 0,
             summonFired: false,
+            pinchTrail: [], // 捏合期间捏合点的最近轨迹 {t,x,y,z}，用于识别“捏住快速滑动”
+            swipeUsed: false, // 本次捏合是否已触发过滑动 (一次捏合只触发一次，避免回手时反向误触)
+            lastSwipe: -10,
 
             fist: false,
             fistFrames: 0,
@@ -442,6 +465,8 @@
                     h.pinchSummon = h.palmFacing > 0.45;
                     h.summonProgress = 0;
                     h.summonFired = false;
+                    h.swipeUsed = false;
+                    h.pinchTrail.length = 0;
                     this._emit('pinchStart', h.index, {
                         pos: h.pinchPoint.clone(),
                         palmFacing: h.palmFacing,
@@ -452,6 +477,15 @@
             } else {
                 h.pinchOffFrames = (h.pinchDist > 0.36) ? h.pinchOffFrames + 1 : 0;
                 if (h.pinchOffFrames >= 2) this._endPinch(h, t, false);
+            }
+
+            // ---------- 捏住快速滑动：左右 = 下一首 / 上一首，上下 = 下一个 / 上一个 preset ----------
+            if (h.pinching) {
+                h.pinchTrail.push({ t, x: h.pinchPoint.x, y: h.pinchPoint.y, z: h.pinchPoint.z });
+                while (h.pinchTrail.length && t - h.pinchTrail[0].t > SWIPE_WINDOW) h.pinchTrail.shift();
+                if (!h.swipeUsed && !this.stringActive && t - h.pinchStartTime > 0.05 && t - h.lastSwipe > SWIPE_COOLDOWN) {
+                    this._detectSwipe(h, t);
+                }
             }
 
             // ---------- 召唤菜单：掌心朝向自己 + 捏住 0.6 秒 ----------
@@ -523,16 +557,52 @@
             }
         }
 
+        // 在最近 SWIPE_WINDOW 秒的捏合点轨迹里找“又快又直”的位移，并换算到头部朝向坐标系
+        _detectSwipe(h, t) {
+            const tr = h.pinchTrail;
+            if (tr.length < 3) return;
+            const a = tr[0], b = tr[tr.length - 1];
+            const span = b.t - a.t;
+            if (span < 0.07) return;
+            const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+            const hr = this.headRight, hf = this.headFwd;
+            const right = dx * hr.x + dz * hr.z; // 用户视角的右
+            const fwd = dx * hf.x + dz * hf.z;   // 向前 (推)
+            const up = dy;
+            const dist = Math.sqrt(right * right + up * up);
+            if (dist < SWIPE_MIN_DIST || dist / span < SWIPE_MIN_SPEED) return;
+            if (Math.abs(fwd) > dist * 0.9) return; // 主要是前后推拉，不算滑动
+            const ar = Math.abs(right), au = Math.abs(up);
+            let dir = null;
+            if (ar >= au * SWIPE_AXIS_RATIO) dir = right > 0 ? 'right' : 'left';
+            else if (au >= ar * SWIPE_AXIS_RATIO) dir = up > 0 ? 'up' : 'down';
+            if (!dir) return;
+            h.swipeUsed = true;
+            h.lastSwipe = t;
+            h.pinchTrail.length = 0;
+            if (h.pinchSummon && !h.summonFired) {
+                h.pinchSummon = false;
+                h.summonProgress = 0;
+                this._emit('summonCancel', h.index, {});
+            }
+            const v = new this.THREE.Vector3(dx, dy, dz);
+            if (v.lengthSq() > 1e-8) v.normalize();
+            this._emit('swipe', h.index, { dir, pos: h.pinchPoint.clone(), vec: v, speed: dist / span });
+        }
+
         _endPinch(h, t, interrupted) {
             h.pinching = false;
             h.pinchOnFrames = 0;
             h.pinchOffFrames = 0;
             const wasSummon = h.pinchSummon;
+            const wasSwipe = h.swipeUsed;
+            h.swipeUsed = false;
+            h.pinchTrail.length = 0;
             if (wasSummon && !h.summonFired) this._emit('summonCancel', h.index, {});
             this._emit('pinchEnd', h.index, {
                 pos: h.pinchPoint.clone(),
                 holdTime: t - h.pinchStartTime,
-                consumed: wasSummon,
+                consumed: wasSummon || wasSwipe,
                 interrupted: !!interrupted,
                 judge: this.beat.judge(t)
             });
@@ -557,6 +627,8 @@
             h.tipSpeed = 0;
             h.tipHistory.length = 0;
             h.aimHistory.length = 0;
+            h.pinchTrail.length = 0;
+            h.swipeUsed = false;
         }
 
         _updateTwoHand(t, dt) {

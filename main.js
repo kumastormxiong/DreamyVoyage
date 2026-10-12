@@ -866,6 +866,29 @@
         // 强制重绘
         void titleCard.offsetWidth;
         titleCard.classList.add('title-animate');
+
+        // VR 沉浸模式：在 VR 空间中浮现曲名，约 5 秒后随 shader 溶解消失
+        showTitleInVR(songName, presetName);
+    }
+
+    // 通知 VR 端显示曲名 (仅 VR 会话中有效)
+    function showTitleInVR(songName, presetName) {
+        if (!window.VRManager || !window.VRManager.isActive || !window.VRManager.isActive()) return;
+        if (typeof window.VRManager.showTrackTitle !== 'function') return;
+        try {
+            window.VRManager.showTrackTitle(
+                songName ? formatTrackTitle(songName, currentLanguage) : '',
+                (presetName || '').replace(/\.json$/i, '')
+            );
+        } catch (e) {
+            console.warn('[VR] 曲名显示异常:', e);
+        }
+    }
+
+    // VR 里用户主动切 preset (捏合上下滑动 / 菜单) 时，加载完成后也显示一次名称；自动轮播不弹
+    let vrUserPresetSwitchUntil = 0;
+    function markVRUserPresetSwitch() {
+        vrUserPresetSwitchUntil = performance.now() + 4000;
     }
 
     function updatePresetTitle(presetName) {
@@ -881,6 +904,10 @@
         }
         if (window.VRManager && window.VRManager.isActive()) {
             window.VRManager.updateHUD();
+            if (performance.now() < vrUserPresetSwitchUntil) {
+                vrUserPresetSwitchUntil = 0;
+                showTitleInVR(currentItem && currentItem.song, presetName);
+            }
         }
     }
 
@@ -2708,9 +2735,11 @@
                     goPrevious();
                 },
                 nextPreset: () => {
+                    markVRUserPresetSwitch();
                     switchNextPreset(true);
                 },
                 prevPreset: () => {
+                    markVRUserPresetSwitch();
                     switchPrevPreset(true);
                 },
                 togglePlaybackMode: () => {

@@ -439,6 +439,7 @@
         buildPerfPanel();
         setupControllers();
         setupHands();
+        buildTrackTitle();
 
         raycaster = new THREE.Raycaster();
 
@@ -578,6 +579,11 @@
         ctx.font = '600 17px "Orbitron", monospace';
         ctx.fillText(`${usingSharedGL ? 'GL: Shared (zero-copy)' : 'GL: Compat (copy)'} · BC ${size ? size.w + '×' + size.h : '-'}`, 22, 150);
         ctx.fillText(`${proj.nameEn} · Foveation ${foveationLevel}`, 22, 182);
+        if (perfStats.lastError) {
+            ctx.fillStyle = '#f87171';
+            ctx.font = '600 14px monospace';
+            ctx.fillText('ERR ' + String(perfStats.lastError).slice(0, 52), 22, 208);
+        }
         perfTexture.needsUpdate = true;
     }
 
@@ -1986,6 +1992,10 @@
                 }
                 break;
             }
+            case 'swipe': {
+                handleSwipe(ev);
+                break;
+            }
             case 'pinchEnd': {
                 const p = handPress[ev.hand];
                 if (!p) break;
@@ -2011,6 +2021,319 @@
             default:
                 break;
         }
+    }
+
+    // ==========================================
+    // 帧内异常保护：任何一段逻辑抛异常都不能让整帧丢掉 renderer.render (否则画面就“卡住”)
+    // ==========================================
+    const frameErrors = { counts: {}, handFxFailStreak: 0, handFxBroken: false };
+
+    function reportFrameError(tag, err) {
+        const c = (frameErrors.counts[tag] = (frameErrors.counts[tag] || 0) + 1);
+        const msg = (err && err.message) ? err.message : String(err);
+        perfStats.lastError = `${tag}: ${msg}`;
+        if (c <= 3 || c % 300 === 0) console.error(`[VRManager] 帧内异常 (${tag} ×${c}):`, err);
+    }
+
+    // 手部特效更新：连续失败 20 帧就自动关闭特效层，仅保留手势识别 / 菜单交互
+    function safeHandFxUpdate(ctx) {
+        if (!handFx || frameErrors.handFxBroken) return;
+        try {
+            handFx.update(ctx);
+            frameErrors.handFxFailStreak = 0;
+        } catch (err) {
+            reportFrameError('handfx', err);
+            if (++frameErrors.handFxFailStreak >= 20) {
+                frameErrors.handFxBroken = true;
+                console.error('[VRManager] 手部特效连续出错，已自动关闭特效层 (手势识别与菜单仍可用)');
+                try { handFx.clear(); handFx.root.visible = false; } catch (e) {}
+            }
+        }
+    }
+
+    // 悬停变化触发 HUD 重绘的节流：手在按钮边缘抖动时，避免每帧重画整张 HUD 画布并上传纹理
+    let lastHoverRedraw = 0;
+    function hoverRedrawOk() {
+        const now = performance.now();
+        if (now - lastHoverRedraw < 70) return false;
+        lastHoverRedraw = now;
+        return true;
+    }
+
+    // 着色器预热：第一次出现手部特效时才编译着色器，在 Quest 上会造成明显卡顿甚至 GPU 看门狗超时。
+    // 进入 VR 后每帧只编译一个对象，把编译开销摊平到最初的几十帧里
+    let prewarmQueue = [];
+    function startPrewarm() {
+        prewarmQueue = [];
+        if (handFx && handFx.root) handFx.root.children.forEach(c => prewarmQueue.push(c));
+        if (titleMesh) prewarmQueue.push(titleMesh);
+    }
+    function stepPrewarm() {
+        if (!prewarmQueue.length || !renderer || !camera) return;
+        const obj = prewarmQueue.shift();
+        try {
+            renderer.compile(obj, camera);
+        } catch (e) {
+            prewarmQueue.length = 0; // 编译失败就放弃预热，不影响正常渲染
+        }
+    }
+
+    // ==========================================
+    // 捏住滑动：右 / 左 = 下一首 / 上一首，上 / 下 = 下一个 / 上一个 preset
+    // ==========================================
+    function handleSwipe(ev) {
+        const b = state.bridge;
+        if (!b) return;
+        // 滑动接管了这次捏合，不能再把它当成按钮点击
+        if (ev.hand >= 0) handPress[ev.hand] = null;
+        refreshPressedState();
+        try {
+            if (ev.dir === 'right') { if (b.nextTrack) b.nextTrack(); }
+            else if (ev.dir === 'left') { if (b.prevTrack) b.prevTrack(); }
+            else if (ev.dir === 'up') { if (b.nextPreset) b.nextPreset(); }
+            else if (ev.dir === 'down') { if (b.prevPreset) b.prevPreset(); }
+        } catch (err) {
+            reportFrameError('swipe', err);
+        }
+        pulseControllerHaptic(0, 0.2, 30);
+        pulseControllerHaptic(1, 0.2, 30);
+    }
+
+    // ==========================================
+    // 曲名显示：切歌时在 VR 空间浮现曲名，保持到第 5 秒，然后随噪声着色器逐渐溶解消失
+    // ==========================================
+    const TITLE_FORM_SEC = 1.0;      // 由噪点溶解“显形”的时长
+    const TITLE_HOLD_UNTIL_SEC = 5.0; // 从出现起完整显示到第几秒
+    const TITLE_DISSOLVE_SEC = 3.0;  // 之后逐渐溶解消失的时长
+    const TITLE_DISTANCE = 3.2;
+    const TITLE_FONT = '"Orbitron", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif';
+    let titleMesh = null;
+    let titleCanvas = null;
+    let titleCtx = null;
+    let titleTexture = null;
+    let titleUniforms = null;
+    const titleAnim = { active: false, pending: false, t0: 0, text: '', sub: '', lastCallMs: -10000 };
+
+    const TITLE_VS = `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+    `;
+    const TITLE_FS = `
+        uniform sampler2D uTex;
+        uniform float uDissolve; // 0 = 完整显示, 1 = 完全消失
+        uniform float uTime;
+        uniform float uBass;
+        varying vec2 vUv;
+        float dvHash(vec2 p) {
+            p = fract(p * vec2(123.34, 456.21));
+            p += dot(p, p + 45.32);
+            return fract(p.x * p.y);
+        }
+        float dvNoise(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            f = f * f * (3.0 - 2.0 * f);
+            float a = dvHash(i);
+            float b = dvHash(i + vec2(1.0, 0.0));
+            float c = dvHash(i + vec2(0.0, 1.0));
+            float d = dvHash(i + vec2(1.0, 1.0));
+            return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+        }
+        float dvFbm(vec2 p) {
+            float v = 0.0;
+            float a = 0.5;
+            for (int i = 0; i < 4; i++) {
+                v += a * dvNoise(p);
+                p *= 2.03;
+                a *= 0.5;
+            }
+            return v;
+        }
+        void main() {
+            float d = uDissolve;
+            float n = dvFbm(vUv * vec2(16.0, 4.5) + vec2(0.0, uTime * 0.12));
+            // 溶解时文字像灰烬一样缓缓向上飘散
+            vec2 uv = vUv;
+            uv.y -= d * d * 0.09 * (0.4 + n);
+            uv.x += (n - 0.5) * d * 0.035;
+            vec4 t = texture2D(uTex, uv);
+            // 阈值扫过噪声场：噪声值低于阈值的像素被“烧掉”
+            float thr = d * 1.25 - 0.12;
+            float keep = smoothstep(thr, thr + 0.03, n);
+            float band = (1.0 - smoothstep(0.0, 0.11, n - thr)) * step(thr, n);
+            vec3 hot = mix(vec3(0.45, 0.9, 1.0), vec3(1.0, 0.5, 0.9), vUv.x);
+            vec3 col = t.rgb + hot * band * t.a * 2.0;
+            col *= 1.0 + uBass * 0.25;
+            float a = t.a * keep;
+            gl_FragColor = vec4(col, a);
+        }
+    `;
+
+    function buildTrackTitle() {
+        titleCanvas = document.createElement('canvas');
+        titleCanvas.width = 2048;
+        titleCanvas.height = 512;
+        titleCtx = titleCanvas.getContext('2d');
+        titleTexture = new THREE.CanvasTexture(titleCanvas);
+        titleTexture.minFilter = THREE.LinearFilter;
+        titleTexture.magFilter = THREE.LinearFilter;
+        titleTexture.generateMipmaps = false;
+        titleUniforms = {
+            uTex: { value: titleTexture },
+            uDissolve: { value: 1 },
+            uTime: { value: 0 },
+            uBass: { value: 0 }
+        };
+        const mat = new THREE.ShaderMaterial({
+            uniforms: titleUniforms,
+            vertexShader: TITLE_VS,
+            fragmentShader: TITLE_FS,
+            transparent: true,
+            depthTest: false,
+            depthWrite: false
+        });
+        titleMesh = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), mat);
+        titleMesh.renderOrder = -1; // 在 HUD 菜单与手部特效之下
+        titleMesh.frustumCulled = false;
+        titleMesh.visible = false;
+        scene.add(titleMesh);
+    }
+
+    function fitFont(ctx, text, weight, startSize, minSize, maxW) {
+        let size = startSize;
+        ctx.font = `${weight} ${size}px ${TITLE_FONT}`;
+        const w = ctx.measureText(text).width;
+        if (w > maxW) {
+            size = Math.max(minSize, Math.floor(size * maxW / w));
+            ctx.font = `${weight} ${size}px ${TITLE_FONT}`;
+        }
+        return size;
+    }
+
+    function drawTrackTitleTexture(title, sub) {
+        const ctx = titleCtx;
+        const w = titleCanvas.width, h = titleCanvas.height;
+        ctx.clearRect(0, 0, w, h);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const maxW = w * 0.9;
+        const yTitle = sub ? h * 0.42 : h * 0.5;
+        const ySub = h * 0.76;
+
+        // 先画一层深色柔影，保证亮背景上也读得清
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+        ctx.shadowBlur = 56;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        fitFont(ctx, title, 800, 150, 56, maxW);
+        ctx.fillText(title, w / 2, yTitle);
+        if (sub) {
+            fitFont(ctx, sub, 600, 54, 30, maxW);
+            ctx.fillText(sub, w / 2, ySub);
+        }
+        ctx.restore();
+
+        // 曲名：白色渐变 + 青色辉光
+        ctx.save();
+        const size = fitFont(ctx, title, 800, 150, 56, maxW);
+        const g = ctx.createLinearGradient(0, yTitle - size / 2, 0, yTitle + size / 2);
+        g.addColorStop(0, '#ffffff');
+        g.addColorStop(1, '#bfe9ff');
+        ctx.shadowColor = 'rgba(110, 200, 255, 0.95)';
+        ctx.shadowBlur = 34;
+        ctx.fillStyle = g;
+        ctx.fillText(title, w / 2, yTitle);
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.strokeText(title, w / 2, yTitle);
+        ctx.restore();
+
+        // 预设名：小一号的青色
+        if (sub) {
+            ctx.save();
+            fitFont(ctx, sub, 600, 54, 30, maxW);
+            ctx.shadowColor = 'rgba(80, 200, 255, 0.9)';
+            ctx.shadowBlur = 22;
+            ctx.fillStyle = '#a5f3fc';
+            ctx.fillText(sub, w / 2, ySub);
+            ctx.restore();
+        }
+        titleTexture.needsUpdate = true;
+    }
+
+    // 由 main.js 在切歌 (或用户主动切 preset) 时调用
+    function showTrackTitle(title, preset) {
+        if (!state.isVRActive || !titleMesh) return;
+        title = String(title || '');
+        preset = String(preset || '');
+        if (!title && !preset) return;
+        const nowMs = performance.now();
+        const recent = nowMs - titleAnim.lastCallMs < 1500;
+        titleAnim.lastCallMs = nowMs;
+        // 切歌流程会连续触发两次 (先曲名卡片，再预设加载完成)：文字相同就不重复触发
+        if (titleAnim.active && title === titleAnim.text && preset === titleAnim.sub) return;
+        titleAnim.text = title;
+        titleAnim.sub = preset;
+        try {
+            drawTrackTitleTexture(title, preset);
+        } catch (e) {
+            reportFrameError('title', e);
+            return;
+        }
+        // 1.5 秒内的第二次调用只更新文字，不重启动画
+        if (recent && (titleAnim.active || titleAnim.pending)) return;
+        titleAnim.pending = true;
+    }
+
+    const _titleFwd = new THREE.Vector3();
+    function placeTrackTitle() {
+        const f = _titleFwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
+        f.y = 0;
+        if (f.lengthSq() < 1e-4) f.set(0, 0, -1);
+        f.normalize();
+        titleMesh.position.set(
+            camera.position.x + f.x * TITLE_DISTANCE,
+            camera.position.y + 0.55,
+            camera.position.z + f.z * TITLE_DISTANCE
+        );
+        titleMesh.lookAt(camera.position.x, titleMesh.position.y, camera.position.z);
+    }
+
+    function updateTrackTitle(timeSec, bass) {
+        if (!titleMesh) return;
+        if (titleAnim.pending) {
+            titleAnim.pending = false;
+            titleAnim.active = true;
+            titleAnim.t0 = timeSec;
+            placeTrackTitle();
+        }
+        if (!titleAnim.active) {
+            titleMesh.visible = false;
+            return;
+        }
+        const age = timeSec - titleAnim.t0;
+        let d;
+        if (age < TITLE_FORM_SEC) {
+            const x = age / TITLE_FORM_SEC;
+            d = Math.pow(1 - x, 2); // 溶解显形：由快到慢
+        } else if (age < TITLE_HOLD_UNTIL_SEC) {
+            d = 0;
+        } else if (age < TITLE_HOLD_UNTIL_SEC + TITLE_DISSOLVE_SEC) {
+            const x = (age - TITLE_HOLD_UNTIL_SEC) / TITLE_DISSOLVE_SEC;
+            d = x * x * (3 - 2 * x); // 渐渐溶解消失
+        } else {
+            titleAnim.active = false;
+            titleMesh.visible = false;
+            return;
+        }
+        titleUniforms.uDissolve.value = d;
+        titleUniforms.uTime.value = timeSec;
+        titleUniforms.uBass.value = bass || 0;
+        titleMesh.visible = true;
     }
 
     const _lineTmp = new THREE.Vector3();
@@ -2071,7 +2394,7 @@
         }
 
         if (handFx) {
-            handFx.update({
+            safeHandFxUpdate({
                 t: timeSec,
                 dt,
                 camera,
@@ -2306,7 +2629,7 @@
             reticleMesh.visible = false;
         }
 
-        if (state.hoveredButtonId !== anyHover) {
+        if (state.hoveredButtonId !== anyHover && hoverRedrawOk()) {
             state.hoveredButtonId = anyHover;
             if (anyHover) {
                 pulseControllerHaptic(0, 0.15, 20);
@@ -2402,14 +2725,25 @@
         if (tunnelMeshScreen) tunnelMeshScreen.visible = vrStereoEnabled && (state.displayMode === 'curved_screen');
 
         // 4. 裸手手势与特效、手柄交互
-        const handResult = updateHands(timeSec, dt, audio, viewHalfH);
-        updateXRFrame(timestamp, bass, handResult);
-        updatePerfPanel(performance.now());
+        let handResult = null;
+        try {
+            handResult = updateHands(timeSec, dt, audio, viewHalfH);
+        } catch (err) {
+            reportFrameError('hands', err);
+        }
+        try { updateXRFrame(timestamp, bass, handResult); } catch (err) { reportFrameError('xrframe', err); }
+        try { updateTrackTitle(timeSec, bass); } catch (err) { reportFrameError('title', err); }
+        try { updatePerfPanel(performance.now()); } catch (err) { reportFrameError('perf', err); }
+        if (frameCounter > 45) stepPrewarm();
 
         perfStats.jsMs += ((performance.now() - tStart) - perfStats.jsMs) * 0.05;
 
         // 5. 提交立体双目渲染
-        renderer.render(scene, camera);
+        try {
+            renderer.render(scene, camera);
+        } catch (err) {
+            reportFrameError('render', err);
+        }
         perfStats.calls = renderer.info.render.calls;
         perfStats.tris = renderer.info.render.triangles;
     }
@@ -2454,6 +2788,7 @@
             recenterHUD();
             drawHUD();
 
+            startPrewarm();
             renderer.setAnimationLoop(onXRAnimationLoop);
             console.log('[VRManager] WebXR 沉浸式 VR 会话启动成功！');
         } catch (err) {
@@ -2484,6 +2819,10 @@
         }
 
         cleanUpHands();
+        prewarmQueue.length = 0;
+        titleAnim.active = false;
+        titleAnim.pending = false;
+        if (titleMesh) titleMesh.visible = false;
 
         // 共享上下文：把 GL 状态恢复为默认值，交还给网页端的 Butterchurn
         if (usingSharedGL && renderer && sharedGL) {
@@ -2511,6 +2850,7 @@
         isActive: () => state.isVRActive,
         enterVR,
         exitVR,
+        showTrackTitle,
         showMenu,
         hideMenu,
         setPlaybackBridge: (bridge) => {
