@@ -96,14 +96,14 @@
             },
             vrProjectionTitle: '360° Panorama Projection',
             vrProjectionBadges: {
+                classic: '🎞️ Classic Cylinder (default)',
                 tunnel: '🌀 Tunnel Sphere (seamless)',
-                dome_lake: '🌅 Dome + Lake (seamless)',
-                cylinder: '🎞️ Cylinder+ (classic)'
+                dome_lake: '🌅 Dome + Lake (seamless)'
             },
             vrProjectionLabels: {
+                classic: '🎞️ Classic',
                 tunnel: '🌀 Tunnel Sphere',
-                dome_lake: '🌅 Dome + Lake',
-                cylinder: '🎞️ Cylinder+'
+                dome_lake: '🌅 Dome + Lake'
             },
             vrPlatformLabels: ['0.7x Compact', '1.0x Standard', '1.3x Wide', '1.6x Expansive'],
             btnReset: 'Reset Defaults',
@@ -222,14 +222,14 @@
             },
             vrProjectionTitle: '360° 全景投影方式',
             vrProjectionBadges: {
+                classic: '🎞️ 经典柱面 (默认)',
                 tunnel: '🌀 隧道球 (无接缝)',
-                dome_lake: '🌅 穹顶镜湖 (无接缝)',
-                cylinder: '🎞️ 改良柱面 (经典)'
+                dome_lake: '🌅 穹顶镜湖 (无接缝)'
             },
             vrProjectionLabels: {
+                classic: '🎞️ 经典柱面',
                 tunnel: '🌀 隧道球',
-                dome_lake: '🌅 穹顶镜湖',
-                cylinder: '🎞️ 改良柱面'
+                dome_lake: '🌅 穹顶镜湖'
             },
             vrPlatformLabels: ['0.7x 紧凑', '1.0x 标准', '1.3x 宽阔', '1.6x 广阔'],
             btnReset: '恢复默认设置',
@@ -2415,9 +2415,9 @@
         }
 
         const vrProjectionBadge = document.getElementById('vr-projection-badge');
-        const curProjection = (localStorage.getItem('dv_vr_projection') || 'tunnel');
+        const curProjection = (localStorage.getItem('dv_vr_projection_v2') || 'classic');
         if (vrProjectionBadge && t.vrProjectionBadges) {
-            vrProjectionBadge.innerText = t.vrProjectionBadges[curProjection] || t.vrProjectionBadges.tunnel;
+            vrProjectionBadge.innerText = t.vrProjectionBadges[curProjection] || t.vrProjectionBadges.classic;
         }
         if (vrProjectionSegmentedGroup) {
             vrProjectionSegmentedGroup.querySelectorAll('.btn-segment').forEach(btn => {
@@ -2446,7 +2446,7 @@
     }
 
     function setVRProjectionMode(projId) {
-        localStorage.setItem('dv_vr_projection', projId);
+        localStorage.setItem('dv_vr_projection_v2', projId);
         if (window.VRManager && typeof window.VRManager.setProjectionMode === 'function') {
             window.VRManager.setProjectionMode(projId);
         }
@@ -2499,6 +2499,7 @@
         localStorage.removeItem('dv_vr_platform_size');
         localStorage.removeItem('dv_vr_hand_fx');
         localStorage.removeItem('dv_vr_projection');
+        localStorage.removeItem('dv_vr_projection_v2');
         localStorage.removeItem('dv_vr_foveation');
 
         currentQualityTier = 4;
@@ -2510,7 +2511,7 @@
         setVRStereoEnabled(true);
         setVRPlatformSize(1.0);
         setVRHandFxMode('constellation');
-        setVRProjectionMode('tunnel');
+        setVRProjectionMode('classic');
 
         buildSeededSequences(true);
         applyLanguage(currentLanguage);

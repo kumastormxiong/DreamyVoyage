@@ -75,9 +75,11 @@
     let lastXRTime = 0;
 
     // 全景投影 / 性能面板 / 注视点渲染
-    const PROJECTIONS = (window.DVPano && window.DVPano.PROJECTIONS) || [{ id: 'tunnel', nameZh: '隧道球', nameEn: 'Tunnel Sphere', icon: '🌀', aspect: 1 }];
-    let currentProjection = (typeof localStorage !== 'undefined' && localStorage.getItem('dv_vr_projection')) || 'tunnel';
-    if (!PROJECTIONS.some(p => p.id === currentProjection)) currentProjection = 'tunnel';
+    // 默认恢复经典柱面；存储键升级为 v2，让之前选过的隧道/穹顶回到经典画面
+    const PROJECTIONS = (window.DVPano && window.DVPano.PROJECTIONS) || [{ id: 'classic', nameZh: '经典柱面', nameEn: 'Classic Cylinder', icon: '🎞️', aspect: 2 }];
+    const PROJECTION_KEY = 'dv_vr_projection_v2';
+    let currentProjection = (typeof localStorage !== 'undefined' && localStorage.getItem(PROJECTION_KEY)) || 'classic';
+    if (!PROJECTIONS.some(p => p.id === currentProjection)) currentProjection = 'classic';
     let panoYaw = 0;
     let skyFlash = 0;
 
@@ -597,7 +599,7 @@
         if (!PROJECTIONS.some(p => p.id === id)) return;
         const before = getDesiredVisualizerSize();
         currentProjection = id;
-        try { localStorage.setItem('dv_vr_projection', id); } catch (e) {}
+        try { localStorage.setItem(PROJECTION_KEY, id); } catch (e) {}
         if (panoMaterial) window.DVPano.setProjection(panoMaterial, id);
         const after = getDesiredVisualizerSize();
         if (before.w !== after.w || before.h !== after.h) requestVisualizerResize();

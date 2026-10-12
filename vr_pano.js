@@ -19,10 +19,11 @@
 (() => {
     'use strict';
 
+    // classic = 2026-10-10 版的原始柱面拉伸方案 (默认)：2:1 柱面 + 背后窄带交叉混合 + 头顶/脚底平面贴片
     const PROJECTIONS = [
+        { id: 'classic', nameZh: '经典柱面', nameEn: 'Classic Cylinder', icon: '🎞️', aspect: 2, mode: 3 },
         { id: 'tunnel', nameZh: '隧道球', nameEn: 'Tunnel Sphere', icon: '🌀', aspect: 1, mode: 0 },
-        { id: 'dome_lake', nameZh: '穹顶镜湖', nameEn: 'Dome + Lake', icon: '🌅', aspect: 1, mode: 1 },
-        { id: 'cylinder', nameZh: '改良柱面', nameEn: 'Cylinder+', icon: '🎞️', aspect: 2, mode: 2 }
+        { id: 'dome_lake', nameZh: '穹顶镜湖', nameEn: 'Dome + Lake', icon: '🌅', aspect: 1, mode: 1 }
     ];
 
     const TUNNEL_PITCH = 12 * Math.PI / 180; // 隧道中心向上抬 12°，主体图案略高于视平线
@@ -64,6 +65,10 @@
         }
 
         vec2 dvPanoUV(vec3 d) {
+            if (uProjMode > 2.5) {
+                vec3 n = vec3(-d.x, d.y, d.z);
+                return vec2(clamp(atan(n.x, -n.z) / (2.0 * DV_PI) + 0.5, 0.001, 0.999), clamp(n.y * 0.5 + 0.5, 0.0, 1.0));
+            }
             if (uProjMode < 0.5) return dvTunnelUV(d);
             if (uProjMode < 1.5) return dvDomeUV(vec3(d.x, abs(d.y), d.z));
             return dvCylUV(d);
@@ -127,6 +132,33 @@
             return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
         }
 
+        // ---------- 经典柱面 (与 2026-10-10 版着色器逐行一致) ----------
+        // 旧版球体做了 scale(-1,1,1) 并用物体空间坐标，所以这里先把世界方向的 x 取反
+        vec3 dvClassic(sampler2D tex, vec3 dWorld) {
+            vec3 n = vec3(-dWorld.x, dWorld.y, dWorld.z);
+            float v = n.y * 0.5 + 0.5;
+            vec3 colCyl;
+            const float SEAM_BETA = 0.22;
+            float phiBack = atan(n.x, n.z);
+            if (n.z > 0.0 && abs(phiBack) < SEAM_BETA) {
+                float t = smoothstep(-SEAM_BETA, SEAM_BETA, phiBack);
+                float uL = abs(phiBack) / (2.0 * DV_PI);
+                float uR = 1.0 - uL;
+                vec3 colL = texture2D(tex, vec2(clamp(uL, 0.001, 0.999), v)).rgb;
+                vec3 colR = texture2D(tex, vec2(clamp(uR, 0.001, 0.999), v)).rgb;
+                colCyl = mix(colL, colR, t);
+            } else {
+                float theta = atan(n.x, -n.z);
+                float u = theta / (2.0 * DV_PI) + 0.5;
+                colCyl = texture2D(tex, vec2(clamp(u, 0.001, 0.999), v)).rgb;
+            }
+            vec3 colZenith = texture2D(tex, clamp(vec2(n.x, -n.z) * 0.45 + 0.5, 0.0, 1.0)).rgb;
+            vec3 colNadir = texture2D(tex, clamp(vec2(n.x, n.z) * 0.45 + 0.5, 0.0, 1.0)).rgb;
+            float wZenith = smoothstep(0.48, 0.78, n.y);
+            float wNadir = smoothstep(0.48, 0.78, -n.y);
+            return colCyl * (1.0 - wZenith - wNadir) + colZenith * wZenith + colNadir * wNadir;
+        }
+
         void main() {
             vec3 d = normalize(vDir);
 
@@ -155,7 +187,13 @@
             vec2 uvE;
             float echoW = 1.0;
 
-            if (uProjMode < 0.5) {
+            if (uProjMode > 2.5) {
+                // ================= 经典柱面 (默认) =================
+                col = dvClassic(uTexture, d);
+                if (uEchoAmt > 0.001) col += dvClassic(uEcho, d) * uEchoAmt;
+                uvE = vec2(0.5);
+                echoW = 0.0;
+            } else if (uProjMode < 0.5) {
                 // ================= 隧道球：Lambert 方位等积投影 =================
                 float c = clamp(dot(d, uAxisC), -1.0, 1.0);
                 vec2 uv = dvTunnelUV(d);
