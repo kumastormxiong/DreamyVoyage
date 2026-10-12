@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dreamy-echosfall-v36';
+const CACHE_NAME = 'dreamy-echosfall-v37';
 const ASSETS = [
   './index.html',
   './style.css',

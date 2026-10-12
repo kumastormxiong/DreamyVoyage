@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>DREAMY.VOYAGE // BLIND TEST PROTOCOL (Audio Perception Experiment)</title>
+    <!-- Google Fonts: Orbitron & Rajdhani & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" href="../favicon_circle.png">
+    <link rel="stylesheet" href="style.css?v=5">
+</head>
+<body class="cyber-theme bottom-dock-layout">
+    <!-- 1. Butterchurn Fullscreen Visualizer Canvas (Audio Reactive Background: >90% Screen Space) -->
+    <canvas id="butterchurn-canvas"></canvas>
+
+    <!-- 2. WebGL Fallback Shader Canvas -->
+    <canvas id="shader-canvas"></canvas>
+
+    <!-- 3. Ambient Cyber Vignette & Scanline Overlay -->
+    <div class="cyber-vignette-overlay"></div>
+    <div class="cyber-scanline"></div>
+
+    <!-- Top Minimal HUD Bar (Slim, non-intrusive ~38px) -->
+    <header class="top-mini-hud">
+        <div class="top-left-brand">
+            <span class="brand-beacon"></span>
+            <span class="top-brand-text">DREAMY<span class="neon-cyan">.VOYAGE</span></span>
+            <span class="badge-prime">PRIME 7</span>
+            <span class="top-track-anon" id="hud-subject-code">FREQ_#??</span>
+            <span class="top-tested-count" id="hud-tested-count">TESTED: 0 / 9</span>
+        </div>
+
+        <!-- 9 Prime 7 Tracks Quick Step Selector -->
+        <div class="top-prime7-strip">
+            <span class="strip-label"><i class="fa-solid fa-compact-disc"></i> ARCHIVE POOL:</span>
+            <div class="prime7-matrix" id="prime7-matrix">
+                <button class="prime7-track-pill active" data-index="0" data-id="69">#1</button>
+                <button class="prime7-track-pill" data-index="1" data-id="70">#2</button>
+                <button class="prime7-track-pill" data-index="2" data-id="71">#3</button>
+                <button class="prime7-track-pill" data-index="3" data-id="72">#4</button>
+                <button class="prime7-track-pill" data-index="4" data-id="73">#5</button>
+                <button class="prime7-track-pill" data-index="5" data-id="74">#6</button>
+                <button class="prime7-track-pill" data-index="6" data-id="75">#7</button>
+                <button class="prime7-track-pill" data-index="7" data-id="76">#8</button>
+                <button class="prime7-track-pill" data-index="8" data-id="77">#9</button>
+            </div>
+            <button class="cyber-btn-mini cyber-btn-accent" id="btn-next-prime7-track" title="Switch to next Prime 7 track (Smooth visualizer transition)">
+                <i class="fa-solid fa-forward-step"></i> <span>NEXT TRACK</span>
+            </button>
+        </div>
+
+        <div class="top-right-tools">
+            <button class="top-tool-btn" id="btn-next-preset" title="Switch visualizer preset smoothly">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span id="hud-preset-name">VISUAL PRESET</span>
+            </button>
+            <button class="top-tool-btn" id="btn-toggle-hud" title="Hide bottom dock for 100% immersive fullscreen visualizer">
+                <i class="fa-solid fa-eye-slash" id="toggle-hud-icon"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Floating Dock Restore Pill (Visible when bottom bar is minimized) -->
+    <button id="btn-floating-hud-toggle" class="floating-hud-pill hidden" title="Expand Scoring Console">
+        <i class="fa-solid fa-sliders"></i>
+        <span>EXPAND CONSOLE</span>
+        <span class="hud-pill-score" id="pill-current-score">--</span>
+    </button>
+
+    <!-- Bottom Dock Console Bar (Occupies ~10% of Screen Height) -->
+    <div class="bottom-dock-container" id="main-hud-container">
+        <div class="bottom-dock-bar">
+            <!-- Dock Left: Audio Player & Mini Progress Bar -->
+            <div class="dock-zone dock-zone-player">
+                <button class="dock-play-btn" id="btn-play" title="Play / Pause">
+                    <i class="fa-solid fa-play" id="play-icon"></i>
+                </button>
+
+                <div class="dock-player-details">
+                    <div class="dock-time-status-row">
+                        <span class="dock-time-current" id="time-current">00:00</span>
+                        <span class="dock-time-divider">/</span>
+                        <span class="dock-time-total" id="time-total">--:--</span>
+                        <span class="dock-scrub-badge" id="scrub-indicator" title="Anti-rush protection: progress bar locked during first 15s">
+                            <i class="fa-solid fa-lock"></i> UNLOCKS IN 15s
+                        </span>
+                    </div>
+
+                    <!-- Mini Seek Bar with 10s, 60s, Outro markers -->
+                    <div class="dock-seek-bar-track" id="seek-bar-track" title="Free scrubbing unlocks after listening for 15s">
+                        <div class="dock-seek-bar-fill" id="seek-bar-fill"></div>
+                        <div class="dock-seek-marker marker-10s" id="marker-10s" title="Stage 1 Unlocks (10s)">
+                            <span class="marker-tag">10s</span>
+                        </div>
+                        <div class="dock-seek-marker marker-60s" id="marker-60s" title="Stage 2 Unlocks (60s)">
+                            <span class="marker-tag">60s</span>
+                        </div>
+                        <div class="dock-seek-marker marker-outro" id="marker-outro" title="Stage 3 Unlocks (Outro)">
+                            <span class="marker-tag">OUTRO</span>
+                        </div>
+                        <div class="dock-seek-thumb" id="seek-thumb"></div>
+                    </div>
+                </div>
+
+                <div class="dock-volume-group">
+                    <i class="fa-solid fa-volume-high" id="vol-icon"></i>
+                    <input type="range" id="vol-slider" min="0" max="1" step="0.01" value="0.85" title="Volume">
+                </div>
+            </div>
+
+            <!-- Dock Center: 3 Compressed Stage Scoring Capsules -->
+            <div class="dock-zone dock-zone-scoring">
+                <!-- Stage 1 (10s) -->
+                <div class="dock-stage-capsule locked" id="stage-card-1">
+                    <div class="dock-stage-top">
+                        <span class="stage-num">01</span>
+                        <span class="stage-name">FIRST IMPRESSION (10s)</span>
+                        <span class="stage-status" id="stage-badge-1">🔒 LOCKED</span>
+                        <span class="stage-val-badge" id="display-s1">--</span>
+                    </div>
+                    <div class="dock-stage-controls">
+                        <input type="range" class="dock-range" id="range-s1" min="0" max="100" value="80" disabled>
+                        <div class="dock-quick-pills" id="pills-s1">
+                            <button type="button" class="mini-pill" data-val="70" disabled>70</button>
+                            <button type="button" class="mini-pill" data-val="80" disabled>80</button>
+                            <button type="button" class="mini-pill" data-val="85" disabled>85</button>
+                            <button type="button" class="mini-pill" data-val="90" disabled>90</button>
+                            <button type="button" class="mini-pill" data-val="95" disabled>95</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stage 2 (60s) -->
+                <div class="dock-stage-capsule locked" id="stage-card-2">
+                    <div class="dock-stage-top">
+                        <span class="stage-num">02</span>
+                        <span class="stage-name">DEVELOPMENT (60s)</span>
+                        <span class="stage-status" id="stage-badge-2">🔒 LOCKED</span>
+                        <span class="stage-val-badge" id="display-s2">--</span>
+                    </div>
+                    <div class="dock-stage-controls">
+                        <input type="range" class="dock-range" id="range-s2" min="0" max="100" value="80" disabled>
+                        <div class="dock-quick-pills" id="pills-s2">
+                            <button type="button" class="mini-pill" data-val="70" disabled>70</button>
+                            <button type="button" class="mini-pill" data-val="80" disabled>80</button>
+                            <button type="button" class="mini-pill" data-val="85" disabled>85</button>
+                            <button type="button" class="mini-pill" data-val="90" disabled>90</button>
+                            <button type="button" class="mini-pill" data-val="95" disabled>95</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stage 3 (Outro) -->
+                <div class="dock-stage-capsule locked" id="stage-card-3">
+                    <div class="dock-stage-top">
+                        <span class="stage-num">03</span>
+                        <span class="stage-name">OUTRO & RESOLUTION</span>
+                        <span class="stage-status" id="stage-badge-3">🔒 LOCKED</span>
+                        <span class="stage-val-badge" id="display-s3">--</span>
+                    </div>
+                    <div class="dock-stage-controls">
+                        <input type="range" class="dock-range" id="range-s3" min="0" max="100" value="80" disabled>
+                        <div class="dock-quick-pills" id="pills-s3">
+                            <button type="button" class="mini-pill" data-val="70" disabled>70</button>
+                            <button type="button" class="mini-pill" data-val="80" disabled>80</button>
+                            <button type="button" class="mini-pill" data-val="85" disabled>85</button>
+                            <button type="button" class="mini-pill" data-val="90" disabled>90</button>
+                            <button type="button" class="mini-pill" data-val="95" disabled>95</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dock Right: Dynamic Final Score & Submit Button -->
+            <div class="dock-zone dock-zone-action">
+                <div class="dock-score-summary">
+                    <div class="dock-score-title">
+                        <span>FINAL SCORE</span>
+                        <small class="dock-formula-tip" id="score-formula-tip">NOT SCORED</small>
+                    </div>
+                    <div class="dock-score-big" id="median-preview">--</div>
+                </div>
+
+                <button class="dock-submit-btn" id="btn-submit" disabled title="Score at least 1 stage to reveal clearance badge">
+                    <i class="fa-solid fa-key"></i> <span>REVEAL CLEARANCE BADGE</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Immersion Scrub Toast -->
+        <div class="scrub-toast" id="scrub-toast">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span>Anti-rush Protection: Immerse for the first 15s; free seeking unlocks permanently thereafter!</span>
+        </div>
+    </div>
+
+    <!-- Hidden Native Audio Element -->
+    <audio id="native-audio" preload="metadata"></audio>
+
+    <!-- Hidden Offscreen Canvas for Spectrum (compat) -->
+    <canvas id="audio-meter-canvas" width="10" height="10" style="display:none;"></canvas>
+
+    <!-- REVEAL MODAL & CLEARANCE BADGE (UNIFIED DUAL-BENCHMARK SINGLE WINDOW) -->
+    <div class="modal-backdrop" id="reveal-modal">
+        <div class="modal-card">
+            <!-- Modal Close button -->
+            <button class="modal-close-btn" id="btn-close-modal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+
+            <!-- Holographic Clearance Badge (Captured to Image) -->
+            <div class="clearance-badge-canvas-container" id="badge-capture-area">
+                <div class="badge-border-glow"></div>
+                <div class="badge-inner">
+                    <!-- Top Badge Bar -->
+                    <div class="badge-top-row">
+                        <div class="badge-sys-info">
+                            <span class="badge-chip">DREAMY.VOYAGE // DUAL AUDIT PROTOCOL</span>
+                            <span class="badge-serial" id="badge-timestamp">2026-10-12 // CLEARANCE ID: 0x47580</span>
+                        </div>
+                        <div class="badge-hologram-seal">
+                            <i class="fa-solid fa-certificate"></i> VERIFIED AUDIT
+                        </div>
+                    </div>
+
+                    <!-- Decrypted Track Hero Info -->
+                    <div class="decrypted-hero">
+                        <div class="decrypted-cover">
+                            <span class="cover-seq" id="badge-track-seq">#71</span>
+                        </div>
+
+                        <div class="decrypted-titles">
+                            <span class="decrypted-label neon-cyan"><i class="fa-solid fa-unlock-keyhole"></i> UNMASKED FREQUENCY // CLEARANCE REVEALED</span>
+                            <div class="decrypted-title-row">
+                                <h2 class="decrypted-zh" id="badge-title-en">Causal Absurdity</h2>
+                                <span class="tag-pill tag-pill-accent">Mastered</span>
+                            </div>
+                            <h3 class="decrypted-en" id="badge-title-zh">--</h3>
+                            <div class="decrypted-tags">
+                                <span class="tag-pill" id="badge-tag-id">Prime 7</span>
+                                <span class="tag-pill" id="badge-tag-duration">03:42</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Score Comparison Matrix (Unified 3-Way Grid) -->
+                    <div class="score-comparison-grid unified-dual-grid">
+                        <!-- 1. Your Score -->
+                        <div class="comp-card user-card">
+                            <span class="comp-title">YOUR SCORE</span>
+                            <div class="comp-number neon-magenta" id="badge-user-score">80</div>
+                            <span class="comp-breakdown" id="badge-user-breakdown">84 · 90 · 65</span>
+                            <div class="comp-badge-pill" id="badge-user-type">COMPOSITE SCORE</div>
+                        </div>
+
+                        <!-- 2. VS Creator -->
+                        <div class="comp-card target-card">
+                            <span class="comp-title">CREATOR (DTY)</span>
+                            <div class="comp-number neon-cyan" id="badge-target-score">87</div>
+                            <span class="comp-breakdown">Studio Benchmark</span>
+                            <div class="comp-badge-pill pill-cyan" id="badge-creator-sim">SIMILARITY 92%</div>
+                        </div>
+
+                        <!-- 3. VS Community Median -->
+                        <div class="comp-card community-card">
+                            <span class="comp-title">COMMUNITY MEDIAN</span>
+                            <div class="comp-number neon-green" id="badge-community-median">86</div>
+                            <span class="comp-breakdown" id="badge-community-count">113 Valid Scorers</span>
+                            <div class="comp-badge-pill pill-green" id="badge-community-sim">CONSENSUS 93%</div>
+                        </div>
+                    </div>
+
+                    <!-- Subjective Sonic Profile & Taste Uniqueness (No grading or stars; honoring individual subjective preference) -->
+                    <div class="archetype-banner rich-profile">
+                        <div class="archetype-top-line">
+                            <div class="archetype-title-group">
+                                <span class="archetype-icon" id="badge-archetype-icon"><i class="fa-solid fa-compass-drafting"></i></span>
+                                <span class="archetype-badge" id="badge-archetype-tag">INDEPENDENT AUDITORY ORBIT</span>
+                            </div>
+                            <div class="taste-unique-indicator" id="badge-taste-uniqueness">
+                                <span class="taste-label">UNIQUENESS DEGREE:</span>
+                                <span class="taste-uniqueness-badge neon-yellow" id="badge-taste-uniqueness-val">DISTINCT ACOUSTIC SIGNATURE</span>
+                            </div>
+                        </div>
+                        <p class="archetype-desc" id="badge-archetype-desc">
+                            Music appreciation is inherently personal and subjective. Every listener navigates their own irreplaceable sonic universe, where all authentic feelings and preferences are fully valid.
+                        </p>
+                    </div>
+
+                    <!-- Card Footer & Barcode -->
+                    <div class="badge-footer">
+                        <div class="barcode-graphic"></div>
+                        <span class="badge-footnote">DREAMY VOYAGE AUDIO RESEARCH LAB // VERIFIED PROTOCOL</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Action Buttons -->
+            <div class="modal-actions">
+                <button class="cyber-btn cyber-btn-primary" id="btn-share-badge">
+                    <i class="fa-solid fa-share-nodes"></i> <span>📸 SHARE / SAVE BADGE</span>
+                </button>
+                <button class="cyber-btn cyber-btn-secondary" id="btn-copy-reddit">
+                    <i class="fa-solid fa-copy"></i> <span>📋 COPY REVIEW LOG</span>
+                </button>
+                <button class="cyber-btn cyber-btn-secondary" id="btn-next-track">
+                    <i class="fa-solid fa-forward-step"></i> <span>NEXT PRIME 7 TRACK</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Offscreen Canvas for Rendering PNG Badge Export -->
+    <canvas id="export-canvas" width="1200" height="780" style="display:none;"></canvas>
+
+    <!-- Scripts: Homepage Shared Resources (Song List & Presets) + Butterchurn Engine + Game Logic -->
+    <script src="../lib/butterchurn.min.js"></script>
+    <script src="../presets/preset-names.js"></script>
+    <script src="../presets/presets-data.js"></script>
+    <script src="../song-list.js"></script>
+    <script src="butterchurn_engine.js?v=5"></script>
+    <script src="shader.js?v=5"></script>
+    <script src="app.js?v=5"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "dreamy-blind-test-d1",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker & D1 SQLite backend for Dreamy Voyage blind test game community median score aggregation",
+  "main": "worker.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute dreamy-blind-test-db --remote --file=schema.sql",
+    "db:query": "wrangler d1 execute dreamy-blind-test-db --remote --command=\"SELECT COUNT(*) FROM track_scores\""
+  },
+  "keywords": ["cloudflare", "workers", "d1", "dreamy-voyage"],
+  "author": "Dreamy Voyage",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^4.124.0"
+  }
+}

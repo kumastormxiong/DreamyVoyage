@@ -1,0 +1,9 @@
+name = "dreamy-blind-test-api"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+# Cloudflare D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "dreamy-blind-test-db"
+database_id = "728550e2-3f2f-4c4d-82cb-fd0ef218a8df"

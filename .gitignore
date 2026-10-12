@@ -4,6 +4,7 @@ node_modules/
 *.tmp
 __pycache__/
 *.pyc
+.wrangler/
 
 # 个人创意与记录目录 (禁止上传 GitHub)
 Ideas/
