@@ -1386,6 +1386,11 @@
                     this._spawnQuad(0, ev.pos, 0.03, 0.22, 0.45, this.handColor(h, 0), this._white);
                     break;
                 }
+                case 'stop': {
+                    this._spawnQuad(1, ev.pos, 0.06, 0.18, 0.35, this._white, this.handColor(h, 0));
+                    this.sparks.burst(t, ev.pos, 18, 0.7, 0.5, 0.008, this.handColor(h, 0));
+                    break;
+                }
                 case 'fistEnd': {
                     if (ev.lost || ev.holdTime < 0.25) break;
                     const charge = Math.min(1, ev.holdTime / 1.2);
@@ -1562,7 +1567,7 @@
                 const P = this.persist[h];
 
                 // 捏合聚光
-                const showPinch = hs.valid && hs.pinching && !hs.pinchSummon;
+                const showPinch = hs.valid && hs.pinching;
                 P.pinchOrb.visible = showPinch;
                 if (showPinch) {
                     const hold = Math.min(1, (t - hs.pinchStartTime) / 0.8);
@@ -1591,14 +1596,14 @@
                 }
 
                 // 召唤进度环
-                const showSummon = hs.valid && hs.pinching && hs.pinchSummon && !hs.summonFired;
+                const showSummon = hs.valid && (hs.holdProgress || 0) > 0.02;
                 P.summon.visible = showSummon;
                 if (showSummon) {
-                    P.summon.position.copy(hs.pinchPoint);
+                    P.summon.position.copy(hs.palmCenter).addScaledVector(hs.palmNormal, 0.1);
                     P.summon.scale.set(0.09, 0.09, 0.09);
                     this._orient(P.summon, null);
                     const u = P.summon.material.uniforms;
-                    u.uParam.value = hs.summonProgress;
+                    u.uParam.value = hs.holdProgress;
                     u.uColor.value.copy(this.handColor(h, 0));
                     u.uAlpha.value = 1;
                 }

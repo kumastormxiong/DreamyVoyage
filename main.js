@@ -868,27 +868,22 @@
         titleCard.classList.add('title-animate');
 
         // VR 沉浸模式：在 VR 空间中浮现曲名，约 5 秒后随 shader 溶解消失
-        showTitleInVR(songName, presetName);
+        showTitleInVR(songName);
     }
 
-    // 通知 VR 端显示曲名 (仅 VR 会话中有效)
-    function showTitleInVR(songName, presetName) {
+    // VR 里使用 Butterchurn 官方曲名动画 (launchSongTitleAnim)：文字从大到小飘入，
+    // 结束时被“印”进 preset 的反馈缓冲，随后由 preset 自己的着色器逐渐溶解。官方默认 1.7 秒，这里延长到 5 秒
+    const VR_TITLE_ANIM_SECONDS = 5.0;
+    function showTitleInVR(songName) {
         if (!window.VRManager || !window.VRManager.isActive || !window.VRManager.isActive()) return;
-        if (typeof window.VRManager.showTrackTitle !== 'function') return;
+        if (!visualizer || !songName || typeof visualizer.launchSongTitleAnim !== 'function') return;
         try {
-            window.VRManager.showTrackTitle(
-                songName ? formatTrackTitle(songName, currentLanguage) : '',
-                (presetName || '').replace(/\.json$/i, '')
-            );
+            visualizer.launchSongTitleAnim(formatTrackTitle(songName, currentLanguage));
+            const st = visualizer.renderer && visualizer.renderer.supertext;
+            if (st && st.startTime >= 0) st.duration = VR_TITLE_ANIM_SECONDS;
         } catch (e) {
-            console.warn('[VR] 曲名显示异常:', e);
+            console.warn('[VR] 曲名动画异常:', e);
         }
-    }
-
-    // VR 里用户主动切 preset (捏合上下滑动 / 菜单) 时，加载完成后也显示一次名称；自动轮播不弹
-    let vrUserPresetSwitchUntil = 0;
-    function markVRUserPresetSwitch() {
-        vrUserPresetSwitchUntil = performance.now() + 4000;
     }
 
     function updatePresetTitle(presetName) {
@@ -904,10 +899,6 @@
         }
         if (window.VRManager && window.VRManager.isActive()) {
             window.VRManager.updateHUD();
-            if (performance.now() < vrUserPresetSwitchUntil) {
-                vrUserPresetSwitchUntil = 0;
-                showTitleInVR(currentItem && currentItem.song, presetName);
-            }
         }
     }
 
@@ -2735,11 +2726,9 @@
                     goPrevious();
                 },
                 nextPreset: () => {
-                    markVRUserPresetSwitch();
                     switchNextPreset(true);
                 },
                 prevPreset: () => {
-                    markVRUserPresetSwitch();
                     switchPrevPreset(true);
                 },
                 togglePlaybackMode: () => {

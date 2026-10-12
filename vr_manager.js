@@ -23,6 +23,7 @@
         isSupported: false,
         displayMode: 'panoramic_360', // 'panoramic_360' (360°无缝全景) | 'curved_screen' (IMAX巨幕)
         menuVisible: false, // 默认进入 VR 隐藏菜单，纯净呈现巨幕
+        currentTab: 'play',
         currentView: 'player', // 'player' (主播放控制) | 'tracklist' (选曲列表)
         tracklistPage: 0,
         songsPerPage: 8,
@@ -439,7 +440,6 @@
         buildPerfPanel();
         setupControllers();
         setupHands();
-        buildTrackTitle();
 
         raycaster = new THREE.Raycaster();
 
@@ -1246,7 +1246,7 @@
             ctx.font = '500 14px "Orbitron", sans-serif';
             ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
             ctx.textAlign = 'center';
-            ctx.fillText(isZh ? '💡 指向曲目捏合再松开 (或扣动扳机) 即可切歌 · 掌心朝向自己捏住 0.6 秒收起菜单' : '💡 Point & pinch-release (or Trigger) to play · Palm toward you + hold pinch to hide', w / 2, 665);
+            ctx.fillText(isZh ? '💡 指向曲目捏合再松开 (或扣动扳机) 即可切歌 · 掌心朝上托住 0.7 秒收起菜单' : '💡 Point & pinch-release (or Trigger) to play · Palm up 0.7s to hide', w / 2, 665);
             ctx.restore();
 
         } else {
@@ -1304,268 +1304,293 @@
             ctx.stroke();
             ctx.restore();
 
-            // 第一行控制按钮：切歌、播放控制与选曲列表
-            hudButtons.push(
-                {
-                    id: 'btn-prev-track',
-                    x: 60, y: 185, w: 150, h: 68,
-                    icon: '⏮', labelEn: 'Prev Track', labelZh: '上一曲',
+            // 页签栏：播放 / 画面 / 系统 (常用的在第一页，设置类分开放，每页只有少量大按钮)
+            const TAB_DEFS = [
+                { id: 'play', icon: '🎵', zh: '播放', en: 'Play' },
+                { id: 'visual', icon: '🌐', zh: '画面', en: 'Visual' },
+                { id: 'system', icon: '⚙️', zh: '系统', en: 'System' }
+            ];
+            if (!TAB_DEFS.some(t => t.id === state.currentTab)) state.currentTab = 'play';
+            TAB_DEFS.forEach((tab, i) => {
+                hudButtons.push({
+                    id: 'btn-tab-' + tab.id,
+                    x: 60 + i * 330, y: 176, w: 300, h: 56,
+                    icon: tab.icon, labelEn: tab.en, labelZh: tab.zh,
+                    isTab: true,
+                    isTabActive: state.currentTab === tab.id,
                     onClick: () => {
-                        if (state.bridge && state.bridge.prevTrack) state.bridge.prevTrack();
+                        state.currentTab = tab.id;
                         drawHUD();
                     }
-                },
-                {
-                    id: 'btn-play-pause',
-                    x: 225, y: 185, w: 210, h: 68,
-                    isPrimary: true,
-                    icon: '⏯', labelEn: 'Play / Pause', labelZh: '播放 / 暂停',
-                    onClick: () => {
-                        if (state.bridge && state.bridge.togglePlayPause) state.bridge.togglePlayPause();
-                        drawHUD();
-                    }
-                },
-                {
-                    id: 'btn-next-track',
-                    x: 450, y: 185, w: 150, h: 68,
-                    icon: '⏭', labelEn: 'Next Track', labelZh: '下一曲',
-                    onClick: () => {
-                        if (state.bridge && state.bridge.nextTrack) state.bridge.nextTrack();
-                        drawHUD();
-                    }
-                },
-                {
-                    id: 'btn-open-tracklist',
-                    x: 615, y: 185, w: 405, h: 68,
-                    icon: '📜', labelEn: 'Pick Song (77 Tracks)', labelZh: '选曲点播 (77首曲目)',
-                    isSpecial: true,
-                    onClick: () => {
-                        state.currentView = 'tracklist';
-                        drawHUD();
-                    }
-                }
-            );
+                });
+            });
 
-            // 第二行控制按钮：切换预设、预设随机模式、画质分档切换
-            hudButtons.push(
-                {
-                    id: 'btn-prev-preset',
-                    x: 60, y: 265, w: 150, h: 68,
-                    icon: '◀', labelEn: 'Prev FX', labelZh: '上一特效',
-                    onClick: () => {
-                        if (state.bridge && state.bridge.prevPreset) state.bridge.prevPreset();
-                        drawHUD();
-                    }
-                },
-                {
-                    id: 'btn-next-preset',
-                    x: 225, y: 265, w: 210, h: 68,
-                    icon: '🪄', labelEn: 'Next FX', labelZh: '切换特效',
-                    onClick: () => {
-                        if (state.bridge && state.bridge.nextPreset) state.bridge.nextPreset();
-                        drawHUD();
-                    }
-                },
-                {
-                    id: 'btn-toggle-preset-mode',
-                    x: 450, y: 265, w: 270, h: 68,
-                    icon: '🎨',
-                    labelEn: isPresetShuffle ? 'FX: Shuffle' : 'FX: Sequential',
-                    labelZh: isPresetShuffle ? '特效: 随机循环' : '特效: 顺序播放',
-                    onClick: () => {
-                        if (state.bridge && state.bridge.togglePresetPlaybackMode) {
-                            state.bridge.togglePresetPlaybackMode();
+            // 内容区：每行最多 3 个按钮，按钮高 84 (约 11cm)，行距 18
+            const R1 = 252, R2 = 354, R3 = 456, R4 = 558, BH = 84;
+            const XL = 60, XR = 549, HW = 471;
+
+            if (state.currentTab === 'play') {
+                hudButtons.push(
+                    {
+                        id: 'btn-prev-track',
+                        x: 60, y: R1, w: 240, h: BH,
+                        icon: '⏮', labelEn: 'Prev Track', labelZh: '上一曲',
+                        onClick: () => {
+                            if (state.bridge && state.bridge.prevTrack) state.bridge.prevTrack();
+                            drawHUD();
                         }
-                        drawHUD();
-                    }
-                },
-                {
-                    id: 'btn-cycle-quality',
-                    x: 735, y: 265, w: 285, h: 68,
-                    icon: '💎',
-                    labelEn: `Quality: ${qualityLabel}`,
-                    labelZh: `画质: ${qualityLabel} (可调)`,
-                    isQuality: true,
-                    onClick: () => {
-                        if (state.bridge && state.bridge.cycleQualityTier) {
-                            state.bridge.cycleQualityTier();
+                    },
+                    {
+                        id: 'btn-play-pause',
+                        x: 318, y: R1, w: 444, h: BH,
+                        isPrimary: true,
+                        icon: '⏯', labelEn: 'Play / Pause', labelZh: '播放 / 暂停',
+                        onClick: () => {
+                            if (state.bridge && state.bridge.togglePlayPause) state.bridge.togglePlayPause();
+                            drawHUD();
                         }
-                        drawHUD();
-                    }
-                }
-            );
-
-            // 第三行控制按钮：歌曲随机模式、巨幕/全景视角、3D立体/2D标准、视角居中
-            hudButtons.push(
-                {
-                    id: 'btn-toggle-song-mode',
-                    x: 60, y: 345, w: 220, h: 68,
-                    icon: isSongShuffle ? '🔀' : '🔁',
-                    labelEn: isSongShuffle ? 'Songs: Shuffle' : 'Songs: Order',
-                    labelZh: isSongShuffle ? '歌曲: 随机' : '歌曲: 顺序',
-                    onClick: () => {
-                        if (state.bridge && state.bridge.togglePlaybackMode) {
-                            state.bridge.togglePlaybackMode();
+                    },
+                    {
+                        id: 'btn-next-track',
+                        x: 780, y: R1, w: 240, h: BH,
+                        icon: '⏭', labelEn: 'Next Track', labelZh: '下一曲',
+                        onClick: () => {
+                            if (state.bridge && state.bridge.nextTrack) state.bridge.nextTrack();
+                            drawHUD();
                         }
-                        drawHUD();
+                    },
+                    {
+                        id: 'btn-prev-preset',
+                        x: 60, y: R2, w: 300, h: BH,
+                        icon: '◀', labelEn: 'Prev FX', labelZh: '上一特效',
+                        onClick: () => {
+                            if (state.bridge && state.bridge.prevPreset) state.bridge.prevPreset();
+                            drawHUD();
+                        }
+                    },
+                    {
+                        id: 'btn-next-preset',
+                        x: 378, y: R2, w: 300, h: BH,
+                        icon: '🪄', labelEn: 'Next FX', labelZh: '下一特效',
+                        onClick: () => {
+                            if (state.bridge && state.bridge.nextPreset) state.bridge.nextPreset();
+                            drawHUD();
+                        }
+                    },
+                    {
+                        id: 'btn-toggle-preset-mode',
+                        x: 696, y: R2, w: 324, h: BH,
+                        icon: '🎨',
+                        labelEn: isPresetShuffle ? 'FX: Shuffle' : 'FX: Sequential',
+                        labelZh: isPresetShuffle ? '特效: 随机循环' : '特效: 顺序播放',
+                        onClick: () => {
+                            if (state.bridge && state.bridge.togglePresetPlaybackMode) {
+                                state.bridge.togglePresetPlaybackMode();
+                            }
+                            drawHUD();
+                        }
+                    },
+                    {
+                        id: 'btn-open-tracklist',
+                        x: 60, y: R3, w: 960, h: BH,
+                        icon: '📜', labelEn: 'Pick Song (77 Tracks)', labelZh: '选曲点播 (77首曲目)',
+                        isSpecial: true,
+                        onClick: () => {
+                            state.currentView = 'tracklist';
+                            drawHUD();
+                        }
+                    },
+                    {
+                        id: 'btn-toggle-song-mode',
+                        x: XL, y: R4, w: HW, h: BH,
+                        icon: isSongShuffle ? '🔀' : '🔁',
+                        labelEn: isSongShuffle ? 'Songs: Shuffle' : 'Songs: Order',
+                        labelZh: isSongShuffle ? '歌曲: 随机' : '歌曲: 顺序',
+                        onClick: () => {
+                            if (state.bridge && state.bridge.togglePlaybackMode) {
+                                state.bridge.togglePlaybackMode();
+                            }
+                            drawHUD();
+                        }
+                    },
+                    {
+                        id: 'btn-hide-hud',
+                        x: XR, y: R4, w: HW, h: BH,
+                        isOutline: true,
+                        icon: '✕', labelEn: 'Hide Menu', labelZh: '隐藏菜单 (纯享)',
+                        onClick: () => {
+                            hideMenu();
+                        }
                     }
-                },
-                {
-                    id: 'btn-toggle-display-mode',
-                    x: 290, y: 345, w: 235, h: 68,
-                    icon: '🌐',
-                    labelEn: state.displayMode === 'curved_screen' ? 'View: IMAX' : 'View: 360°',
-                    labelZh: state.displayMode === 'curved_screen' ? '视角: IMAX巨幕' : '视角: 360°全景',
-                    onClick: () => {
-                        toggleDisplayMode();
-                        drawHUD();
+                );
+            } else if (state.currentTab === 'visual') {
+                const projObj = PROJECTIONS.find(p => p.id === currentProjection) || PROJECTIONS[0];
+                const fovObj = FOVEATION_LEVELS.reduce((a, b) => (Math.abs(b.value - foveationLevel) < Math.abs(a.value - foveationLevel) ? b : a));
+                // 画质：下一档是 1800P / 4K 时，手势需要长按确认 (Quest 2 上这两档很容易把 GPU 压垮)
+                const qTier = (state.bridge && state.bridge.getQualityTier) ? state.bridge.getQualityTier() : 0;
+                const qNext = qTier + 1 > 7 ? 2 : qTier + 1;
+                hudButtons.push(
+                    {
+                        id: 'btn-toggle-display-mode',
+                        x: XL, y: R1, w: HW, h: BH,
+                        icon: '🌐',
+                        labelEn: state.displayMode === 'curved_screen' ? 'View: IMAX' : 'View: 360°',
+                        labelZh: state.displayMode === 'curved_screen' ? '视角: IMAX巨幕' : '视角: 360°全景',
+                        onClick: () => {
+                            toggleDisplayMode();
+                            drawHUD();
+                        }
+                    },
+                    {
+                        id: 'btn-cycle-projection',
+                        x: XR, y: R1, w: HW, h: BH,
+                        icon: projObj.icon,
+                        labelEn: `Projection: ${projObj.nameEn}`,
+                        labelZh: `全景投影: ${projObj.nameZh}`,
+                        accent: '#38bdf8',
+                        onClick: () => {
+                            cycleProjection();
+                        }
+                    },
+                    {
+                        id: 'btn-toggle-vr-stereo',
+                        x: XL, y: R2, w: HW, h: BH,
+                        icon: '🧊',
+                        labelEn: vrStereoEnabled ? '3D: Depth Active' : '3D: 2D Flat',
+                        labelZh: vrStereoEnabled ? '3D立体: 已开启' : '3D立体: 2D平面',
+                        isVRStereo: true,
+                        onClick: () => {
+                            toggleVRStereo();
+                        }
+                    },
+                    {
+                        id: 'btn-cycle-quality',
+                        x: XR, y: R2, w: HW, h: BH,
+                        icon: '💎',
+                        labelEn: `Quality: ${qualityLabel}${qNext >= 6 ? ' (hold to raise)' : ''}`,
+                        labelZh: `画质: ${qualityLabel}${qNext >= 6 ? ' (升档需长按)' : ''}`,
+                        isQuality: true,
+                        confirmHold: qNext >= 6,
+                        onClick: () => {
+                            if (state.bridge && state.bridge.cycleQualityTier) {
+                                state.bridge.cycleQualityTier();
+                            }
+                            drawHUD();
+                        }
+                    },
+                    {
+                        id: 'btn-cycle-pano-radius',
+                        x: XL, y: R3, w: HW, h: BH,
+                        icon: '🌐',
+                        labelEn: `Dome Radius: ${panoRadius} m`,
+                        labelZh: `球幕半径: ${panoRadius} 米`,
+                        accent: '#c084fc',
+                        onClick: () => {
+                            cyclePanoRadius();
+                        }
+                    },
+                    {
+                        id: 'btn-cycle-foveation',
+                        x: XR, y: R3, w: HW, h: BH,
+                        icon: '👁',
+                        labelEn: `Foveation: ${fovObj.labelEn}`,
+                        labelZh: `注视点渲染: ${fovObj.labelZh}`,
+                        accent: '#fbbf24',
+                        onClick: () => {
+                            cycleFoveation();
+                        }
+                    },
+                    {
+                        id: 'btn-recenter',
+                        x: XL, y: R4, w: 960, h: BH,
+                        icon: '🎯', labelEn: 'Recenter', labelZh: '正前居中',
+                        onClick: () => {
+                            recenterView();
+                        }
                     }
-                },
-                {
-                    id: 'btn-toggle-vr-stereo',
-                    x: 535, y: 345, w: 255, h: 68,
-                    icon: '🧊',
-                    labelEn: vrStereoEnabled ? '3D: Depth Active' : '3D: 2D Flat',
-                    labelZh: vrStereoEnabled ? '3D立体: 已开启' : '3D立体: 2D平面',
-                    isVRStereo: true,
-                    onClick: () => {
-                        toggleVRStereo();
+                );
+            } else {
+                const currentTypeObj = PLATFORM_TYPES.find(t => t.id === platformState.type) || PLATFORM_TYPES[0];
+                const currentOpacityObj = PLATFORM_OPACITIES.find(o => Math.abs(o.value - platformState.opacity) < 0.05) || PLATFORM_OPACITIES[1];
+                const currentSizeObj = PLATFORM_SIZES.find(s => Math.abs(s.value - platformState.size) < 0.05) || PLATFORM_SIZES[1];
+                const currentHandFxObj = HAND_FX_MODES.find(m => m.id === currentHandFx) || HAND_FX_MODES[0];
+                hudButtons.push(
+                    {
+                        id: 'btn-cycle-platform-type',
+                        x: 60, y: R1, w: 308, h: BH,
+                        icon: '🛡️',
+                        labelEn: `Platform: ${currentTypeObj.nameEn}`,
+                        labelZh: `地台: ${currentTypeObj.nameZh}`,
+                        isPlatformType: true,
+                        onClick: () => {
+                            cyclePlatformType();
+                        }
+                    },
+                    {
+                        id: 'btn-cycle-platform-opacity',
+                        x: 386, y: R1, w: 308, h: BH,
+                        icon: '🔆',
+                        labelEn: `Opacity: ${currentOpacityObj.labelEn}`,
+                        labelZh: `透明度: ${currentOpacityObj.labelZh}`,
+                        isPlatformOpacity: true,
+                        onClick: () => {
+                            cyclePlatformOpacity();
+                        }
+                    },
+                    {
+                        id: 'btn-cycle-platform-size',
+                        x: 712, y: R1, w: 308, h: BH,
+                        icon: '📏',
+                        labelEn: `Size: ${currentSizeObj.labelEn}`,
+                        labelZh: `尺寸: ${currentSizeObj.labelZh}`,
+                        isPlatformSize: true,
+                        onClick: () => {
+                            cyclePlatformSize();
+                        }
+                    },
+                    {
+                        id: 'btn-cycle-hand-fx',
+                        x: XL, y: R2, w: HW, h: BH,
+                        icon: currentHandFxObj.icon,
+                        labelEn: `Hand FX: ${currentHandFxObj.nameEn}`,
+                        labelZh: `裸手光效: ${currentHandFxObj.nameZh}`,
+                        isHandFx: true,
+                        onClick: () => {
+                            cycleHandFx();
+                        }
+                    },
+                    {
+                        id: 'btn-toggle-perf',
+                        x: XR, y: R2, w: HW, h: BH,
+                        icon: '📊',
+                        labelEn: perfVisible ? 'Perf Panel: On' : 'Perf Panel: Off',
+                        labelZh: perfVisible ? '性能面板: 开' : '性能面板: 关',
+                        accent: '#a3e635',
+                        onClick: () => {
+                            togglePerfPanel();
+                        }
+                    },
+                    {
+                        id: 'btn-hide-hud',
+                        x: XL, y: R3, w: HW, h: BH,
+                        isOutline: true,
+                        icon: '✕', labelEn: 'Hide Menu', labelZh: '隐藏菜单 (纯享)',
+                        onClick: () => {
+                            hideMenu();
+                        }
+                    },
+                    {
+                        id: 'btn-exit-vr',
+                        x: XR, y: R3, w: HW, h: BH,
+                        isDanger: true,
+                        confirmHold: true,
+                        icon: '🚪', labelEn: 'Exit VR (hold)', labelZh: '退出 VR (手势需长按)',
+                        onClick: () => {
+                            exitVR();
+                        }
                     }
-                },
-                {
-                    id: 'btn-recenter',
-                    x: 800, y: 345, w: 220, h: 68,
-                    icon: '🎯', labelEn: 'Recenter', labelZh: '正前居中',
-                    onClick: () => {
-                        recenterView();
-                    }
-                }
-            );
-
-            // 第四行控制按钮：防眩晕地面平台样式、透明度与尺寸调节
-            const currentTypeObj = PLATFORM_TYPES.find(t => t.id === platformState.type) || PLATFORM_TYPES[0];
-            const currentOpacityObj = PLATFORM_OPACITIES.find(o => Math.abs(o.value - platformState.opacity) < 0.05) || PLATFORM_OPACITIES[1];
-            const currentSizeObj = PLATFORM_SIZES.find(s => Math.abs(s.value - platformState.size) < 0.05) || PLATFORM_SIZES[1];
-
-            hudButtons.push(
-                {
-                    id: 'btn-cycle-platform-type',
-                    x: 60, y: 425, w: 310, h: 68,
-                    icon: '🛡️',
-                    labelEn: `Platform: ${currentTypeObj.nameEn}`,
-                    labelZh: `地台: ${currentTypeObj.nameZh}`,
-                    isPlatformType: true,
-                    onClick: () => {
-                        cyclePlatformType();
-                    }
-                },
-                {
-                    id: 'btn-cycle-platform-opacity',
-                    x: 385, y: 425, w: 310, h: 68,
-                    icon: '🔆',
-                    labelEn: `Opacity: ${currentOpacityObj.labelEn}`,
-                    labelZh: `透明度: ${currentOpacityObj.labelZh}`,
-                    isPlatformOpacity: true,
-                    onClick: () => {
-                        cyclePlatformOpacity();
-                    }
-                },
-                {
-                    id: 'btn-cycle-platform-size',
-                    x: 710, y: 425, w: 310, h: 68,
-                    icon: '📏',
-                    labelEn: `Size: ${currentSizeObj.labelEn}`,
-                    labelZh: `尺寸: ${currentSizeObj.labelZh}`,
-                    isPlatformSize: true,
-                    onClick: () => {
-                        cyclePlatformSize();
-                    }
-                }
-            );
-
-            // 第五行控制按钮：退出 VR、裸手5大光效切换 与 隐藏菜单
-            const currentHandFxObj = HAND_FX_MODES.find(m => m.id === currentHandFx) || HAND_FX_MODES[0];
-            hudButtons.push(
-                {
-                    id: 'btn-exit-vr',
-                    x: 60, y: 505, w: 270, h: 68,
-                    isDanger: true,
-                    icon: '🚪', labelEn: 'Exit VR', labelZh: '退出 VR',
-                    onClick: () => {
-                        exitVR();
-                    }
-                },
-                {
-                    id: 'btn-cycle-hand-fx',
-                    x: 345, y: 505, w: 375, h: 68,
-                    icon: currentHandFxObj.icon,
-                    labelEn: `Hand FX: ${currentHandFxObj.nameEn}`,
-                    labelZh: `裸手光效: ${currentHandFxObj.nameZh}`,
-                    isHandFx: true,
-                    onClick: () => {
-                        cycleHandFx();
-                    }
-                },
-                {
-                    id: 'btn-hide-hud',
-                    x: 735, y: 505, w: 285, h: 68,
-                    isOutline: true,
-                    icon: '✕', labelEn: 'Hide Menu', labelZh: '隐藏菜单 (纯享)',
-                    onClick: () => {
-                        hideMenu();
-                    }
-                }
-            );
-
-            // 第六行：全景投影 / 性能面板 / 注视点渲染
-            const projObj = PROJECTIONS.find(p => p.id === currentProjection) || PROJECTIONS[0];
-            const fovObj = FOVEATION_LEVELS.reduce((a, b) => (Math.abs(b.value - foveationLevel) < Math.abs(a.value - foveationLevel) ? b : a));
-            hudButtons.push(
-                {
-                    id: 'btn-cycle-projection',
-                    x: 60, y: 585, w: 310, h: 60,
-                    icon: projObj.icon,
-                    labelEn: `Projection: ${projObj.nameEn}`,
-                    labelZh: `全景投影: ${projObj.nameZh}`,
-                    accent: '#38bdf8',
-                    onClick: () => {
-                        cycleProjection();
-                    }
-                },
-                {
-                    id: 'btn-toggle-perf',
-                    x: 385, y: 585, w: 310, h: 60,
-                    icon: '📊',
-                    labelEn: perfVisible ? 'Perf Panel: On' : 'Perf Panel: Off',
-                    labelZh: perfVisible ? '性能面板: 开' : '性能面板: 关',
-                    accent: '#a3e635',
-                    onClick: () => {
-                        togglePerfPanel();
-                    }
-                },
-                {
-                    id: 'btn-cycle-foveation',
-                    x: 710, y: 585, w: 310, h: 60,
-                    icon: '👁',
-                    labelEn: `Foveation: ${fovObj.labelEn}`,
-                    labelZh: `注视点渲染: ${fovObj.labelZh}`,
-                    accent: '#fbbf24',
-                    onClick: () => {
-                        cycleFoveation();
-                    }
-                },
-                {
-                    id: 'btn-cycle-pano-radius',
-                    x: 60, y: 652, w: 960, h: 50,
-                    icon: '🌐',
-                    labelEn: `Dome Radius: ${panoRadius} m`,
-                    labelZh: `球幕半径: ${panoRadius} 米 (点击切换 8/12/22/40/80)`,
-                    accent: '#c084fc',
-                    onClick: () => {
-                        cyclePanoRadius();
-                    }
-                }
-            );
+                );
+            }
 
             // 底部操作提示
             ctx.save();
@@ -1573,9 +1598,9 @@
             ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
             ctx.textAlign = 'center';
             const hintText = isZh
-                ? '✋ 掌心朝向自己捏住 0.6 秒 唤出/收起菜单 · 指向按钮捏合再松开 = 点击 · 手柄: 扳机点击 / A·X 开关菜单'
-                : '✋ Palm toward you + hold pinch 0.6s: menu · Point & pinch-release: click · Controller: Trigger / A·X';
-            ctx.fillText(hintText, w / 2, 716);
+                ? '🖐 掌心朝上托住 0.7 秒: 菜单 · ✋ 掌心朝前停住 0.8 秒: 播放/暂停 · 捏住滑动: 左右切歌 上下切特效 · 指向+捏合松开 = 点击'
+                : '🖐 Palm up 0.7s: menu · ✋ Palm out 0.8s: play/pause · Pinch & swipe: L/R track, U/D FX · Point + pinch-release: click';
+            ctx.fillText(hintText, w / 2, 708);
             ctx.restore();
         }
 
@@ -1593,6 +1618,12 @@
                 ctx.fill();
                 ctx.lineWidth = 1;
                 ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.stroke();
+            } else if (btn.isTab && state.pressedButtonId !== btn.id) {
+                ctx.fillStyle = btn.isTabActive ? 'rgba(56, 189, 248, 0.34)' : 'rgba(255, 255, 255, 0.05)';
+                ctx.fill();
+                ctx.lineWidth = btn.isTabActive ? 3 : 1.4;
+                ctx.strokeStyle = btn.isTabActive ? '#38bdf8' : (isHover ? '#ffffff' : 'rgba(255, 255, 255, 0.28)');
                 ctx.stroke();
             } else if (state.pressedButtonId === btn.id) {
                 // 裸手捏住中 (松开即点击)
@@ -1920,9 +1951,26 @@
     }
 
     // 把 Three 的手部关节按左右手整理成手势引擎的输入
+    // 手“幽灵”防护：拿起手柄后系统会移除手部输入源，但 Three 的关节对象仍保留最后一帧的姿态 (visible 仍为 true)，
+    // 不处理的话手势引擎会一直把它当成真手，悬在空中。这里同时做两道检查：
+    //  1) 当前 XR 输入源里必须真有对应左右手的 hand；
+    //  2) 手腕 / 食指尖位置超过 0.6 秒纹丝不动 (真实追踪总有微小抖动) 视为过期数据。
+    const handStale = [{ sig: -1, since: 0 }, { sig: -1, since: 0 }];
     function gatherHandInputs() {
         handInputs[0].joints = null;
         handInputs[1].joints = null;
+        let live = null;
+        if (xrSession && xrSession.inputSources) {
+            live = { left: false, right: false };
+            const srcs = xrSession.inputSources;
+            for (let k = 0; k < srcs.length; k++) {
+                const src = srcs[k];
+                if (!src || !src.hand) continue;
+                if (src.handedness === 'left') live.left = true;
+                else if (src.handedness === 'right') live.right = true;
+            }
+        }
+        const now = performance.now();
         for (let i = 0; i < hands.length; i++) {
             const hand = hands[i];
             if (!hand || !hand.joints) continue;
@@ -1930,6 +1978,13 @@
             if (!wrist || !wrist.visible) continue;
             const hd = hand.userData.handedness;
             const idx = hd === 'left' ? 0 : (hd === 'right' ? 1 : i);
+            if (live && !(idx === 0 ? live.left : live.right)) continue;
+            const tip = hand.joints['index-finger-tip'];
+            const sig = wrist.position.x + wrist.position.y * 3.1 + wrist.position.z * 7.3 +
+                (tip ? tip.position.x * 11.7 + tip.position.y * 13.9 + tip.position.z * 17.3 : 0);
+            const st = handStale[idx];
+            if (sig !== st.sig) { st.sig = sig; st.since = now; }
+            else if (now - st.since > 600) continue;
             handInputs[idx].joints = hand.joints;
         }
     }
@@ -1972,20 +2027,20 @@
     function onGestureEvent(ev, t) {
         switch (ev.type) {
             case 'summon': {
-                // 掌心朝向自己捏住 0.6 秒：唤出 / 收起菜单
+                // 掌心朝上托住 0.7 秒：唤出 / 收起菜单
                 if (state.menuVisible) hideMenu();
                 else showMenu();
                 break;
             }
             case 'pinchStart': {
-                if (ev.summonCandidate || !state.menuVisible) break;
+                if (!state.menuVisible) break;
                 const hs = handTracker.hands[ev.hand];
                 if (!hs.aimValid || hs.palmFacing >= 0.35) break;
                 // 用约 90ms 前的射线方向判定按下目标 (捏合时手会带动射线)
                 const hit = hitTestHUD(hs.aimOrigin, ev.aimDir || hs.aimDir, state.hoveredButtonId);
                 if (hit && hit.btnId) {
                     const btn = hudButtons.find(b => b.id === hit.btnId);
-                    if (btn && !btn.disabled) {
+                    if (btn && !btn.disabled && dwellOk(ev.hand, hit.btnId, t)) {
                         handPress[ev.hand] = { btnId: hit.btnId, t0: t };
                         refreshPressedState();
                     }
@@ -1994,6 +2049,15 @@
             }
             case 'swipe': {
                 handleSwipe(ev);
+                break;
+            }
+            case 'stop': {
+                // 菜单隐藏时：掌心朝前停住 = 播放 / 暂停
+                if (state.menuVisible) break;
+                const b = state.bridge;
+                try { if (b && b.togglePlayPause) b.togglePlayPause(); } catch (err) { reportFrameError('stop', err); }
+                pulseControllerHaptic(0, 0.3, 50);
+                pulseControllerHaptic(1, 0.3, 50);
                 break;
             }
             case 'pinchEnd': {
@@ -2008,7 +2072,7 @@
                         still = !!(hit && hit.btnId === p.btnId);
                     }
                     // 在同一按钮上松开 (或快速点按) 才算点击
-                    if (still || (t - p.t0) < 0.45) {
+                    if (isClickValid(p, still, t)) {
                         const btn = hudButtons.find(b => b.id === p.btnId);
                         if (btn && !btn.disabled && typeof btn.onClick === 'function') {
                             btn.onClick();
@@ -2066,7 +2130,6 @@
     function startPrewarm() {
         prewarmQueue = [];
         if (handFx && handFx.root) handFx.root.children.forEach(c => prewarmQueue.push(c));
-        if (titleMesh) prewarmQueue.push(titleMesh);
     }
     function stepPrewarm() {
         if (!prewarmQueue.length || !renderer || !camera) return;
@@ -2079,14 +2142,46 @@
     }
 
     // ==========================================
-    // 捏住滑动：右 / 左 = 下一首 / 上一首，上 / 下 = 下一个 / 上一个 preset
+    // 手势菜单交互规则
+    //  - 悬停停留 >= 0.15 秒才允许按下 (划过按钮不会误触)
+    //  - 危险项 (confirmHold) 手势需要按住 >= 0.8 秒再松开才执行，准星会由黄变绿提示
+    //  - 菜单面板上做滑动 = 取消这次按下，且不触发切歌
     // ==========================================
+    const HOVER_DWELL_SEC = 0.15;
+    const CONFIRM_HOLD_SEC = 0.8;
+    const handHover = [{ btn: null, since: 0 }, { btn: null, since: 0 }];
+
+    function noteHover(h, btnId, t) {
+        const st = handHover[h];
+        if (st.btn !== btnId) {
+            st.btn = btnId;
+            st.since = t;
+        }
+    }
+
+    function dwellOk(h, btnId, t) {
+        const st = handHover[h];
+        return st.btn === btnId && (t - st.since) >= HOVER_DWELL_SEC;
+    }
+
+    function isClickValid(press, stillOnButton, t) {
+        const btn = hudButtons.find(b => b.id === press.btnId);
+        const held = t - press.t0;
+        if (btn && btn.confirmHold) return stillOnButton && held >= CONFIRM_HOLD_SEC;
+        return stillOnButton || held < 0.45;
+    }
+
     function handleSwipe(ev) {
         const b = state.bridge;
         if (!b) return;
         // 滑动接管了这次捏合，不能再把它当成按钮点击
         if (ev.hand >= 0) handPress[ev.hand] = null;
         refreshPressedState();
+        // 菜单打开且射线正指在菜单面板上：这是在“操作菜单”，不是切歌
+        if (state.menuVisible && ev.hand >= 0 && handTracker) {
+            const hs = handTracker.hands[ev.hand];
+            if (hs && hs.aimValid && hitTestHUD(hs.aimOrigin, hs.aimDir, null)) return;
+        }
         try {
             if (ev.dir === 'right') { if (b.nextTrack) b.nextTrack(); }
             else if (ev.dir === 'left') { if (b.prevTrack) b.prevTrack(); }
@@ -2099,243 +2194,6 @@
         pulseControllerHaptic(1, 0.2, 30);
     }
 
-    // ==========================================
-    // 曲名显示：切歌时在 VR 空间浮现曲名，保持到第 5 秒，然后随噪声着色器逐渐溶解消失
-    // ==========================================
-    const TITLE_FORM_SEC = 1.0;      // 由噪点溶解“显形”的时长
-    const TITLE_HOLD_UNTIL_SEC = 5.0; // 从出现起完整显示到第几秒
-    const TITLE_DISSOLVE_SEC = 3.0;  // 之后逐渐溶解消失的时长
-    const TITLE_DISTANCE = 3.2;
-    const TITLE_FONT = '"Orbitron", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif';
-    let titleMesh = null;
-    let titleCanvas = null;
-    let titleCtx = null;
-    let titleTexture = null;
-    let titleUniforms = null;
-    const titleAnim = { active: false, pending: false, t0: 0, text: '', sub: '', lastCallMs: -10000 };
-
-    const TITLE_VS = `
-        varying vec2 vUv;
-        void main() {
-            vUv = uv;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-    `;
-    const TITLE_FS = `
-        uniform sampler2D uTex;
-        uniform float uDissolve; // 0 = 完整显示, 1 = 完全消失
-        uniform float uTime;
-        uniform float uBass;
-        varying vec2 vUv;
-        float dvHash(vec2 p) {
-            p = fract(p * vec2(123.34, 456.21));
-            p += dot(p, p + 45.32);
-            return fract(p.x * p.y);
-        }
-        float dvNoise(vec2 p) {
-            vec2 i = floor(p);
-            vec2 f = fract(p);
-            f = f * f * (3.0 - 2.0 * f);
-            float a = dvHash(i);
-            float b = dvHash(i + vec2(1.0, 0.0));
-            float c = dvHash(i + vec2(0.0, 1.0));
-            float d = dvHash(i + vec2(1.0, 1.0));
-            return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-        }
-        float dvFbm(vec2 p) {
-            float v = 0.0;
-            float a = 0.5;
-            for (int i = 0; i < 4; i++) {
-                v += a * dvNoise(p);
-                p *= 2.03;
-                a *= 0.5;
-            }
-            return v;
-        }
-        void main() {
-            float d = uDissolve;
-            float n = dvFbm(vUv * vec2(16.0, 4.5) + vec2(0.0, uTime * 0.12));
-            // 溶解时文字像灰烬一样缓缓向上飘散
-            vec2 uv = vUv;
-            uv.y -= d * d * 0.09 * (0.4 + n);
-            uv.x += (n - 0.5) * d * 0.035;
-            vec4 t = texture2D(uTex, uv);
-            // 阈值扫过噪声场：噪声值低于阈值的像素被“烧掉”
-            float thr = d * 1.25 - 0.12;
-            float keep = smoothstep(thr, thr + 0.03, n);
-            float band = (1.0 - smoothstep(0.0, 0.11, n - thr)) * step(thr, n);
-            vec3 hot = mix(vec3(0.45, 0.9, 1.0), vec3(1.0, 0.5, 0.9), vUv.x);
-            vec3 col = t.rgb + hot * band * t.a * 2.0;
-            col *= 1.0 + uBass * 0.25;
-            float a = t.a * keep;
-            gl_FragColor = vec4(col, a);
-        }
-    `;
-
-    function buildTrackTitle() {
-        titleCanvas = document.createElement('canvas');
-        titleCanvas.width = 2048;
-        titleCanvas.height = 512;
-        titleCtx = titleCanvas.getContext('2d');
-        titleTexture = new THREE.CanvasTexture(titleCanvas);
-        titleTexture.minFilter = THREE.LinearFilter;
-        titleTexture.magFilter = THREE.LinearFilter;
-        titleTexture.generateMipmaps = false;
-        titleUniforms = {
-            uTex: { value: titleTexture },
-            uDissolve: { value: 1 },
-            uTime: { value: 0 },
-            uBass: { value: 0 }
-        };
-        const mat = new THREE.ShaderMaterial({
-            uniforms: titleUniforms,
-            vertexShader: TITLE_VS,
-            fragmentShader: TITLE_FS,
-            transparent: true,
-            depthTest: false,
-            depthWrite: false
-        });
-        titleMesh = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), mat);
-        titleMesh.renderOrder = -1; // 在 HUD 菜单与手部特效之下
-        titleMesh.frustumCulled = false;
-        titleMesh.visible = false;
-        scene.add(titleMesh);
-    }
-
-    function fitFont(ctx, text, weight, startSize, minSize, maxW) {
-        let size = startSize;
-        ctx.font = `${weight} ${size}px ${TITLE_FONT}`;
-        const w = ctx.measureText(text).width;
-        if (w > maxW) {
-            size = Math.max(minSize, Math.floor(size * maxW / w));
-            ctx.font = `${weight} ${size}px ${TITLE_FONT}`;
-        }
-        return size;
-    }
-
-    function drawTrackTitleTexture(title, sub) {
-        const ctx = titleCtx;
-        const w = titleCanvas.width, h = titleCanvas.height;
-        ctx.clearRect(0, 0, w, h);
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const maxW = w * 0.9;
-        const yTitle = sub ? h * 0.42 : h * 0.5;
-        const ySub = h * 0.76;
-
-        // 先画一层深色柔影，保证亮背景上也读得清
-        ctx.save();
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-        ctx.shadowBlur = 56;
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-        fitFont(ctx, title, 800, 150, 56, maxW);
-        ctx.fillText(title, w / 2, yTitle);
-        if (sub) {
-            fitFont(ctx, sub, 600, 54, 30, maxW);
-            ctx.fillText(sub, w / 2, ySub);
-        }
-        ctx.restore();
-
-        // 曲名：白色渐变 + 青色辉光
-        ctx.save();
-        const size = fitFont(ctx, title, 800, 150, 56, maxW);
-        const g = ctx.createLinearGradient(0, yTitle - size / 2, 0, yTitle + size / 2);
-        g.addColorStop(0, '#ffffff');
-        g.addColorStop(1, '#bfe9ff');
-        ctx.shadowColor = 'rgba(110, 200, 255, 0.95)';
-        ctx.shadowBlur = 34;
-        ctx.fillStyle = g;
-        ctx.fillText(title, w / 2, yTitle);
-        ctx.shadowBlur = 0;
-        ctx.lineWidth = 2.5;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.strokeText(title, w / 2, yTitle);
-        ctx.restore();
-
-        // 预设名：小一号的青色
-        if (sub) {
-            ctx.save();
-            fitFont(ctx, sub, 600, 54, 30, maxW);
-            ctx.shadowColor = 'rgba(80, 200, 255, 0.9)';
-            ctx.shadowBlur = 22;
-            ctx.fillStyle = '#a5f3fc';
-            ctx.fillText(sub, w / 2, ySub);
-            ctx.restore();
-        }
-        titleTexture.needsUpdate = true;
-    }
-
-    // 由 main.js 在切歌 (或用户主动切 preset) 时调用
-    function showTrackTitle(title, preset) {
-        if (!state.isVRActive || !titleMesh) return;
-        title = String(title || '');
-        preset = String(preset || '');
-        if (!title && !preset) return;
-        const nowMs = performance.now();
-        const recent = nowMs - titleAnim.lastCallMs < 1500;
-        titleAnim.lastCallMs = nowMs;
-        // 切歌流程会连续触发两次 (先曲名卡片，再预设加载完成)：文字相同就不重复触发
-        if (titleAnim.active && title === titleAnim.text && preset === titleAnim.sub) return;
-        titleAnim.text = title;
-        titleAnim.sub = preset;
-        try {
-            drawTrackTitleTexture(title, preset);
-        } catch (e) {
-            reportFrameError('title', e);
-            return;
-        }
-        // 1.5 秒内的第二次调用只更新文字，不重启动画
-        if (recent && (titleAnim.active || titleAnim.pending)) return;
-        titleAnim.pending = true;
-    }
-
-    const _titleFwd = new THREE.Vector3();
-    function placeTrackTitle() {
-        const f = _titleFwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
-        f.y = 0;
-        if (f.lengthSq() < 1e-4) f.set(0, 0, -1);
-        f.normalize();
-        titleMesh.position.set(
-            camera.position.x + f.x * TITLE_DISTANCE,
-            camera.position.y + 0.55,
-            camera.position.z + f.z * TITLE_DISTANCE
-        );
-        titleMesh.lookAt(camera.position.x, titleMesh.position.y, camera.position.z);
-    }
-
-    function updateTrackTitle(timeSec, bass) {
-        if (!titleMesh) return;
-        if (titleAnim.pending) {
-            titleAnim.pending = false;
-            titleAnim.active = true;
-            titleAnim.t0 = timeSec;
-            placeTrackTitle();
-        }
-        if (!titleAnim.active) {
-            titleMesh.visible = false;
-            return;
-        }
-        const age = timeSec - titleAnim.t0;
-        let d;
-        if (age < TITLE_FORM_SEC) {
-            const x = age / TITLE_FORM_SEC;
-            d = Math.pow(1 - x, 2); // 溶解显形：由快到慢
-        } else if (age < TITLE_HOLD_UNTIL_SEC) {
-            d = 0;
-        } else if (age < TITLE_HOLD_UNTIL_SEC + TITLE_DISSOLVE_SEC) {
-            const x = (age - TITLE_HOLD_UNTIL_SEC) / TITLE_DISSOLVE_SEC;
-            d = x * x * (3 - 2 * x); // 渐渐溶解消失
-        } else {
-            titleAnim.active = false;
-            titleMesh.visible = false;
-            return;
-        }
-        titleUniforms.uDissolve.value = d;
-        titleUniforms.uTime.value = timeSec;
-        titleUniforms.uBass.value = bass || 0;
-        titleMesh.visible = true;
-    }
-
     const _lineTmp = new THREE.Vector3();
     // 每帧：手势识别 -> 菜单交互 -> 手部特效
     function updateHands(timeSec, dt, audio, viewHalfH) {
@@ -2344,6 +2202,7 @@
 
         gatherHandInputs();
         handTracker.beat.update(timeSec, dt, audio.levels, audio.bass);
+        handTracker.stopEnabled = !state.menuVisible;
         const events = handTracker.update(timeSec, dt, handInputs, camera.position, camera.quaternion);
         for (const ev of events) onGestureEvent(ev, timeSec);
 
@@ -2353,16 +2212,20 @@
             const line = handPointerLines[h];
             if (!hs.valid) {
                 if (line) line.visible = false;
+                noteHover(h, null, timeSec);
+                if (handPress[h]) { handPress[h] = null; refreshPressedState(); }
                 continue;
             }
             result.anyActive = true;
             const canPoint = state.menuVisible && hudMesh && hudMesh.visible && hs.aimValid && hs.palmFacing < 0.35 && !hs.pinchSummon;
             if (!canPoint) {
                 if (line) line.visible = false;
+                noteHover(h, null, timeSec);
                 continue;
             }
             const sticky = handPress[h] ? handPress[h].btnId : state.hoveredButtonId;
             const hit = hitTestHUD(hs.aimOrigin, hs.aimDir, sticky);
+            noteHover(h, hit ? hit.btnId : null, timeSec);
             const end = hit ? hit.point : _lineTmp.copy(hs.aimOrigin).addScaledVector(hs.aimDir, 0.7);
             if (line) {
                 const pos = line.geometry.attributes.position;
@@ -2385,6 +2248,12 @@
                     result.pinchStrength = entry.pinch;
                 }
             }
+        }
+        for (let h = 0; h < 2; h++) {
+            const p = handPress[h];
+            if (!p) continue;
+            const pb = hudButtons.find(b => b.id === p.btnId);
+            if (pb && pb.confirmHold) result.confirm = Math.min(1, (timeSec - p.t0) / CONFIRM_HOLD_SEC);
         }
         if (pressHover) {
             result.hoveredBtn = pressHover.btn;
@@ -2479,7 +2348,7 @@
         if (forward.lengthSq() < 0.001) forward.set(0, 0, -1);
         forward.normalize();
 
-        const targetPos = camera.position.clone().add(forward.clone().multiplyScalar(1.8));
+        const targetPos = camera.position.clone().add(forward.clone().multiplyScalar(1.4));
         targetPos.y = Math.max(1.1, camera.position.y - 0.2);
 
         hudMesh.position.copy(targetPos);
@@ -2507,6 +2376,7 @@
 
     // 每帧交互轮询：手柄按键与摇杆、射线拾取、悬停光标
     const _ctrlMatrix = new THREE.Matrix4();
+    let reticleBaseHex = null;
     function updateXRFrame(timestamp, bass, handResult) {
         if (!xrSession) return;
 
@@ -2624,6 +2494,11 @@
             reticleMesh.lookAt(camera.position);
             const s = 1.0 - pinchStrength * 0.45;
             reticleMesh.scale.set(s, s, s);
+            if (reticleMesh.material && reticleMesh.material.color) {
+                if (reticleBaseHex === null) reticleBaseHex = reticleMesh.material.color.getHex();
+                const cf = handResult && handResult.confirm;
+                reticleMesh.material.color.setHex(cf === undefined ? reticleBaseHex : (cf >= 1 ? 0x22ff66 : 0xffcc00));
+            }
             reticleMesh.visible = true;
         } else if (reticleMesh) {
             reticleMesh.visible = false;
@@ -2732,7 +2607,6 @@
             reportFrameError('hands', err);
         }
         try { updateXRFrame(timestamp, bass, handResult); } catch (err) { reportFrameError('xrframe', err); }
-        try { updateTrackTitle(timeSec, bass); } catch (err) { reportFrameError('title', err); }
         try { updatePerfPanel(performance.now()); } catch (err) { reportFrameError('perf', err); }
         if (frameCounter > 45) stepPrewarm();
 
@@ -2820,9 +2694,6 @@
 
         cleanUpHands();
         prewarmQueue.length = 0;
-        titleAnim.active = false;
-        titleAnim.pending = false;
-        if (titleMesh) titleMesh.visible = false;
 
         // 共享上下文：把 GL 状态恢复为默认值，交还给网页端的 Butterchurn
         if (usingSharedGL && renderer && sharedGL) {
@@ -2850,7 +2721,6 @@
         isActive: () => state.isVRActive,
         enterVR,
         exitVR,
-        showTrackTitle,
         showMenu,
         hideMenu,
         setPlaybackBridge: (bridge) => {

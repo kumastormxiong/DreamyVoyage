@@ -32,6 +32,9 @@
     const SWIPE_MIN_DIST = 0.12;   // 最小位移 (米)
     const SWIPE_MIN_SPEED = 0.8;   // 最小平均速度 (米/秒)
     const SWIPE_AXIS_RATIO = 1.6;  // 主方向分量需比另一方向大这么多倍
+    const SETTLE_SEC = 0.5;        // 手刚出现后多久内不响应手势
+    const MENU_HOLD_SEC = 0.7;     // 掌心朝上保持多久呼出/收起菜单
+    const STOP_HOLD_SEC = 0.8;     // 掌心朝前保持多久暂停/播放
     const SWIPE_COOLDOWN = 0.5;    // 两次滑动最小间隔 (秒)
     const JI = {};
     JOINT_NAMES.forEach((n, i) => { JI[n] = i; });
@@ -213,6 +216,11 @@
             pinchStartTime: 0,
             pinchPoint: new THREE.Vector3(),
             pinchSummon: false,
+            firstSeen: undefined,
+            settled: false,
+            menuHoldStart: -1, menuProgress: 0, menuFired: false,
+            stopHoldStart: -1, stopProgress: 0, stopFired: false,
+            holdProgress: 0,
             summonProgress: 0,
             summonFired: false,
             pinchTrail: [], // 捏合期间捏合点的最近轨迹 {t,x,y,z}，用于识别“捏住快速滑动”
@@ -259,6 +267,7 @@
             this.headRight = new THREE.Vector3(1, 0, 0);
             this.headFwd = new THREE.Vector3(0, 0, -1);
             this.stringActive = false;
+        this.stopEnabled = true;
             this.lastClap = -10;
             this.prevPalmDist = 1;
             this.palmDistHistory = [];
@@ -365,6 +374,8 @@
             }
             h.valid = true;
             h.validFrames++;
+            if (h.firstSeen === undefined) h.firstSeen = t;
+            h.settled = (t - h.firstSeen) >= SETTLE_SEC;
             h.filter.filter(h.raw, h.pos, dt);
 
             const v1 = this._v1, v2 = this._v2, v3 = this._v3;
@@ -457,12 +468,12 @@
             h.pinchStrength = Math.min(1, Math.max(0, (0.62 - h.pinchDist) / (0.62 - 0.18)));
             h.pinchPoint.copy(this._j(h, 4, v2)).add(this._j(h, 9, v3)).multiplyScalar(0.5);
             if (!h.pinching) {
-                h.pinchOnFrames = (h.pinchDist < 0.2 && !h.fist) ? h.pinchOnFrames + 1 : 0;
+                h.pinchOnFrames = (h.pinchDist < 0.2 && !h.fist && h.settled) ? h.pinchOnFrames + 1 : 0;
                 if (h.pinchOnFrames >= 2) {
                     h.pinching = true;
                     h.pinchOffFrames = 0;
                     h.pinchStartTime = t;
-                    h.pinchSummon = h.palmFacing > 0.45;
+                    h.pinchSummon = false;
                     h.summonProgress = 0;
                     h.summonFired = false;
                     h.swipeUsed = false;
@@ -488,20 +499,8 @@
                 }
             }
 
-            // ---------- 召唤菜单：掌心朝向自己 + 捏住 0.6 秒 ----------
-            if (h.pinching && h.pinchSummon && !h.summonFired) {
-                if (h.palmFacing < 0.2) {
-                    h.pinchSummon = false;
-                    h.summonProgress = 0;
-                    this._emit('summonCancel', h.index, {});
-                } else {
-                    h.summonProgress = Math.min(1, (t - h.pinchStartTime) / 0.6);
-                    if (h.summonProgress >= 1) {
-                        h.summonFired = true;
-                        this._emit('summon', h.index, { pos: h.pinchPoint.clone() });
-                    }
-                }
-            }
+            // ---------- 托掌 / 停掌 ----------
+            this._updateHoldPoses(h, t);
 
             // ---------- 张开手掌 ----------
             const wasOpen = h.open;
@@ -616,6 +615,11 @@
             if (h.open) this._emit('openEnd', h.index, { pos: h.palmCenter.clone() });
             h.valid = false;
             h.validFrames = 0;
+            h.firstSeen = undefined;
+            h.settled = false;
+            h.menuHoldStart = -1; h.menuProgress = 0; h.menuFired = false;
+            h.stopHoldStart = -1; h.stopProgress = 0; h.stopFired = false;
+            h.holdProgress = 0;
             h.fist = false;
             h.open = false;
             h.fistFrames = 0;
@@ -630,6 +634,58 @@
             h.pinchTrail.length = 0;
             h.swipeUsed = false;
         }
+
+        // 两个“托住 / 停住”姿势手势 (都要求保持不动一段时间，且手刚出现的前 0.5 秒不响应)：
+        //  - 掌心朝上托在胸前 0.7 秒  -> summon (呼出 / 收起菜单)
+        //  - 掌心朝前、手抬到身前 0.8 秒 -> stop (播放 / 暂停，菜单打开时禁用，避免指向菜单时误触)
+        // 进入姿势用严格阈值，保持期间用宽松阈值 (迟滞)，追踪抖动不会打断计时；离开姿势后才能再次触发
+        _updateHoldPoses(h, t) {
+            const hx = h.palmCenter.x - this.headPos.x;
+            const hy = h.palmCenter.y - this.headPos.y;
+            const hz = h.palmCenter.z - this.headPos.z;
+            const horiz = Math.sqrt(hx * hx + hz * hz);
+            const fwdDist = hx * this.headFwd.x + hz * this.headFwd.z;
+            const speed = h.velocity.length();
+            const calm = !h.pinching && !h.fist && h.settled;
+            const flat = 1 - h.fistness; // 手指伸直程度
+
+            const inMenu = h.menuHoldStart >= 0;
+            const menuPose = calm && flat > (inMenu ? 0.6 : 0.75) && h.palmNormal.y > (inMenu ? 0.6 : 0.75) &&
+                hy > -0.7 && hy < -0.05 && horiz < 0.7 && speed < (inMenu ? 0.7 : 0.45);
+            if (menuPose) {
+                if (h.menuHoldStart < 0) h.menuHoldStart = t;
+                h.menuProgress = Math.min(1, (t - h.menuHoldStart) / MENU_HOLD_SEC);
+                if (h.menuProgress >= 1 && !h.menuFired) {
+                    h.menuFired = true;
+                    this._emit('summon', h.index, { pos: h.palmCenter.clone() });
+                }
+            } else {
+                h.menuHoldStart = -1;
+                h.menuProgress = 0;
+                h.menuFired = false;
+            }
+
+            const inStop = h.stopHoldStart >= 0;
+            const stopPose = this.stopEnabled && calm && flat > (inStop ? 0.65 : 0.8) &&
+                Math.abs(h.palmNormal.y) < (inStop ? 0.65 : 0.5) && h.palmFacing < (inStop ? -0.4 : -0.6) &&
+                fwdDist > 0.2 && hy > -0.5 && hy < 0.25 && speed < (inStop ? 0.5 : 0.3);
+            if (stopPose) {
+                if (h.stopHoldStart < 0) h.stopHoldStart = t;
+                h.stopProgress = Math.min(1, (t - h.stopHoldStart) / STOP_HOLD_SEC);
+                if (h.stopProgress >= 1 && !h.stopFired) {
+                    h.stopFired = true;
+                    this._emit('stop', h.index, { pos: h.palmCenter.clone() });
+                }
+            } else {
+                h.stopHoldStart = -1;
+                h.stopProgress = 0;
+                h.stopFired = false;
+            }
+
+            // 供特效画“进度环”：触发之后环消失，直到离开姿势
+            h.holdProgress = Math.max(h.menuFired ? 0 : h.menuProgress, h.stopFired ? 0 : h.stopProgress);
+        }
+
 
         _updateTwoHand(t, dt) {
             const L = this.hands[0], R = this.hands[1];
