@@ -66,7 +66,7 @@
 
         vec2 dvPanoUV(vec3 d) {
             if (uProjMode > 2.5) {
-                vec3 n = vec3(-d.x, d.y, d.z);
+                vec3 n = vec3(d.x, d.y, d.z);
                 return vec2(clamp(atan(n.x, -n.z) / (2.0 * DV_PI) + 0.5, 0.001, 0.999), clamp(n.y * 0.5 + 0.5, 0.0, 1.0));
             }
             if (uProjMode < 0.5) return dvTunnelUV(d);
@@ -135,7 +135,7 @@
         // ---------- 经典柱面 (与 2026-10-10 版着色器逐行一致) ----------
         // 旧版球体做了 scale(-1,1,1) 并用物体空间坐标，所以这里先把世界方向的 x 取反
         vec3 dvClassic(sampler2D tex, vec3 dWorld) {
-            vec3 n = vec3(-dWorld.x, dWorld.y, dWorld.z);
+            vec3 n = vec3(dWorld.x, dWorld.y, dWorld.z); // 2026-10-14: 去掉 x 取反，画面不再左右镜像 (曲名文字才不会反)
             float v = n.y * 0.5 + 0.5;
             vec3 colCyl;
             const float SEAM_BETA = 0.22;

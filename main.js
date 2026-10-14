@@ -874,11 +874,13 @@
     // VR 里使用 Butterchurn 官方曲名动画 (launchSongTitleAnim)：文字从大到小飘入，
     // 结束时被“印”进 preset 的反馈缓冲，随后由 preset 自己的着色器逐渐溶解。官方默认 1.7 秒，这里延长到 5 秒
     const VR_TITLE_ANIM_SECONDS = 5.0;
+const VR_TITLE_SCALE = 0.5; // VR 里曲名字号缩小为官方的一半，避免超出视野
     function showTitleInVR(songName) {
         if (!window.VRManager || !window.VRManager.isActive || !window.VRManager.isActive()) return;
         if (!visualizer || !songName || typeof visualizer.launchSongTitleAnim !== 'function') return;
         try {
-            visualizer.launchSongTitleAnim(formatTrackTitle(songName, currentLanguage));
+            if (visualizer.renderer && visualizer.renderer.titleText) visualizer.renderer.titleText.titleScale = VR_TITLE_SCALE;
+               visualizer.launchSongTitleAnim(formatTrackTitle(songName, currentLanguage));
             const st = visualizer.renderer && visualizer.renderer.supertext;
             if (st && st.startTime >= 0) st.duration = VR_TITLE_ANIM_SECONDS;
         } catch (e) {
