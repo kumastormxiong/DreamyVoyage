@@ -1,4 +1,4 @@
-# 幻梦之旅（Dreamy Voyage）- 炫酷音乐播放网页
+# 幻梦之旅（Dreamy Voyage）- 迷幻音乐播放网页
 
 ## 项目简介
 
