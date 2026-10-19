@@ -1,0 +1,355 @@
+{
+    "_说明": "段落时间轴（暂定值，样片用）。start/end=秒；world=用哪个场景；lyric=对应 lyrics.json 里的段落 id；vocal=[开始唱, 唱完]，假名按它均匀分布；也可给 times 数组精确到每个假名。正式出片前用「打点模式」或你听到的时间校准。",
+    "duration": 239.72,
+    "sections": [
+        {
+            "id": "intro",
+            "name": "Intro",
+            "start": 0,
+            "end": 19.76,
+            "world": "void",
+            "lyric": "intro"
+        },
+        {
+            "id": "verse1",
+            "name": "Verse 1",
+            "start": 19.76,
+            "end": 31.04,
+            "world": "matrix",
+            "lyric": "verse1",
+            "lines": [
+                [
+                    21.786,
+                    23.642
+                ],
+                [
+                    23.762,
+                    26.387
+                ],
+                [
+                    26.507,
+                    28.66
+                ],
+                [
+                    28.78,
+                    31.18
+                ]
+            ]
+        },
+        {
+            "id": "pre1",
+            "name": "Pre-Chorus 1",
+            "start": 31.04,
+            "end": 40.8,
+            "world": "highway",
+            "mode": "pre",
+            "lyric": "pre1",
+            "lines": [
+                [
+                    31.824,
+                    33.546
+                ],
+                [
+                    33.666,
+                    35.888
+                ],
+                [
+                    36.008,
+                    38.425
+                ],
+                [
+                    38.545,
+                    40.962
+                ]
+            ]
+        },
+        {
+            "id": "chorus1",
+            "name": "Chorus 1",
+            "start": 40.8,
+            "end": 60.1,
+            "world": "highway",
+            "mode": "chorus",
+            "lyric": "chorus1",
+            "lines": [
+                [
+                    41.251,
+                    45.573
+                ],
+                [
+                    45.693,
+                    49.67
+                ],
+                [
+                    49.79,
+                    54.457
+                ],
+                [
+                    54.577,
+                    58.45
+                ]
+            ]
+        },
+        {
+            "id": "interlude1",
+            "name": "オオオ 1",
+            "start": 60.1,
+            "end": 64.6,
+            "world": "hit",
+            "lyric": "interlude1",
+            "pulses": [
+                0.1,
+                1.3,
+                2.5
+            ]
+        },
+        {
+            "id": "break1",
+            "name": "Break 1",
+            "start": 64.6,
+            "end": 74.5,
+            "world": "dream"
+        },
+        {
+            "id": "cpu",
+            "name": "CPU",
+            "start": 74.5,
+            "end": 79.1,
+            "world": "cpu"
+        },
+        {
+            "id": "verse2",
+            "name": "Verse 2",
+            "start": 79.1,
+            "end": 89.5,
+            "world": "city",
+            "mode": "verse",
+            "lyric": "verse2",
+            "lines": [
+                [
+                    79.465,
+                    82.096
+                ],
+                [
+                    82.216,
+                    84.595
+                ],
+                [
+                    84.715,
+                    86.768
+                ],
+                [
+                    86.888,
+                    89.288
+                ]
+            ]
+        },
+        {
+            "id": "pre2",
+            "name": "Pre-Chorus 2",
+            "start": 89.5,
+            "end": 99.15,
+            "world": "city",
+            "mode": "pre",
+            "lyric": "pre2",
+            "lines": [
+                [
+                    89.533,
+                    91.682
+                ],
+                [
+                    91.802,
+                    94.015
+                ],
+                [
+                    94.135,
+                    96.491
+                ],
+                [
+                    96.611,
+                    99.011
+                ]
+            ]
+        },
+        {
+            "id": "chorus2",
+            "name": "Chorus 2",
+            "start": 99.15,
+            "end": 128.1,
+            "world": "tunnel",
+            "lyric": "chorus2",
+            "lines": [
+                [
+                    99.223,
+                    103.842
+                ],
+                [
+                    103.962,
+                    108.872
+                ],
+                [
+                    108.992,
+                    113.317
+                ],
+                [
+                    113.437,
+                    117.762
+                ]
+            ]
+        },
+        {
+            "id": "interlude2",
+            "name": "オオオ 2",
+            "start": 128.1,
+            "end": 133.0,
+            "world": "hit",
+            "lyric": "interlude2",
+            "pulses": [
+                0.1,
+                1.3,
+                2.5
+            ]
+        },
+        {
+            "id": "break2",
+            "name": "Break 2",
+            "start": 133.0,
+            "end": 138.0,
+            "world": "city",
+            "mode": "pre"
+        },
+        {
+            "id": "bridge",
+            "name": "Bridge",
+            "start": 138.0,
+            "end": 147.75,
+            "world": "wasteland",
+            "lyric": "bridge",
+            "lines": [
+                [
+                    138.591,
+                    141.412
+                ],
+                [
+                    141.532,
+                    142.862
+                ],
+                [
+                    142.982,
+                    145.046
+                ],
+                [
+                    145.166,
+                    147.566
+                ]
+            ]
+        },
+        {
+            "id": "chorus3",
+            "name": "Chorus 3",
+            "start": 147.75,
+            "end": 157.2,
+            "world": "tunnel",
+            "mode": "apex",
+            "lyric": "chorus3",
+            "lines": [
+                [
+                    147.808,
+                    149.764
+                ],
+                [
+                    149.884,
+                    152.248
+                ],
+                [
+                    152.368,
+                    154.763
+                ],
+                [
+                    154.883,
+                    157.283
+                ]
+            ]
+        },
+        {
+            "id": "outro",
+            "name": "Outro",
+            "start": 157.2,
+            "end": 176.5,
+            "world": "outro",
+            "lyric": "outro",
+            "lines": [
+                [
+                    157.558,
+                    162.203
+                ],
+                [
+                    162.323,
+                    166.763
+                ],
+                [
+                    166.883,
+                    171.283
+                ]
+            ]
+        },
+        {
+            "id": "dna",
+            "name": "DNA",
+            "start": 176.5,
+            "end": 186.2,
+            "world": "dna",
+            "lyric": "outro",
+            "lines": [
+                [
+                    174.837,
+                    179.237
+                ]
+            ],
+            "rowOffset": 3
+        },
+        {
+            "id": "cpu2",
+            "name": "CPU 2",
+            "start": 186.2,
+            "end": 201.0,
+            "world": "cpu",
+            "mode": "alt"
+        },
+        {
+            "id": "soul",
+            "name": "魂 A",
+            "start": 201.0,
+            "end": 210.0,
+            "world": "soul",
+            "rounds": [
+                200.826,
+                203.634,
+                206.18,
+                208.422
+            ]
+        },
+        {
+            "id": "flash",
+            "name": "魂 B",
+            "start": 210.0,
+            "end": 220.1,
+            "world": "flash",
+            "term": 214.85
+        },
+        {
+            "id": "soulvoid",
+            "name": "魂 C",
+            "start": 220.1,
+            "end": 234.0,
+            "world": "neural"
+        },
+        {
+            "id": "endcard",
+            "name": "End",
+            "start": 234.0,
+            "end": 239.72,
+            "world": "endcard"
+        }
+    ]
+}

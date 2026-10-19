@@ -1,0 +1,11 @@
+本文件夹里的 *.json 是从以下字体中提取的 46 个片假名轮廓（three.js typeface 格式），仅用于 CHAINEDGHOST VR 中显示立体假名。
+These JSON files contain 46 katakana outlines extracted from the fonts below (three.js typeface format).
+
+light.json  M PLUS 1p Light           Copyright The M+ FONTS Project Authors
+thin.json   M PLUS 1p Thin            Copyright The M+ FONTS Project Authors
+zen.json    Zen Kaku Gothic New Light Copyright The Zen Kaku Gothic Project Authors
+dot.json    DotGothic16               Copyright The DotGothic16 Project Authors
+train.json  Train One                 Copyright The Train Project Authors
+
+All fonts are licensed under the SIL Open Font License, Version 1.1.
+https://openfontlicense.org
