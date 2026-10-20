@@ -116,12 +116,9 @@ export const SCENES360 = {
 
   // void：幽灵是一张正对 +z 的平面，光环的前后半环按世界 z 分前后——观众站到侧面或身后就错了。
   //  · 幽灵水平转向观众；光环着色器里的"前/后"改按观众方向判断
-  //  · 标题、名字（原来每帧放在镜头前 7 米）挂到 HUD，保持在正前方
+  //  · 标题、名字不动，保持原版的做法（每帧放在导演镜头前 7 米的世界位置）
   void(w, A) {
-    const cam = w.camera;
     const ghost = direct(w, (o) => isPlane(o) && o.material.isShaderMaterial && Math.abs(o.position.y - 4.9) < 0.3)[0];
-    const pins = direct(w, (o) => o.isMesh && o.renderOrder === 10 && o.material.depthTest === false);
-    for (const o of pins) A.hud.add(o);
     const U = { uCtr: { value: new THREE.Vector3(0, 5.2, 0) }, uView: { value: new THREE.Vector3(0, 0, 1) } };
     for (const g of direct(w, (o) => o.isGroup && o.userData.mats)) for (const m of g.userData.mats) {
       m.uniforms.uCtr = U.uCtr; m.uniforms.uView = U.uView;
@@ -133,10 +130,6 @@ export const SCENES360 = {
         if (ghost) ghost.rotation.y = yawToViewer(A, ghost.position.x, ghost.position.z);
         U.uView.value.set(A.center.x - U.uCtr.value.x, 0, A.center.z - U.uCtr.value.z);
         if (U.uView.value.lengthSq() < 1e-4) U.uView.value.set(0, 0, 1); else U.uView.value.normalize();
-        // 原场景把标题放在"导演镜头"前方；换算到 HUD 的局部坐标（按导演镜头的水平朝向反转）
-        _v.set(0, 0, -1).applyQuaternion(cam.quaternion);
-        _q.setFromAxisAngle(AXIS_Y, -Math.atan2(-_v.x, -_v.z));
-        for (const o of pins) { o.position.sub(cam.position).applyQuaternion(_q); o.quaternion.premultiply(_q); }
       },
     };
   },
