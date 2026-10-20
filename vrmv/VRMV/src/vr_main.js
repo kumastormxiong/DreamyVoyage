@@ -163,16 +163,19 @@ renderer.setAnimationLoop((now) => {
 
   const xr = renderer.xr.isPresenting, X = extras[name];
   perf.tick(dt, xr);
+  // 头部水平朝向（世界坐标）：读上一帧渲染后的相机矩阵，必须在 A.begin() 重置之前；供 HUD 跟随视线使用
+  const hm = (xr ? renderer.xr.getCamera() : w.camera).matrixWorld.elements;
+  const headYaw = Math.atan2(hm[8], hm[10]);          // = atan2(-fx, -fz)，fx=-hm[8]、fz=-hm[10]
   A.begin();
   post.reset();
   perf.before(xr);
   const f = feat.at(t), k = tl.kana(t);
   w.update({ t, f, S, k, tl, post, sec: S.sec, ctx });
   perf.after();
-  if (X.patch) X.patch.after({ t, S, f, k, cam: w.camera });
+  if (X.patch) X.patch.after({ t, S, f, k, cam: w.camera, headYaw, dt });
   X.twins.sync(); setKanaTime(t);
   if (X.fx) X.fx.update(t, f);
-  A.end(t, S, input.user);
+  A.end(t, S, input.user, { headYaw, dt });
 
   if (!xr) input.applyPreview(w.camera);
 

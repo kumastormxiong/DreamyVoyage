@@ -22,6 +22,8 @@ export const VR_WORLD = {
   dna: { mode: 'fixed', eye: [0, -10.4, 20], look: [0, -2, 0] },
   // 环绕镜头转得快的场景：改为每段固定站位，避免晕动
   neural: { mode: 'anchor' },
+  // 五十音墙：站在弧形墙的圆心，墙的另两面由 vr_patches 复制补齐，围成一圈
+  matrix: { mode: 'fixed', eye: [0, 4.2, 15], look: [0, 3.4, -2] },
   // 抖动镜头的场景：固定站位，抖动交给画面本身
   hit: { mode: 'anchor' },
   flash: { mode: 'anchor' },
@@ -50,6 +52,11 @@ export const BEHIND = { tunnel: 30, highway: 40 };
 
 // 尾奏 ヌ 全方位包围（vr_patches.js）
 export const NU_SHELL = { count: 64, rMin: 7.5, rMax: 10.5, sizeMin: 1.8, sizeMax: 4.2, start: 173.0, spread: 1.8, black: [174.0, 175.0] };
+
+// HUD（歌词大字、五十音表、字条、提示面板）跟随视线：
+//  · 头转出 dead 弧度（约 29°）之外，HUD 约 tau 秒追上来，转头时歌词不会留在身后
+//  · 在 dead 以内慢慢（slow 秒）回到视线正中，所以转头停下后歌词会自己移回正前方，又不会像贴在眼前一样跟着头颤动
+export const HUD_FOLLOW = { dead: 0.5, tau: 0.3, slow: 1.8 };
 
 // 预览模式（非 VR 浏览器）
 export const PREVIEW_FOV = 75;

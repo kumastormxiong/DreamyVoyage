@@ -7,11 +7,12 @@ import * as THREE from 'three';
 import { PAL, hash, smooth } from '../../web/src/lib.js';
 import { HIDE_LAYER, BEHIND, NU_SHELL, EYE } from './vr_config.js';
 import { kanaGeo, kanaMaterial, FONT_KEYS } from './vr_kana3d.js';
+import { SCENES360 } from './vr_scenes360.js';
 
 // 把一组沿 z 轴循环的物体，重新放进 [cz + behind - period, cz + behind) 的窗口：身后保留 behind 米
 const rewrap = (z, cz, behind, period) => cz + behind - (((cz + behind - z) % period) + period) % period;
 
-export const PATCHES = {
+const BASE = {
   // city：两段街区 chunks[0]、chunks[1]（场景里第一个子物体是 InstancedMesh 的 Group），原 MV 每 260 米整段跳回，
   // 身后的楼会突然全部消失、前方的街区内容也会跳变。VR 里改为 4 段无缝循环（另外复制两段，共用几何体和材质）
   city(w) {
@@ -99,3 +100,12 @@ export const PATCHES = {
     };
   },
 };
+
+// 每个场景的补丁 = 穿越 / 尾奏基础补丁（BASE）+ 全方位化补丁（SCENES360），按顺序都执行
+export const PATCHES = {};
+for (const k of new Set([...Object.keys(BASE), ...Object.keys(SCENES360)])) {
+  PATCHES[k] = (w, A, ctx) => {
+    const ps = [BASE[k], SCENES360[k]].map((fn) => (fn ? fn(w, A, ctx) : null)).filter(Boolean);
+    return ps.length ? { after(a) { for (const p of ps) p.after(a); } } : null;
+  };
+}

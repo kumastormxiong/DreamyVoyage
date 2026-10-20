@@ -1,0 +1,24 @@
+{
+  "redirects": [
+    {
+      "source": "/VRMV",
+      "destination": "/vrmv/",
+      "permanent": false
+    },
+    {
+      "source": "/VRMV/",
+      "destination": "/vrmv/",
+      "permanent": false
+    },
+    {
+      "source": "/VRMV/:path*",
+      "destination": "/vrmv/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/vrmv",
+      "destination": "/vrmv/",
+      "permanent": false
+    }
+  ]
+}

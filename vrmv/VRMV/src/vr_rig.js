@@ -3,9 +3,10 @@
 //    去掉俯仰、侧倾和抖动，转头交给头显。
 //  · 原来挂在镜头上的东西（歌词大字、字条、ヌ、ケ 等）改挂到 hud：跟着观众平台走，不跟着头转，避免粘在眼前。
 import * as THREE from 'three';
-import { EYE, DEFAULT_MODE, VR_WORLD } from './vr_config.js';
+import { EYE, DEFAULT_MODE, VR_WORLD, HUD_FOLLOW } from './vr_config.js';
 
 const _f = new THREE.Vector3(), _p = new THREE.Vector3(), _o = new THREE.Vector3();
+const wrapPI = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 
 export function adaptWorld(name, w) {
   const cam = w.camera;
@@ -20,8 +21,9 @@ export function adaptWorld(name, w) {
   // 否则只改部分分量的场景（例如 endcard 只改 x）会被头部姿态污染
   const st = { secId: null, lastT: -1, anchorYaw: 0, pos: new THREE.Vector3(), sPos: cam.position.clone(), sQuat: cam.quaternion.clone() };
 
+  const center = new THREE.Vector3();
   return {
-    name, rig, hud, cfg,
+    name, rig, hud, cfg, center,
     get yaw() { return rig.rotation.y; },
     // 场景 update 之前：平台归零、镜头恢复原设计参数，让原场景脚本照常写入"导演镜头"（此时局部坐标 = 世界坐标）
     begin() {
@@ -30,7 +32,8 @@ export function adaptWorld(name, w) {
       cam.fov = baseFov; cam.aspect = baseAspect; cam.updateProjectionMatrix();
     },
     // 场景 update 之后：导演镜头 → 观众平台。user = { offset: Vector3（世界坐标）, yaw }
-    end(t, S, user) {
+    // view = { headYaw（头部水平朝向，世界坐标，弧度）, dt（真实帧间隔，秒） }：用来让 HUD 跟随视线
+    end(t, S, user, view = {}) {
       st.sPos.copy(cam.position); st.sQuat.copy(cam.quaternion);
       _p.copy(cam.position);
       _f.set(0, 0, -1).applyQuaternion(cam.quaternion);
@@ -49,7 +52,17 @@ export function adaptWorld(name, w) {
       st.lastT = t;
       rig.position.copy(st.pos); rig.position.y -= EYE;
       rig.position.add(user.offset);
-      rig.rotation.set(0, st.anchorYaw + user.yaw, 0);
+      center.set(rig.position.x, rig.position.y + EYE, rig.position.z);   // 观众眼睛的世界位置（补丁里放环形背景用）
+      const ry = st.anchorYaw + user.yaw;
+      rig.rotation.set(0, ry, 0);
+      // HUD 跟随视线：以世界朝向 st.hudYaw 记录；头转出死区后才慢慢追，暂停时也照常追（用真实帧间隔）
+      if (jump || st.hudYaw === undefined) st.hudYaw = ry;
+      else if (view.headYaw !== undefined) {
+        const d = wrapPI(view.headYaw - st.hudYaw), ad = Math.abs(d), dt = view.dt || 0.016;
+        st.hudYaw += d * (1 - Math.exp(-dt / HUD_FOLLOW.slow));                                                             // 慢速回中
+        if (ad > HUD_FOLLOW.dead) st.hudYaw += Math.sign(d) * (ad - HUD_FOLLOW.dead) * (1 - Math.exp(-dt / HUD_FOLLOW.tau)); // 出了死区快速追上
+      }
+      hud.rotation.y = wrapPI(st.hudYaw - ry);
       rig.updateMatrixWorld(true);
       return jump;
     },
