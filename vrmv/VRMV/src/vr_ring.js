@@ -23,7 +23,7 @@ export function orbitClones(scene, srcs, { pivot, angles }) {
     for (const s of srcs) {
       const c = s.clone();
       if (s.isInstancedMesh) { c.instanceMatrix = s.instanceMatrix; if (s.instanceColor) c.instanceColor = s.instanceColor; }
-      c.frustumCulled = false;
+      // 复制体沿用原物体的 frustumCulled：普通平面保持开启，视野外（身后）的不绘制；实例化网格的包围球不可靠，原物体已关闭
       scene.add(c);
       items.push({ s, c, q });
     }
@@ -65,7 +65,7 @@ export function orbitCells(scene, cells, { pivot, angles, pick }) {
           it.key = s.children[0] || null;
           while (c.children.length) c.remove(c.children[0]);
           it.pairs = [];
-          for (const i of pick) { const o = s.children[i]; if (!o) continue; const k = o.clone(); k.frustumCulled = false; c.add(k); it.pairs.push([o, k]); }
+          for (const i of pick) { const o = s.children[i]; if (!o) continue; const k = o.clone(); c.add(k); it.pairs.push([o, k]); }
         }
         c.visible = s.visible && it.pairs.length > 0;
         c.position.copy(s.position).sub(pivot).applyQuaternion(q).add(pivot);

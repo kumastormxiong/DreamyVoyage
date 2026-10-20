@@ -1,7 +1,7 @@
 // 全方位化补丁：原 MV 为固定机位的屏幕构图设计，内容只摆在正前方。这里不改场景代码，只在每帧 update 之后补全：
 //  · 环绕复制（vr_ring.js）：把正前方的墙、窗口、字幕牌绕观众再复制几份，围成一圈（dream、matrix、flash、hit）
 //  · 面向观众（billboard）：单张平面角色始终正对观众（void 幽灵、soul 魂字、endcard 头像和频谱）；
-//    endcard 的主体整体挂到 HUD（跟随视线）
+//    endcard 的主体整体挂到 HUD（跟着观众平台，保持原画面里正前方的位置）
 //  · 全屏黑场 → 黑色球幕（flash、endcard）
 //  · 远景补全：公路、废土、城市的身后
 //  · 电路面板、数据方块的环形分布（vr_env.js）
@@ -94,7 +94,7 @@ export const SCENES360 = {
     return { after() { for (const o of oc) o.sync(); } };
   },
 
-  // endcard：头像、频谱圈、「虚空造物」是一组正对镜头的平面。整组挂到 HUD 下（跟随视线，永远正对观众），
+  // endcard：头像、频谱圈、「虚空造物」是一组正对镜头的平面。整组挂到 HUD 下（跟着观众平台，始终在正前方约 17 米），
   // 星空、地面网格留在世界里；片尾黑场换成黑色球幕
   // 识别：头像 = 贴头像贴图；频谱 = 11.6 米宽的平面；名字 = y≈-3 的平面；光晕 = 靠近原点的精灵；黑场 = z=14 的平面
   endcard(w, A, ctx) {
@@ -116,7 +116,7 @@ export const SCENES360 = {
 
   // void：幽灵是一张正对 +z 的平面，光环的前后半环按世界 z 分前后——观众站到侧面或身后就错了。
   //  · 幽灵水平转向观众；光环着色器里的"前/后"改按观众方向判断
-  //  · 标题、名字（原来每帧放在镜头前 7 米）挂到 HUD，跟随视线
+  //  · 标题、名字（原来每帧放在镜头前 7 米）挂到 HUD，保持在正前方
   void(w, A) {
     const cam = w.camera;
     const ghost = direct(w, (o) => isPlane(o) && o.material.isShaderMaterial && Math.abs(o.position.y - 4.9) < 0.3)[0];

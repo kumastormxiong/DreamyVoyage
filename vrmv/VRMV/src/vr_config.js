@@ -53,11 +53,6 @@ export const BEHIND = { tunnel: 30, highway: 40 };
 // 尾奏 ヌ 全方位包围（vr_patches.js）
 export const NU_SHELL = { count: 64, rMin: 7.5, rMax: 10.5, sizeMin: 1.8, sizeMax: 4.2, start: 173.0, spread: 1.8, black: [174.0, 175.0] };
 
-// HUD（歌词大字、五十音表、字条、提示面板）跟随视线：
-//  · 头转出 dead 弧度（约 29°）之外，HUD 约 tau 秒追上来，转头时歌词不会留在身后
-//  · 在 dead 以内慢慢（slow 秒）回到视线正中，所以转头停下后歌词会自己移回正前方，又不会像贴在眼前一样跟着头颤动
-export const HUD_FOLLOW = { dead: 0.5, tau: 0.3, slow: 1.8 };
-
 // 预览模式（非 VR 浏览器）
 export const PREVIEW_FOV = 75;
 export const MOVE_SPEED = 2.5;        // 摇杆 / WASD 移动速度（米/秒）
