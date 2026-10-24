@@ -1,0 +1,227 @@
+{
+ "_说明": "这首歌 / 这个 MV 的全部可调参数。工具脚本和网页都从这里读取，改这里即可，不用改代码。",
+ "title": "CHAINEDGHOST - Caos",
+ "subtitle": "GhostChain Glitch · Caos Español",
+ "artist": "虚空造物",
+ "slug": "chainedghost-es",
+ "lang": "es",
+ "lyric_unit": "word",
+ "audio_web": "web/audio/song.mp3",
+ "fps": 60,
+ "width": 1920,
+ "height": 1080,
+ "style": {
+  "keywords": "glitch art, datamosh, pixel sort, RGB split, chains, haunted hyperpop, 131 BPM",
+  "palette": [
+   "#ff1f5a",
+   "#00f0ff",
+   "#c8ff2e",
+   "#ffffff",
+   "#040207"
+  ],
+  "bg": "#040207",
+  "font_display": "Exo2",
+  "font_lyric": "Michroma"
+ },
+ "fonts": [
+  [
+   "NotoSC9",
+   "assets/fonts/NotoSansSC-900.woff"
+  ],
+  [
+   "Exo2",
+   "assets/fonts/Exo2-800i.woff"
+  ],
+  [
+   "Michroma",
+   "assets/fonts/Michroma-Regular.ttf"
+  ]
+ ],
+ "world_for_kind": {
+  "intro": "boot",
+  "verse": "chains",
+  "pre": "mosh",
+  "chorus": "mosh",
+  "interlude": "drop",
+  "break": "drop",
+  "bridge": "mirror",
+  "outro": "chains",
+  "end": "endcard"
+ },
+ "endcard": {
+  "seconds": 12,
+  "lines": [
+   "CHAINEDGHOST - Caos",
+   "虚空造物"
+  ],
+  "avatar": "assets/img/avatar.png"
+ },
+ "vr": {
+  "audio": "VRMV/audio/song.mp3",
+  "eye": 1.6,
+  "default_mode": "follow",
+  "world_modes": {
+   "endcard": {
+    "mode": "anchor"
+   },
+   "drop": {
+    "mode": "anchor"
+   },
+   "boot": {
+    "mode": "fixed",
+    "eye": [
+     0,
+     1.6,
+     0.5
+    ],
+    "look": [
+     0,
+     2.6,
+     -11
+    ]
+   },
+   "mirror": {
+    "mode": "fixed",
+    "eye": [
+     0,
+     1.7,
+     2.2
+    ],
+    "look": [
+     0,
+     2.4,
+     -10
+    ]
+   },
+   "mosh": {
+    "mode": "fixed",
+    "eye": [
+     0,
+     1.6,
+     2.5
+    ],
+    "look": [
+     0,
+     2.3,
+     -9
+    ]
+   },
+   "chains": {
+    "mode": "fixed",
+    "eye": [
+     2.8,
+     1.7,
+     1
+    ],
+    "look": [
+     -0.4,
+     1.2,
+     -14
+    ]
+   },
+   "ember": {
+    "mode": "fixed",
+    "eye": [
+     -22,
+     3,
+     6
+    ],
+    "look": [
+     0,
+     26,
+     -34
+    ]
+   },
+   "collapse": {
+    "mode": "anchor"
+   },
+   "tiltshift": {
+    "mode": "fixed",
+    "eye": [
+     85,
+     72,
+     70
+    ],
+    "look": [
+     0,
+     4,
+     0
+    ]
+   },
+   "bloodmoon": {
+    "mode": "fixed",
+    "eye": [
+     0,
+     14,
+     50
+    ],
+    "look": [
+     0,
+     48,
+     -500
+    ]
+   },
+   "skyline": {
+    "mode": "follow",
+    "tau": 2
+   },
+   "aurum": {
+    "mode": "follow",
+    "tau": 2
+   },
+   "maglev": {
+    "mode": "follow",
+    "tau": 0.6
+   },
+   "rainsigns": {
+    "mode": "follow",
+    "tau": 2
+   },
+   "inverted": {
+    "mode": "follow",
+    "tau": 2
+   },
+   "lighttrails": {
+    "mode": "follow",
+    "tau": 2.5
+   },
+   "dissolve": {
+    "mode": "follow",
+    "tau": 2
+   },
+   "coderain": {
+    "mode": "fixed",
+    "eye": [
+     0,
+     1.6,
+     12
+    ],
+    "look": [
+     0,
+     4,
+     0
+    ]
+   },
+   "atfield": {
+    "mode": "follow",
+    "tau": 2.5
+   },
+   "cyberdive": {
+    "mode": "follow",
+    "tau": 1.5
+   }
+  }
+ },
+ "deploy": {
+  "github_pages_repo": "",
+  "site_repo": "kumastormxiong/DreamyVoyage",
+  "site_subdir": "caos",
+  "site_url": "https://dreamy.voyage/",
+  "vercel_case_redirect": true
+ },
+ "license": {
+  "code": "MIT",
+  "music": "All rights reserved — 商业使用请联系 FFVoid@Dreamy.Voyage"
+ },
+ "ffmpeg": "D:\\AI\\GhostChain MV\\MV-Kit\\_bin\\ffmpeg.exe"
+}

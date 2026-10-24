@@ -1,0 +1,470 @@
+{
+ "_说明": "由 tools/build_timing.py 从 timing/sections.json 生成，不要手改这里",
+ "duration": 239.92,
+ "bpm": 131.0,
+ "beatPhase": 1.0584,
+ "title": "CHAINEDGHOST - Caos",
+ "sections": [
+  {
+   "id": "s01_boot",
+   "kind": "intro",
+   "start": 0.0,
+   "world": "boot",
+   "lyric": null,
+   "name": "01 信号开机",
+   "end": 9.78
+  },
+  {
+   "id": "s02_skyline",
+   "kind": "intro",
+   "start": 9.78,
+   "world": "skyline",
+   "lyric": null,
+   "name": "02 像素天际线",
+   "end": 18.238
+  },
+  {
+   "id": "s03_ember",
+   "kind": "verse",
+   "start": 18.238,
+   "world": "ember",
+   "lyric": "verse1",
+   "name": "03 余烬公寓",
+   "rowOffset": 0,
+   "rowCount": 4,
+   "end": 27.955,
+   "lines": [
+    [
+     15.72,
+     19.26
+    ],
+    [
+     19.38,
+     22.93
+    ],
+    [
+     23.05,
+     26.59
+    ],
+    [
+     26.71,
+     27.905
+    ]
+   ]
+  },
+  {
+   "id": "s04_coderain",
+   "kind": "verse",
+   "start": 27.955,
+   "world": "coderain",
+   "lyric": "verse1",
+   "name": "04 代码雨 · 子弹时间",
+   "rowOffset": 4,
+   "rowCount": 4,
+   "end": 42.674,
+   "lines": [
+    [
+     30.37,
+     33.92
+    ],
+    [
+     34.04,
+     37.58
+    ],
+    [
+     37.7,
+     41.25
+    ],
+    [
+     41.37,
+     42.624
+    ]
+   ]
+  },
+  {
+   "id": "s05_aurum",
+   "kind": "chorus",
+   "start": 42.674,
+   "world": "aurum",
+   "lyric": "chorus1",
+   "name": "05 夜·金色圣城",
+   "rowOffset": 0,
+   "rowCount": 4,
+   "end": 57.526,
+   "lines": [
+    [
+     45.03,
+     48.57
+    ],
+    [
+     48.69,
+     52.24
+    ],
+    [
+     52.36,
+     55.9
+    ],
+    [
+     56.02,
+     57.476
+    ]
+   ]
+  },
+  {
+   "id": "s06_atfield",
+   "kind": "chorus",
+   "start": 57.526,
+   "world": "atfield",
+   "lyric": "chorus1",
+   "name": "06 六角力场 · 巨构降临",
+   "rowOffset": 4,
+   "rowCount": 4,
+   "end": 72.141,
+   "lines": [
+    [
+     59.69,
+     63.23
+    ],
+    [
+     63.35,
+     66.89
+    ],
+    [
+     67.01,
+     70.56
+    ],
+    [
+     70.68,
+     72.091
+    ]
+   ]
+  },
+  {
+   "id": "s07_collapse",
+   "kind": "pre",
+   "start": 72.141,
+   "world": "collapse",
+   "lyric": null,
+   "name": "07 数据坍缩",
+   "end": 79.467
+  },
+  {
+   "id": "s08_drop",
+   "kind": "interlude",
+   "start": 79.467,
+   "world": "drop",
+   "lyric": "interlude1",
+   "name": "08 故障隧道 ¡ohohoh!",
+   "end": 94.16,
+   "rowOffset": 0,
+   "rowCount": 1,
+   "lines": [
+    [
+     80.38,
+     84.78
+    ]
+   ]
+  },
+  {
+   "id": "s09_tiltshift",
+   "kind": "verse",
+   "start": 94.16,
+   "world": "tiltshift",
+   "lyric": "verse2",
+   "name": "09 微缩十字路口",
+   "end": 109.15,
+   "rowOffset": 0,
+   "rowCount": 8,
+   "lines": [
+    [
+     94.13,
+     95.84
+    ],
+    [
+     95.96,
+     97.67
+    ],
+    [
+     97.79,
+     99.51
+    ],
+    [
+     99.63,
+     101.34
+    ],
+    [
+     101.46,
+     103.17
+    ],
+    [
+     103.29,
+     105.0
+    ],
+    [
+     105.12,
+     106.83
+    ],
+    [
+     106.95,
+     109.1
+    ]
+   ]
+  },
+  {
+   "id": "s10_maglev",
+   "kind": "chorus",
+   "start": 109.15,
+   "world": "maglev",
+   "lyric": "chorus2",
+   "name": "10 高架磁浮",
+   "rowOffset": 0,
+   "rowCount": 4,
+   "end": 123.81,
+   "lines": [
+    [
+     109.15,
+     112.69
+    ],
+    [
+     112.81,
+     116.36
+    ],
+    [
+     116.48,
+     120.02
+    ],
+    [
+     120.14,
+     123.76
+    ]
+   ]
+  },
+  {
+   "id": "s11_mosh",
+   "kind": "chorus",
+   "start": 123.81,
+   "world": "mosh",
+   "lyric": "chorus2",
+   "name": "11 故障神殿",
+   "rowOffset": 4,
+   "rowCount": 4,
+   "end": 138.46,
+   "lines": [
+    [
+     123.81,
+     127.35
+    ],
+    [
+     127.47,
+     131.01
+    ],
+    [
+     131.13,
+     134.68
+    ],
+    [
+     134.8,
+     138.41
+    ]
+   ]
+  },
+  {
+   "id": "s12_rainsigns",
+   "kind": "interlude",
+   "start": 138.46,
+   "world": "rainsigns",
+   "lyric": null,
+   "name": "12 雨夜招牌林",
+   "end": 153.078
+  },
+  {
+   "id": "s13_mirror",
+   "kind": "bridge",
+   "start": 153.078,
+   "world": "mirror",
+   "lyric": "bridge1",
+   "name": "13 镜像碎片",
+   "rowOffset": 0,
+   "rowCount": 2,
+   "end": 160.975,
+   "lines": [
+    [
+     152.47,
+     156.01
+    ],
+    [
+     156.13,
+     160.53
+    ]
+   ]
+  },
+  {
+   "id": "s14_inverted",
+   "kind": "bridge",
+   "start": 160.975,
+   "world": "inverted",
+   "lyric": "bridge1",
+   "name": "14 倒悬之城",
+   "rowOffset": 2,
+   "rowCount": 2,
+   "end": 167.85,
+   "lines": [
+    [
+     159.79,
+     163.34
+    ],
+    [
+     163.46,
+     167.8
+    ]
+   ]
+  },
+  {
+   "id": "s15_cyberdive",
+   "kind": "chorus",
+   "start": 167.85,
+   "world": "cyberdive",
+   "lyric": "chorus3",
+   "name": "15 电子脑潜入",
+   "rowOffset": 0,
+   "rowCount": 4,
+   "end": 182.51,
+   "lines": [
+    [
+     167.85,
+     171.39
+    ],
+    [
+     171.51,
+     175.06
+    ],
+    [
+     175.18,
+     178.72
+    ],
+    [
+     178.84,
+     182.46
+    ]
+   ]
+  },
+  {
+   "id": "s16_trails",
+   "kind": "chorus",
+   "start": 182.51,
+   "world": "lighttrails",
+   "lyric": "chorus3",
+   "name": "16 光轨立交",
+   "rowOffset": 4,
+   "rowCount": 4,
+   "end": 197.16,
+   "lines": [
+    [
+     182.51,
+     186.05
+    ],
+    [
+     186.17,
+     189.71
+    ],
+    [
+     189.83,
+     193.38
+    ],
+    [
+     193.5,
+     197.11
+    ]
+   ]
+  },
+  {
+   "id": "s17_bloodmoon",
+   "kind": "interlude",
+   "start": 197.16,
+   "world": "bloodmoon",
+   "lyric": "interlude2",
+   "name": "17 血月电塔 ¡ohohoh!",
+   "end": 211.698,
+   "rowOffset": 0,
+   "rowCount": 1,
+   "lines": [
+    [
+     198.08,
+     202.48
+    ]
+   ]
+  },
+  {
+   "id": "s18_chains",
+   "kind": "outro",
+   "start": 211.698,
+   "world": "chains",
+   "lyric": "outro",
+   "name": "18 锁链崩解",
+   "rowOffset": 0,
+   "rowCount": 4,
+   "mode": "collapse",
+   "end": 218.3,
+   "lines": [
+    [
+     210.22,
+     211.93
+    ],
+    [
+     212.05,
+     213.76
+    ],
+    [
+     213.88,
+     215.59
+    ],
+    [
+     215.71,
+     218.25
+    ]
+   ]
+  },
+  {
+   "id": "s19_dissolve",
+   "kind": "outro",
+   "start": 218.3,
+   "world": "dissolve",
+   "lyric": "outro",
+   "name": "19 灰烬上升",
+   "rowOffset": 4,
+   "rowCount": 5,
+   "end": 233.506,
+   "lines": [
+    [
+     217.54,
+     219.26
+    ],
+    [
+     219.38,
+     221.09
+    ],
+    [
+     221.21,
+     222.92
+    ],
+    [
+     223.04,
+     224.75
+    ],
+    [
+     224.87,
+     229.27
+    ]
+   ]
+  },
+  {
+   "id": "s20_end",
+   "kind": "end",
+   "start": 233.506,
+   "world": "endcard",
+   "lyric": null,
+   "name": "20 片尾",
+   "end": 239.92
+  }
+ ]
+}

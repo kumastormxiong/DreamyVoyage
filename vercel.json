@@ -19,6 +19,26 @@
       "source": "/vrmv",
       "destination": "/vrmv/",
       "permanent": false
+    },
+    {
+      "source": "/CAOS",
+      "destination": "/caos/",
+      "permanent": false
+    },
+    {
+      "source": "/CAOS/",
+      "destination": "/caos/",
+      "permanent": false
+    },
+    {
+      "source": "/CAOS/:path*",
+      "destination": "/caos/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/caos",
+      "destination": "/caos/",
+      "permanent": false
     }
   ]
 }

@@ -1,0 +1,445 @@
+{
+ "source": "lyrics.lrc",
+ "unit": "word",
+ "blocks": [
+  {
+   "id": "intro",
+   "tag": "Intro",
+   "kind": "intro",
+   "rows": [],
+   "lines": [],
+   "notes": [
+    "（咏叹）"
+   ]
+  },
+  {
+   "id": "verse1",
+   "tag": "Verse 1",
+   "kind": "verse",
+   "rows": [
+    [
+     "ocárrelpesga",
+     ",sluzsegonéni"
+    ],
+    [
+     "razúcaled",
+     ",nayugzidni"
+    ],
+    [
+     "aidarotnuc",
+     ",zocamle"
+    ],
+    [
+     "ramareóin",
+     ",rocegnúmed"
+    ],
+    [
+     "etnocsañiga",
+     ",nocóziretuf"
+    ],
+    [
+     "raznirugal",
+     ",otneipmoc"
+    ],
+    [
+     ".llaegac",
+     ",zatreled"
+    ],
+    [
+     ".razluz",
+     ",rohibet"
+    ]
+   ],
+   "lines": [
+    "ocárrelpesga ,sluzsegonéni",
+    "razúcaled ,nayugzidni",
+    "aidarotnuc ,zocamle",
+    "ramareóin ,rocegnúmed",
+    "etnocsañiga ,nocóziretuf",
+    "raznirugal ,otneipmoc",
+    ".llaegac ,zatreled",
+    ".razluz ,rohibet"
+   ],
+   "notes": [],
+   "row_t": [
+    15.72,
+    19.38,
+    23.05,
+    26.71,
+    30.37,
+    34.04,
+    37.7,
+    41.37
+   ]
+  },
+  {
+   "id": "chorus1",
+   "tag": "Chorus",
+   "kind": "chorus",
+   "rows": [
+    [
+     "odacnav",
+     ",sogrofam"
+    ],
+    [
+     "solaciforp",
+     ",sarehli"
+    ],
+    [
+     "?ugredna",
+     ",tatsin"
+    ],
+    [
+     "otnemom",
+     ",dadrev"
+    ],
+    [
+     "?ohcatse",
+     ",nocerac"
+    ],
+    [
+     "osaprev",
+     ",otnafseg"
+    ],
+    [
+     "saredneg",
+     ",noced"
+    ],
+    [
+     ".zetnoc",
+     ",notarap"
+    ]
+   ],
+   "lines": [
+    "odacnav ,sogrofam",
+    "solaciforp ,sarehli",
+    "?ugredna ,tatsin",
+    "otnemom ,dadrev",
+    "?ohcatse ,nocerac",
+    "osaprev ,otnafseg",
+    "saredneg ,noced",
+    ".zetnoc ,notarap"
+   ],
+   "notes": [],
+   "row_t": [
+    45.03,
+    48.69,
+    52.36,
+    56.02,
+    59.69,
+    63.35,
+    67.01,
+    70.68
+   ]
+  },
+  {
+   "id": "interlude1",
+   "tag": "interlude",
+   "kind": "interlude",
+   "rows": [
+    [
+     "¡ohohoh!"
+    ]
+   ],
+   "lines": [
+    "¡ohohoh!"
+   ],
+   "notes": [],
+   "row_t": [
+    80.38
+   ]
+  },
+  {
+   "id": "verse2",
+   "tag": "Verse 2",
+   "kind": "verse",
+   "rows": [
+    [
+     "odapert",
+     ",roigacin"
+    ],
+    [
+     "otrope",
+     ",namigal"
+    ],
+    [
+     "otacifrep",
+     ",retzelab"
+    ],
+    [
+     "omudnem",
+     ",rotacim"
+    ],
+    [
+     "etnem",
+     ",solarets"
+    ],
+    [
+     "sarpal",
+     ",naragcen"
+    ],
+    [
+     ",etrapa",
+     ",otnegrem"
+    ],
+    [
+     "?rednac",
+     ",odnucem"
+    ]
+   ],
+   "lines": [
+    "odapert ,roigacin",
+    "otrope ,namigal",
+    "otacifrep ,retzelab",
+    "omudnem ,rotacim",
+    "etnem ,solarets",
+    "sarpal ,naragcen",
+    ",etrapa ,otnegrem",
+    "?rednac ,odnucem"
+   ],
+   "notes": [],
+   "row_t": [
+    94.13,
+    95.96000000000001,
+    97.78999999999999,
+    99.63,
+    101.46000000000001,
+    103.28999999999999,
+    105.12,
+    106.95
+   ]
+  },
+  {
+   "id": "chorus2",
+   "tag": "Chorus",
+   "kind": "chorus",
+   "rows": [
+    [
+     "odacnav",
+     ",sogrofam"
+    ],
+    [
+     "solaciforp",
+     ",sarehli"
+    ],
+    [
+     "?ugredna",
+     ",tatsin"
+    ],
+    [
+     "otnemom",
+     ",dadrev"
+    ],
+    [
+     "?ohcatse",
+     ",nocerac"
+    ],
+    [
+     "osaprev",
+     ",otnafseg"
+    ],
+    [
+     "saredneg",
+     ",noced"
+    ],
+    [
+     ".zetnoc",
+     ",notarap"
+    ]
+   ],
+   "lines": [
+    "odacnav ,sogrofam",
+    "solaciforp ,sarehli",
+    "?ugredna ,tatsin",
+    "otnemom ,dadrev",
+    "?ohcatse ,nocerac",
+    "osaprev ,otnafseg",
+    "saredneg ,noced",
+    ".zetnoc ,notarap"
+   ],
+   "notes": [],
+   "row_t": [
+    109.15,
+    112.81,
+    116.47999999999999,
+    120.14,
+    123.81,
+    127.47,
+    131.13,
+    134.8
+   ]
+  },
+  {
+   "id": "bridge1",
+   "tag": "Bridge",
+   "kind": "bridge",
+   "rows": [
+    [
+     "omaretes",
+     ",oruznoc"
+    ],
+    [
+     "otrof",
+     ",salam"
+    ],
+    [
+     "otsepmoc",
+     ",rednoc"
+    ],
+    [
+     "?ohceper",
+     ",notrop"
+    ]
+   ],
+   "lines": [
+    "omaretes ,oruznoc",
+    "otrof ,salam",
+    "otsepmoc ,rednoc",
+    "?ohceper ,notrop"
+   ],
+   "notes": [],
+   "row_t": [
+    152.47,
+    156.13,
+    159.79,
+    163.46
+   ]
+  },
+  {
+   "id": "chorus3",
+   "tag": "Chorus",
+   "kind": "chorus",
+   "rows": [
+    [
+     "odacnav",
+     ",sogrofam"
+    ],
+    [
+     "solaciforp",
+     ",sarehli"
+    ],
+    [
+     "?ugredna",
+     ",tatsin"
+    ],
+    [
+     "otnemom",
+     ",dadrev"
+    ],
+    [
+     "?ohcatse",
+     ",nocerac"
+    ],
+    [
+     "osaprev",
+     ",otnafseg"
+    ],
+    [
+     "saredneg",
+     ",noced"
+    ],
+    [
+     ".zetnoc",
+     ",notarap"
+    ]
+   ],
+   "lines": [
+    "odacnav ,sogrofam",
+    "solaciforp ,sarehli",
+    "?ugredna ,tatsin",
+    "otnemom ,dadrev",
+    "?ohcatse ,nocerac",
+    "osaprev ,otnafseg",
+    "saredneg ,noced",
+    ".zetnoc ,notarap"
+   ],
+   "notes": [],
+   "row_t": [
+    167.85,
+    171.51,
+    175.18,
+    178.84,
+    182.51,
+    186.17,
+    189.83,
+    193.5
+   ]
+  },
+  {
+   "id": "interlude2",
+   "tag": "interlude",
+   "kind": "interlude",
+   "rows": [
+    [
+     "¡ohohoh!"
+    ]
+   ],
+   "lines": [
+    "¡ohohoh!"
+   ],
+   "notes": [],
+   "row_t": [
+    198.07999999999998
+   ]
+  },
+  {
+   "id": "outro",
+   "tag": "Outro",
+   "kind": "outro",
+   "rows": [
+    [
+     "...odet"
+    ],
+    [
+     "...oyomi"
+    ],
+    [
+     "...erutem"
+    ],
+    [
+     "...sogrof"
+    ],
+    [
+     "namel..."
+    ],
+    [
+     "namel..."
+    ],
+    [
+     "namel..."
+    ],
+    [
+     "namel..."
+    ],
+    [
+     "lleht",
+     "ni",
+     "tsihg"
+    ]
+   ],
+   "lines": [
+    "...odet",
+    "...oyomi",
+    "...erutem",
+    "...sogrof",
+    "namel...",
+    "namel...",
+    "namel...",
+    "namel...",
+    "lleht ni tsihg"
+   ],
+   "notes": [],
+   "row_t": [
+    210.22,
+    212.05,
+    213.88,
+    215.71,
+    217.54,
+    219.38,
+    221.21,
+    223.04,
+    224.87
+   ]
+  }
+ ]
+}
