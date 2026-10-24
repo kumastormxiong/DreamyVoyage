@@ -18,7 +18,7 @@ export function adaptWorld(name, w) {
   const baseFov = cam.fov, baseAspect = cam.aspect;
   // sPos / sQuat：上一帧的导演镜头。VR 渲染时头显会改写镜头的局部姿态，下一帧 update 前要还原，
   // 否则只改部分分量的场景（例如 endcard 只改 x）会被头部姿态污染
-  const st = { secId: null, lastT: -1, anchorYaw: 0, pos: new THREE.Vector3(), sPos: cam.position.clone(), sQuat: cam.quaternion.clone() };
+  const st = { secId: null, lastT: -1, anchorYaw: 0, yawS: 0, pos: new THREE.Vector3(), sPos: cam.position.clone(), sQuat: cam.quaternion.clone() };
 
   const center = new THREE.Vector3();
   return {
@@ -42,16 +42,22 @@ export function adaptWorld(name, w) {
         if (cfg.mode === 'fixed') {
           st.pos.fromArray(cfg.eye);
           st.anchorYaw = Math.atan2(-(cfg.look[0] - cfg.eye[0]), -(cfg.look[2] - cfg.eye[2]));
-        } else { st.pos.copy(_p); st.anchorYaw = yawScript; }
-      } else if (cfg.mode === 'follow') {
+        } else { st.pos.copy(_p); st.anchorYaw = yawScript; st.yawS = yawScript; }
+      } else if (cfg.mode === 'follow' || cfg.mode === 'dolly') {
         const dt = Math.min(0.1, Math.max(0, t - st.lastT));
-        st.pos.lerp(_p, 1 - Math.exp(-dt / cfg.tau));    // 低通：保留慢速移动，滤掉抖动
+        // 位置：轻度低通。tau 越小越跟手（保留更多镜头运动和抖动），越大越平稳（防晕）
+        st.pos.lerp(_p, 1 - Math.exp(-dt / (cfg.tau ?? 0.35)));
+        // 朝向：跟随导演镜头的水平朝向，让观众正面始终对着主要场景；仰视/俯视时水平朝向不稳定，保持上一帧
+        if (Math.hypot(_f.x, _f.z) > 0.2) {
+          let d = yawScript - st.yawS; d = Math.atan2(Math.sin(d), Math.cos(d));
+          st.yawS += d * (1 - Math.exp(-dt / (cfg.yawTau ?? 1.2)));
+        }
       }
       st.lastT = t;
       rig.position.copy(st.pos); rig.position.y -= EYE;
       rig.position.add(user.offset);
       center.set(rig.position.x, rig.position.y + EYE, rig.position.z);   // 观众眼睛的世界位置（补丁里放环形背景用）
-      const ry = st.anchorYaw + user.yaw;
+      const ry = (cfg.mode === 'follow' || cfg.mode === 'dolly' ? st.yawS : st.anchorYaw) + user.yaw;
       rig.rotation.set(0, ry, 0);
       rig.updateMatrixWorld(true);
       return jump;

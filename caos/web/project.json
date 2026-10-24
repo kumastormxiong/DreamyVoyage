@@ -59,156 +59,105 @@
  "vr": {
   "audio": "VRMV/audio/song.mp3",
   "eye": 1.6,
-  "default_mode": "follow",
+  "default_mode": "dolly",
   "world_modes": {
    "endcard": {
     "mode": "anchor"
    },
    "drop": {
-    "mode": "anchor"
+    "mode": "dolly",
+    "tau": 0.6,
+    "yawTau": 1.2
    },
    "boot": {
-    "mode": "fixed",
-    "eye": [
-     0,
-     1.6,
-     0.5
-    ],
-    "look": [
-     0,
-     2.6,
-     -11
-    ]
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "mirror": {
-    "mode": "fixed",
-    "eye": [
-     0,
-     1.7,
-     2.2
-    ],
-    "look": [
-     0,
-     2.4,
-     -10
-    ]
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "mosh": {
-    "mode": "fixed",
-    "eye": [
-     0,
-     1.6,
-     2.5
-    ],
-    "look": [
-     0,
-     2.3,
-     -9
-    ]
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "chains": {
-    "mode": "fixed",
-    "eye": [
-     2.8,
-     1.7,
-     1
-    ],
-    "look": [
-     -0.4,
-     1.2,
-     -14
-    ]
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "ember": {
-    "mode": "fixed",
-    "eye": [
-     -22,
-     3,
-     6
-    ],
-    "look": [
-     0,
-     26,
-     -34
-    ]
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "collapse": {
-    "mode": "anchor"
+    "mode": "dolly",
+    "tau": 0.6,
+    "yawTau": 1.2
    },
    "tiltshift": {
-    "mode": "fixed",
-    "eye": [
-     85,
-     72,
-     70
-    ],
-    "look": [
-     0,
-     4,
-     0
-    ]
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "bloodmoon": {
-    "mode": "fixed",
-    "eye": [
-     0,
-     14,
-     50
-    ],
-    "look": [
-     0,
-     48,
-     -500
-    ]
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "skyline": {
-    "mode": "follow",
-    "tau": 2
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "aurum": {
-    "mode": "follow",
-    "tau": 2
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "maglev": {
-    "mode": "follow",
-    "tau": 0.6
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "rainsigns": {
-    "mode": "follow",
-    "tau": 2
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "inverted": {
-    "mode": "follow",
-    "tau": 2
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "lighttrails": {
-    "mode": "follow",
-    "tau": 2.5
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "dissolve": {
-    "mode": "follow",
-    "tau": 2
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "coderain": {
-    "mode": "fixed",
-    "eye": [
-     0,
-     1.6,
-     12
-    ],
-    "look": [
-     0,
-     4,
-     0
-    ]
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "atfield": {
-    "mode": "follow",
-    "tau": 2.5
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    },
    "cyberdive": {
-    "mode": "follow",
-    "tau": 1.5
+    "mode": "dolly",
+    "tau": 0.35,
+    "yawTau": 1.2
    }
   }
  },

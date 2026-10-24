@@ -12,10 +12,11 @@ export const VR_QUALITY = {
 };
 
 // 观众平台跟随方式：
-//   follow：平滑跟着原 MV 镜头位置走（去掉抖动、侧倾、俯仰），tau 越大越平滑   —— 适合缓慢推进的镜头
+//   dolly ：（默认）观众跟着导演镜头的位置走，保留一定运动与抖动（tau 越小越跟手）；朝向跟随镜头水平方向，正面始终对着主场景；不跟俯仰和侧倾
+//   follow：同 dolly，tau 默认 2（更平稳）
 //   anchor：每段开始站在原镜头位置，之后不动，观众自己转头走动                 —— 适合镜头抖动/快速环绕的场景（防晕）
 //   fixed ：站在指定位置 eye:[x,y,z]，面朝 look:[x,y,z]                         —— 适合需要精确站位的场景
-export const DEFAULT_MODE = { mode: 'follow', tau: 1.2 };
+export const DEFAULT_MODE = { mode: 'dolly', tau: 0.35, yawTau: 1.2 };
 export const VR_WORLD = {
   tunnel: { mode: 'anchor' },        // 隧道本身在飞，观众站定即可
   endcard: { mode: 'anchor' },
