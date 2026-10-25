@@ -39,6 +39,26 @@
       "source": "/caos",
       "destination": "/caos/",
       "permanent": false
+    },
+    {
+      "source": "/3dgsmv",
+      "destination": "/3dgsmv/",
+      "permanent": false
+    },
+    {
+      "source": "/3DGSMV",
+      "destination": "/3dgsmv/",
+      "permanent": false
+    },
+    {
+      "source": "/3DGSMV/",
+      "destination": "/3dgsmv/",
+      "permanent": false
+    },
+    {
+      "source": "/3DGSMV/:path*",
+      "destination": "/3dgsmv/:path*",
+      "permanent": false
     }
   ]
 }

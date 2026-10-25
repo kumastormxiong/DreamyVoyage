@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<title>CHAINEDGHOST · 万神殿 3DGS VR</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="CHAINEDGHOST — 在 3D 高斯泼溅（3DGS）重建的万神殿里观看的实时音乐视频，支持网页预览与 WebXR VR。">
+<style>
+  @font-face{font-family:"Exo2";src:url("assets/fonts/Exo2-800i.woff") format("woff");font-weight:800;font-style:italic}
+  @font-face{font-family:"NotoSansSC";src:url("assets/fonts/NotoSansSC-900.woff") format("woff");font-weight:900}
+  :root{--pink:#ff2f8f;--cyan:#3ff6ff;--violet:#a33cff;--ink:#ece6ff;--dim:#8f80b8;--bg:#04010a}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);overflow:hidden;font:15px/1.6 "Microsoft YaHei","PingFang SC","Noto Sans SC",system-ui,sans-serif}
+  #stage{position:fixed;inset:0}
+  #stage canvas{display:block;width:100%;height:100%;touch-action:none}
+  #home{position:fixed;inset:0;z-index:5;overflow:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:72px 18px 56px;
+    background:radial-gradient(ellipse at 50% 38%,rgba(4,1,10,.45),rgba(4,1,10,.92) 72%)}
+  .top{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;z-index:6}
+  .top a{color:var(--dim);text-decoration:none;font-size:13px;letter-spacing:.12em}
+  .top a:hover{color:var(--cyan)}
+  #lang{display:flex;border:1px solid rgba(63,246,255,.45);border-radius:999px;overflow:hidden;background:rgba(10,3,24,.6)}
+  #lang button{border:0;border-radius:0;background:transparent;color:var(--dim);padding:5px 14px;font-size:13px;letter-spacing:.08em}
+  #lang button.on{color:#04010a;background:var(--cyan);font-weight:700}
+  .card{max-width:640px;width:100%;text-align:center}
+  h1{position:relative;margin:0;font:800 italic clamp(40px,10vw,84px)/1.02 "Exo2",sans-serif;letter-spacing:.05em;color:#fff;text-shadow:0 0 12px var(--pink),0 0 38px rgba(63,246,255,.55)}
+  .sub{margin:10px 0 22px;letter-spacing:.5em;color:var(--cyan);font-size:12px;text-indent:.5em}
+  .lead{color:var(--ink);margin:0 auto 26px;max-width:500px;opacity:.9}
+  .row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:10px 0}
+  button,select{font:inherit;color:#fff;background:rgba(22,7,43,.8);border:1px solid rgba(63,246,255,.5);border-radius:8px;padding:10px 20px;cursor:pointer;transition:.18s}
+  button:hover:not(:disabled),select:hover{border-color:var(--cyan);box-shadow:0 0 16px rgba(63,246,255,.3)}
+  button.main{background:linear-gradient(90deg,var(--pink),var(--violet));border:0;font-weight:700;padding:13px 32px;font-size:17px;letter-spacing:.08em;box-shadow:0 0 26px rgba(255,47,143,.5)}
+  button:disabled{opacity:.35;cursor:default;box-shadow:none}
+  select{padding:8px 10px;font-size:14px}
+  .q{color:var(--dim);font-size:13px}
+  #prog{width:min(420px,80vw);height:4px;margin:16px auto 4px;background:rgba(255,255,255,.12);border-radius:4px;overflow:hidden}
+  #progFill{height:100%;width:0;background:linear-gradient(90deg,var(--pink),var(--cyan));transition:width .25s}
+  #status{min-height:1.6em;color:var(--dim);font-size:13px;margin-top:6px}
+  #xrnote{color:#ffb3d9;font-size:13px;min-height:1.3em}
+  details{margin-top:16px;text-align:left;background:rgba(14,5,30,.65);border:1px solid rgba(63,246,255,.2);border-radius:10px;padding:10px 16px}
+  summary{cursor:pointer;color:var(--cyan);letter-spacing:.08em}
+  details ul{margin:8px 0 4px;padding-left:20px;color:#d9d0f5}
+  .foot{margin-top:22px;color:var(--dim);font-size:12px;letter-spacing:.3em}
+  #bar{position:fixed;left:0;right:0;bottom:0;display:none;gap:10px;align-items:center;padding:10px 16px;z-index:4;background:linear-gradient(transparent,rgba(0,0,0,.8))}
+  #bar button{padding:6px 12px}
+  #seek{flex:1;min-width:120px;accent-color:var(--pink)}
+  #info{font-variant-numeric:tabular-nums;color:var(--dim);font-size:13px;white-space:nowrap}
+  #hint{position:fixed;top:12px;left:0;right:0;text-align:center;color:var(--dim);font-size:12px;z-index:4;display:none;pointer-events:none}
+  body.preview #bar{display:flex} body.preview #hint{display:block} body.preview #home,body.preview .top{display:none}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+
+<div class="top">
+  <a href="https://dreamy.voyage/">← dreamy.voyage</a>
+  <div id="lang"><button data-l="zh" class="on">中文</button><button data-l="en">EN</button></div>
+</div>
+
+<div id="home"><div class="card">
+  <h1>CHAINEDGHOST</h1>
+  <div class="sub">3DGS · PANTHEON · WEBXR</div>
+  <p class="lead" data-zh="一座用 3D 高斯泼溅重建的万神殿。整首歌的画面——光柱、频谱、冲击波、假名雨、DNA 螺旋和歌词——都发生在这座大厅里面。戴上头显，站在穹顶之下。"
+     data-en="A Pantheon rebuilt with 3D Gaussian Splatting. Every scene of the song — light pillars, spectrum, shockwaves, kana rain, a DNA helix and the lyrics — happens inside this hall. Put on a headset and stand beneath the dome.">一座用 3D 高斯泼溅重建的万神殿。整首歌的画面——光柱、频谱、冲击波、假名雨、DNA 螺旋和歌词——都发生在这座大厅里面。戴上头显，站在穹顶之下。</p>
+  <div class="row">
+    <button id="bEnterVR" class="main" disabled data-zh="进入 VR" data-en="ENTER VR">进入 VR</button>
+    <button id="bPreview" disabled data-zh="浏览器预览" data-en="Preview in browser">浏览器预览</button>
+  </div>
+  <div class="row"><label class="q"><span data-zh="画质" data-en="Quality">画质</span> <select id="quality"></select></label></div>
+  <div id="prog"><div id="progFill"></div></div>
+  <div id="status">加载中…</div>
+  <div id="xrnote"></div>
+  <details>
+    <summary data-zh="如何观看" data-en="How to watch">如何观看</summary>
+    <ul>
+      <li data-zh="用 Meta Quest 浏览器打开本页，等进度条走完，点“进入 VR”。首次加载模型约 60 MB，Quest 上需要一两分钟。建议戴耳机。" data-en="Open this page in the Meta Quest browser, wait for the loader, then press “Enter VR”. The model is ~60 MB; first load may take a minute or two on Quest. Headphones recommended.">用 Meta Quest 浏览器打开本页，等进度条走完，点“进入 VR”。首次加载模型约 60 MB，Quest 上需要一两分钟。建议戴耳机。</li>
+      <li data-zh="扳机：暂停 / 继续　左握把：上一段　右握把：下一段" data-en="Trigger: pause / resume · Left grip: previous section · Right grip: next section">扳机：暂停 / 继续　左握把：上一段　右握把：下一段</li>
+      <li data-zh="左摇杆：移动　右摇杆：转向（每次 30°）。大厅很大，可以走动，但最多走到离中心 7 米。" data-en="Left stick: move · Right stick: snap turn (30°). You can walk, up to 7 m from the centre.">左摇杆：移动　右摇杆：转向（每次 30°）。大厅很大，可以走动，但最多走到离中心 7 米。</li>
+      <li data-zh="电脑 / 手机预览：默认自动运镜；拖动鼠标或按 WASD 切到手动，按 C 回到自动运镜，空格暂停。" data-en="On desktop / phone: auto-camera by default; drag or press WASD to take over, press C for auto-camera again, Space to pause.">电脑 / 手机预览：默认自动运镜；拖动鼠标或按 WASD 切到手动，按 C 回到自动运镜，空格暂停。</li>
+      <li data-zh="Quest 2 建议选“省电”画质。" data-en="On Quest 2 choose “Power saver”.">Quest 2 建议选“省电”画质。</li>
+    </ul>
+  </details>
+  <div class="foot">虚空造物</div>
+  <p class="q" style="margin-top:10px;font-size:12px">Scene: <a style="color:var(--cyan)" href="https://superspl.at/scene/dac6e508">The Pantheon Interior</a> by David Fletcher · <a style="color:var(--cyan)" href="http://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></p>
+</div></div>
+
+<div id="hint" data-zh="拖动转视角 · WASD 移动 · C 自动运镜 · 空格暂停 · ←/→ 快退快进" data-en="Drag to look · WASD move · C auto-camera · Space pause · ←/→ seek">拖动转视角 · WASD 移动 · C 自动运镜 · 空格暂停 · ←/→ 快退快进</div>
+<div id="bar">
+  <button id="bPlay">暂停</button>
+  <input id="seek" type="range" min="0" max="240" step="0.01" value="0">
+  <span id="info">0:00</span>
+  <button id="bAuto" data-zh="自动运镜" data-en="Auto cam">自动运镜</button>
+  <button id="bVR2" data-zh="进入 VR" data-en="Enter VR">进入 VR</button>
+  <button id="bHome" data-zh="返回" data-en="Back">返回</button>
+</div>
+
+<script>
+/* 中英切换：静态文字用 data-zh/data-en；main.js 动态文字通过 window.__L(zh,en) 取当前语言 */
+(function(){
+  var KEY='v3dgs_lang', lang='zh';
+  try{var q=new URLSearchParams(location.search).get('lang'); var s=q||localStorage.getItem(KEY); if(s==='en'||s==='zh')lang=s;}catch(e){}
+  window.__lang=lang; window.__L=function(zh,en){return window.__lang==='en'?en:zh;};
+  function apply(){
+    document.documentElement.lang=lang==='zh'?'zh-CN':'en';
+    document.querySelectorAll('[data-zh]').forEach(function(el){el.textContent=el.getAttribute('data-'+lang);});
+    document.querySelectorAll('#lang button').forEach(function(b){b.classList.toggle('on',b.dataset.l===lang);});
+    window.__lang=lang; if(window.__refreshText)window.__refreshText();
+  }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest&&e.target.closest('#lang button'); if(!b)return;
+    lang=b.dataset.l; try{localStorage.setItem(KEY,lang);}catch(_){} apply();
+  });
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply); else apply();
+})();
+</script>
+
+<script type="importmap">
+{"imports":{"three":"./vendor/three.module.js","three/addons/postprocessing/Pass.js":"./vendor/Pass.js","@sparkjsdev/spark":"./vendor/spark.module.js"}}
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
