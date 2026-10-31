@@ -57,3 +57,21 @@ export const NU_SHELL = { count: 64, rMin: 7.5, rMax: 10.5, sizeMin: 1.8, sizeMa
 export const PREVIEW_FOV = 75;
 export const MOVE_SPEED = 2.5;        // 摇杆 / WASD 移动速度（米/秒）
 export const SNAP_TURN = Math.PI / 6; // 右摇杆每次转 30°
+
+// 虚拟歌手（vr_singer.js）：混元3D 上半身像，在有歌词的段落里站在观众左前方唱歌
+export const SINGER = {
+  url: '../assets/singer/singer.glb',     // 相对 src/；由 tools/singer/process.mjs 从 3D Model/girl.glb 生成（6 万三角面）
+  sections: ['verse1', 'pre1', 'chorus1', 'verse2', 'pre2', 'chorus2', 'bridge', 'chorus3', 'outro', 'dna'],
+  pos: [-1.0, 0, -2.3],                    // 相对观众视线（hud）：左 1 米、前 2.3 米，眼睛与观众同高
+  yaw: 0.41,                               // 转向观众
+  scale: 1.0,
+  eyeY: 0.80,                              // 模型里眼睛的高度（米）
+  top: 1.061,                              // 模型头顶高度（显形扫描用）
+  fadeIn: 0.9, fadeOut: 0.6,               // 段落开始显形 / 结束消失（秒）
+  // 嘴部（模型坐标，米）：上下唇分界线的中心点、半个嘴宽、最大张嘴幅度
+  mouth: [0.0044, 0.7595, 0.19], mouthW: 0.032, jaw: 0.015,
+  hairTop: 0.86, hairAmp: 0.035,           // 头发从这个高度往下开始摆动；发梢最大摆幅（米，鼓点时更大）
+  env: 0.7,                                // 环境反射强度
+  key: 0.75,                               // 柔和主光强度（着色器内，不影响场景）
+  rim: 0.4, rimA: 0xff2f8f, rimB: 0x3ff6ff,   // 霓虹轮廓光
+};

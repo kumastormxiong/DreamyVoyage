@@ -17,6 +17,7 @@ import { loadKanaFonts, twinify, setKanaTime, kanaGeo } from './vr_kana3d.js';
 import { attachFx } from './vr_fx.js';
 import { PATCHES } from './vr_patches.js';
 import { createPerf } from './vr_perf.js';
+import { createSinger } from './vr_singer.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -84,8 +85,15 @@ console.log('立体假名替身：', twinCount);
 const post = { s: {}, reset() { this.s = { bloom: 0.6, bloomR: 0.45, bloomT: 0.6, ab: 0.0022, glitch: 0, scan: 0.1, grain: 0.04, vig: 0.4, flash: [0, 0, 0], track: 0, warp: 0, pix: 0 }; } };
 post.reset();
 
+status('加载虚拟歌手…');
+const singer = await createSinger(ctx).catch((e) => { console.warn('歌手模型加载失败，跳过', e); return null; });
+
 status('预编译着色器…');
-for (const [k, w] of Object.entries(worlds)) { try { renderer.compile(w.scene, w.camera); } catch (e) { console.warn('compile', k, e); } }
+for (const [k, w] of Object.entries(worlds)) {
+  if (singer) singer.attachForCompile(adapters[k].hud);
+  try { renderer.compile(w.scene, w.camera); } catch (e) { console.warn('compile', k, e); }
+  if (singer) singer.detach();
+}
 
 // ---------- 音频与播放控制 ----------
 const audio = new Audio(new URL(AUDIO_FILE, import.meta.url).href);
@@ -173,6 +181,7 @@ renderer.setAnimationLoop((now) => {
   X.twins.sync(); setKanaTime(t);
   if (X.fx) X.fx.update(t, f);
   A.end(t, S, input.user);
+  if (singer) singer.update(t, f, S, k, A, secs);
 
   if (!xr) input.applyPreview(w.camera);
 
@@ -193,4 +202,4 @@ renderer.setAnimationLoop((now) => {
   renderer.render(w.scene, w.camera);
 });
 
-window.__vr = { renderer, worlds, adapters, audio, tl, input, perf, extras };   // 调试用
+window.__vr = { renderer, worlds, adapters, audio, tl, input, perf, extras, singer };   // 调试用
