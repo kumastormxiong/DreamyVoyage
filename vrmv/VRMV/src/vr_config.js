@@ -58,20 +58,34 @@ export const PREVIEW_FOV = 75;
 export const MOVE_SPEED = 2.5;        // 摇杆 / WASD 移动速度（米/秒）
 export const SNAP_TURN = Math.PI / 6; // 右摇杆每次转 30°
 
-// 虚拟歌手（vr_singer.js）：混元3D 上半身像，在有歌词的段落里站在观众左前方唱歌
+// 虚拟歌手（vr_singer.js）：混元3D 人物，每个有歌词的段落由一位出现在观众左前方唱歌
+// 人物模型由 tools/singer/process.mjs 从 3D Model/*.glb 生成（每个 6 万三角面）；landmark 坐标（米）是去掉节点旋转后的模型坐标
 export const SINGER = {
-  url: '../assets/singer/singer.glb',     // 相对 src/；由 tools/singer/process.mjs 从 3D Model/girl.glb 生成（6 万三角面）
-  sections: ['verse1', 'pre1', 'chorus1', 'verse2', 'pre2', 'chorus2', 'bridge', 'chorus3', 'outro', 'dna'],
-  pos: [-1.0, 0, -2.3],                    // 相对观众视线（hud）：左 1 米、前 2.3 米，眼睛与观众同高
-  yaw: 0.41,                               // 转向观众
-  scale: 1.0,
-  eyeY: 0.80,                              // 模型里眼睛的高度（米）
-  top: 1.061,                              // 模型头顶高度（显形扫描用）
+  pos: [-0.55, 0, -1.35],                  // 相对观众视线（hud）：左 0.55 米、前 1.35 米
+  eyeDrop: 0.06,                           // 人物眼睛比观众视线低多少（米）
   fadeIn: 0.9, fadeOut: 0.6,               // 段落开始显形 / 结束消失（秒）
-  // 嘴部（模型坐标，米）：上下唇分界线的中心点、半个嘴宽、最大张嘴幅度
-  mouth: [0.0044, 0.7595, 0.19], mouthW: 0.032, jaw: 0.015,
-  hairTop: 0.86, hairAmp: 0.035,           // 头发从这个高度往下开始摆动；发梢最大摆幅（米，鼓点时更大）
-  env: 0.7,                                // 环境反射强度
-  key: 0.75,                               // 柔和主光强度（着色器内，不影响场景）
-  rim: 0.4, rimA: 0xff2f8f, rimB: 0x3ff6ff,   // 霓虹轮廓光
+  mouthW: 0.03, jaw: 0.014,                // 半个嘴宽默认值、最大张嘴幅度（米）
+  // 转头：看你 / 看前方 / 看别处，每 3.5~6.5 秒换一次，0.8 秒转过去
+  look: { seg: [3.5, 6.5], blend: 0.8, viewer: 0.6, forward: 0.25, maxYaw: 0.7, maxPitch: 0.35 },
+  // 头发物理：弹簧（频率 Hz、阻尼比）、风、手柄推开的半径和力度
+  hair: { hz: 1.1, zeta: 0.25, wind: 0.5, handR: 0.2, push: 45, drag: 7, max: 0.12, ctl: 24, len: 0.35 },
+  env: 0.7, key: 0.75, rim: 0.4, rimA: 0xff2f8f, rimB: 0x3ff6ff,
+  eye: { depth: 0.012, look: 0.6 },        // 眼睛：虹膜在镜片 / 眼睛表面后多深（米）；最多偏转多少弧度去看你
+};
+export const SINGERS = {
+  g1: { url: '../assets/singer/g1.glb', mouth: [0.0044, 0.7595, 0.19], cornerL: [-0.0276, 0.7598, 0.183], cornerR: [0.0364, 0.7598, 0.183],
+        eyeL: [-0.0454, 0.8297, 0.2091], eyeR: [0.0558, 0.8309, 0.2092], eyeR_: 0.02, iris: [0xff2a3a, 0xff9a3a] },
+  g2: { url: '../assets/singer/g2.glb', mouth: [-0.0954, 0.7605, 0.078], cornerL: [-0.1248, 0.7642, 0.0684], cornerR: [-0.0689, 0.7564, 0.0682],
+        eyeL: [-0.1543, 0.8214, 0.0366], eyeR: [-0.0679, 0.8398, 0.049], eyeR_: 0.013, iris: [0xff3fb8, 0x8a5bff] },
+  g3: { url: '../assets/singer/g3.glb', mouth: [0.0849, 0.7256, 0.0718], cornerL: [0.0527, 0.7262, 0.0735], cornerR: [0.0963, 0.7268, 0.0445],
+        eyeL: [0.0645, 0.7914, 0.1034], eyeR: [0.1337, 0.7898, 0.0863], eyeR_: 0.016, iris: [0xff6a1a, 0xffd84a] },
+  g4: { url: '../assets/singer/g4.glb', mouth: [0.0459, 0.8379, 0.1898], cornerL: [0.0261, 0.8394, 0.184], cornerR: [0.0664, 0.8395, 0.1826],
+        eyeL: [-0.002, 0.9036, 0.2066], eyeR: [0.0933, 0.9052, 0.1942], eyeR_: 0.022, iris: [0xff2f8f, 0x3ff6ff] },
+  g5: { url: '../assets/singer/g5.glb', mouth: [0.0065, 0.7922, 0.1174], cornerL: [-0.021, 0.7948, 0.1124], cornerR: [0.0344, 0.7947, 0.1059],
+        eyeL: [-0.0491, 0.8684, 0.1328], eyeR: [0.0535, 0.8684, 0.1319], eyeR_: 0.02, iris: [0xff1030, 0xff7ad0] },
+};
+// 段落 → 人物（不在表里的段落没有歌手）
+export const SINGER_BY_SECTION = {
+  verse1: 'g5', pre1: 'g1', chorus1: 'g1', verse2: 'g3', pre2: 'g3',
+  chorus2: 'g4', bridge: 'g2', chorus3: 'g1', outro: 'g5', dna: 'g4',
 };

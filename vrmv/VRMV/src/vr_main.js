@@ -181,9 +181,20 @@ renderer.setAnimationLoop((now) => {
   X.twins.sync(); setKanaTime(t);
   if (X.fx) X.fx.update(t, f);
   A.end(t, S, input.user);
-  if (singer) singer.update(t, f, S, k, A, secs);
 
   if (!xr) input.applyPreview(w.camera);
+  if (singer) {
+    // 观众眼睛与手柄的世界坐标（手柄姿态在 XR 参考空间里，参考空间原点就是观众平台 rig）
+    const head = xr ? renderer.xr.getCamera() : w.camera;
+    head.updateMatrixWorld(true);
+    const viewer = new THREE.Vector3().setFromMatrixPosition(head.matrixWorld);
+    const hands = [0, 1].map((i) => {
+      if (!xr) return window.__singerHands ? window.__singerHands[i] || null : null;
+      const g = renderer.xr.getControllerGrip(i);
+      return g.visible ? A.rig.localToWorld(g.position.clone()) : null;
+    });
+    singer.update(t, f, S, k, A, secs, { viewer, hands, dt });
+  }
 
   fpsN++; fpsT += dt; if (fpsT > 0.5) { fps = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }
   let msg = null;
