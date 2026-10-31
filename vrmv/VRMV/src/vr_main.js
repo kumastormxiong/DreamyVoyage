@@ -17,7 +17,7 @@ import { loadKanaFonts, twinify, setKanaTime, kanaGeo } from './vr_kana3d.js';
 import { attachFx } from './vr_fx.js';
 import { PATCHES } from './vr_patches.js';
 import { createPerf } from './vr_perf.js';
-import { createSinger } from './vr_singer.js';
+import { createSinger, SINGER_LAYER } from './vr_singer.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -91,7 +91,9 @@ const singer = await createSinger(ctx).catch((e) => { console.warn('歌手模型
 status('预编译着色器…');
 for (const [k, w] of Object.entries(worlds)) {
   if (singer) singer.attachForCompile(adapters[k].hud);
+  w.camera.layers.enable(SINGER_LAYER);
   try { renderer.compile(w.scene, w.camera); } catch (e) { console.warn('compile', k, e); }
+  w.camera.layers.disable(SINGER_LAYER);
   if (singer) singer.detach();
 }
 
@@ -211,6 +213,14 @@ renderer.setAnimationLoop((now) => {
     $('bPlay').textContent = audio.paused ? '播放' : '暂停';
   }
   renderer.render(w.scene, w.camera);
+  // 歌手单独再画一遍：清空深度，画在所有内容之前（不被场景、歌词遮挡）
+  if (singer && singer.visible) {
+    const bg = w.scene.background, mask = w.camera.layers.mask;
+    w.scene.background = null; w.camera.layers.set(SINGER_LAYER);
+    renderer.autoClear = false; renderer.clearDepth();
+    renderer.render(w.scene, w.camera);
+    renderer.autoClear = true; w.camera.layers.mask = mask; w.scene.background = bg;
+  }
 });
 
 window.__vr = { renderer, worlds, adapters, audio, tl, input, perf, extras, singer };   // 调试用

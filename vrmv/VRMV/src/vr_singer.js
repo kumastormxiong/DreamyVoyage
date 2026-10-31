@@ -1,10 +1,10 @@
 // 虚拟歌手：混元3D 生成的人物（VRMV/assets/singer/g1~g5.glb），每个有歌词的段落由一位站在观众左前方唱歌（SINGER_BY_SECTION）。
 //  · 口型：按当前唱的假名（tl.kana，和画面歌词同一份逐字时间）取元音，换算成"张嘴 / 咧嘴 / 嘟嘴"，在顶点着色器里按嘴部坐标系变形。
-//  · 转头：脖子以上绕脖子转动，时而看着观众、时而看前方或别处（按时间分段，平滑过渡）。
-//  · 眼睛：镜片 / 眼睛后面有一双发光的眼睛（视差着色器，虹膜在表面后方），始终看向观众。
+//  · 转头：脖子以上绕脖子转动，一直看着观众（平滑跟随，超出范围时停在极限角度）。
+//  · 显示在所有内容之前：人物放在单独的图层（SINGER_LAYER），主画面画完后清空深度再单独画一遍，不会被场景挡住。
 //  · 头发：弹簧质点（惯性、阻尼、风），头转动、人物移动时有惯性甩动；手柄伸进头发会被推开、带动。
 //  · 不随音乐抖动；只有缓慢的呼吸和重心变化。
-// 口型 / 转头 / 眼睛只由时间 t 和观众位置决定；头发物理有状态（实时模拟），跳转时重置。
+// 口型只由时间 t 决定，转头跟随观众位置；头发物理有状态（实时模拟），跳转时重置。
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
@@ -43,30 +43,8 @@ export function mouthAt(k, f) {
   return [out[0] * rel * loud, out[1] * rel, out[2] * rel];
 }
 
-// ---------- 转头日程：只由 t 决定 ----------
+export const SINGER_LAYER = 6;          // 人物单独的图层（XR 眼睛相机默认带 1、2 层，避开）
 const LOOK = SINGER.look;
-const SCHED = (() => {
-  const out = []; let t = -2, i = 0;
-  while (t < 400) {
-    const len = LOOK.seg[0] + (LOOK.seg[1] - LOOK.seg[0]) * hash(i * 3.1);
-    const r = hash(i * 7.7 + 1);
-    const mode = r < LOOK.viewer ? 'viewer' : r < LOOK.viewer + LOOK.forward ? 'forward' : 'away';
-    const side = hash(i * 5.3 + 2) < 0.5 ? -1 : 1;
-    out.push({ t0: t, mode, away: [side * (0.35 + 0.2 * hash(i + 9)), 0.05 + 0.12 * hash(i + 4)] });
-    t += len; i++;
-  }
-  return out;
-})();
-function lookAngles(t, viewerYP) {
-  let j = 0; while (j + 1 < SCHED.length && SCHED[j + 1].t0 <= t) j++;
-  const ang = (s) => s.mode === 'viewer' ? viewerYP : s.mode === 'forward' ? [0, -0.04] : s.away;
-  const a = ang(SCHED[Math.max(0, j - 1)]), b = ang(SCHED[j]);
-  const w = sm(0, LOOK.blend, t - SCHED[j].t0);
-  let yaw = a[0] + (b[0] - a[0]) * w + 0.035 * Math.sin(t * 0.37), pitch = a[1] + (b[1] - a[1]) * w + 0.02 * Math.sin(t * 0.53 + 1);
-  yaw = Math.max(-LOOK.maxYaw, Math.min(LOOK.maxYaw, yaw));
-  pitch = Math.max(-0.3, Math.min(LOOK.maxPitch, pitch));
-  return [yaw, pitch];
-}
 
 // ---------- 人物坐标系（由嘴、嘴角、双眼 landmark 推出） ----------
 const V3 = (a) => new THREE.Vector3(...a);
@@ -85,52 +63,6 @@ function frameOf(c) {
   const mouthM = new THREE.Matrix3().set(mx.x, mx.y, mx.z, my.x, my.y, my.z, mz.x, mz.y, mz.z);   // 行 = 轴：世界 → 嘴部
   const mouthW = c.cornerL ? V3(c.cornerR).distanceTo(V3(c.cornerL)) / 2 : SINGER.mouthW;
   return { eL, eR, eM, right, up, fwd, H, N, mo, mouthM, mouthW };
-}
-
-// ---------- 眼睛：镜片 / 眼睛表面后方的发光眼球，虹膜始终朝向观众 ----------
-function makeEye(r, colA, colB, seed) {
-  const mat = new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
-    uniforms: {
-      uR: { value: r }, uD: { value: SINGER.eye.depth }, uV: { value: new THREE.Vector3(0, 0, 1) }, uT: { value: 0 },
-      uA: { value: new THREE.Color(colA) }, uB: { value: new THREE.Color(colB) }, uBlink: { value: 0 }, uFade: { value: 1 }, uSeed: { value: seed },
-    },
-    vertexShader: 'varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: `
-      uniform float uR, uD, uT, uBlink, uFade, uSeed; uniform vec3 uV, uA, uB; varying vec2 vP;
-      void main(){
-        float q = length(vP) / uR;
-        float sock = 1.0 - smoothstep(0.82, 1.0, q);                     // 眼窝（圆形，边缘柔和）
-        if (sock <= 0.001) discard;
-        // 眼球中心在表面后方 uD；虹膜是朝向观众的圆盘，位于眼球前表面
-        vec3 C = vec3(0.0, 0.0, -uD);
-        vec3 n = normalize(uV - C);
-        vec3 Q = C + n * (uD * 0.82);
-        vec3 P = vec3(vP, 0.0);
-        vec3 dir = normalize(P - uV);
-        float tt = dot(Q - P, n) / dot(dir, n);
-        vec3 hit = P + dir * tt;
-        vec2 ip = vec2(dot(hit - Q, normalize(cross(vec3(0.0, 1.0, 0.0), n))), dot(hit - Q, normalize(cross(n, normalize(cross(vec3(0.0, 1.0, 0.0), n))))));
-        float ri = length(ip) / (uR * 0.52);
-        float ang = atan(ip.y, ip.x);
-        float streak = 0.55 + 0.45 * sin(ang * 23.0 + uSeed * 3.0 + sin(ang * 7.0) * 1.5);
-        float ring = 0.5 + 0.5 * sin(ri * 18.0 - uT * 1.6);
-        vec3 iris = mix(uB, uA, smoothstep(0.25, 0.95, ri)) * (0.55 + 0.6 * streak) * (0.75 + 0.35 * ring);
-        float irisM = 1.0 - smoothstep(0.92, 1.02, ri);
-        float pupil = 1.0 - smoothstep(0.26, 0.33, ri + 0.05 * sin(uT * 0.9 + uSeed));
-        vec3 col = vec3(0.012, 0.0, 0.02) + uA * 0.12 * (1.0 - q);      // 深色眼球
-        col = mix(col, iris * 1.8, irisM);
-        col = mix(col, vec3(0.0), pupil * 0.96);
-        col += uA * 0.9 * exp(-pow((ri - 1.0) * 6.0, 2.0));              // 虹膜外圈辉光
-        col += vec3(1.0) * smoothstep(0.12, 0.0, length(vP / uR - vec2(-0.28, 0.32))) * 0.8;   // 镜面高光
-        // 眨眼：上眼睑从上往下
-        float lid = smoothstep(1.0 - 2.1 * uBlink, 1.04 - 2.1 * uBlink, vP.y / uR);
-        col = mix(col, vec3(0.01, 0.0, 0.015), lid);
-        float a = sock * mix(0.92, 1.0, irisM) * uFade;
-        gl_FragColor = vec4(col, a);
-      }`,
-  });
-  return new THREE.Mesh(new THREE.PlaneGeometry(2 * r, 2 * r), mat);
 }
 
 // ---------- 一个人物 ----------
@@ -279,7 +211,7 @@ async function loadChar(id, def, ctx) {
   mat.customProgramCacheKey = () => 'vr_singer_' + NC;
 
   const body = new THREE.Mesh(geo, mat); body.frustumCulled = false;
-  // 层级：root（hud 里的站位，朝向观众）→ inner（把双眼中点移到原点、把人物的脸转向 +Z）→ body / eyes
+  // 层级：root（hud 里的站位，朝向观众）→ inner（把双眼中点移到原点、把人物的脸转向 +Z）→ body
   const root = new THREE.Group(); root.name = 'vrSinger_' + id; root.visible = false;
   const breath = new THREE.Group(); root.add(breath);
   const inner = new THREE.Group(); breath.add(inner);
@@ -288,20 +220,10 @@ async function loadChar(id, def, ctx) {
   inner.position.copy(F.eM).applyAxisAngle(new THREE.Vector3(0, 1, 0), yawFix).negate();
   inner.position.y -= SINGER.eyeDrop;
   inner.add(body);
-  // 眼睛：放在眼睛 / 镜片表面前 3 毫米，跟着头一起转（eyeHead 的变换和着色器里的转头一致）
-  const eyeHead = new THREE.Group(); inner.add(eyeHead);
-  const basis = new THREE.Matrix4().makeBasis(F.right, F.up, F.fwd);
-  const eyes = [F.eL, F.eR].map((p, i) => {
-    const e = makeEye(def.eyeR_ || 0.018, def.iris[0], def.iris[1], i + id.charCodeAt(1));
-    e.position.copy(p).addScaledVector(F.fwd, 0.003);
-    e.quaternion.setFromRotationMatrix(basis);
-    e.renderOrder = 5;
-    eyeHead.add(e); return e;
-  });
-
   // 头发控制点状态（世界坐标）
   const P = ctl.map((i) => ({ p0: new THREE.Vector3().fromArray(pos, 3 * i), w: hm[i], T: new THREE.Vector3(), Tp: null, vT: new THREE.Vector3(), d: new THREE.Vector3(), dv: new THREE.Vector3() }));
-  return { id, root, breath, inner, body, eyes, eyeHead, U, F, P, mat, top };
+  body.layers.set(SINGER_LAYER);
+  return { id, root, breath, inner, body, U, F, P, mat, top, look: [0, 0] };
 }
 
 export async function createSinger(ctx) {
@@ -318,14 +240,16 @@ export async function createSinger(ctx) {
   const handsPrev = [null, null], handVel = [new THREE.Vector3(), new THREE.Vector3()];
   let active = null, lastT = -1;
 
-  function headRotation(c, t, viewerW) {
-    // 观众在人物坐标里的方向（相对头部中心）→ 偏航 / 俯仰
+  function headRotation(c, viewerW, dt, reset) {
+    // 观众在人物坐标里的方向（相对头部中心）→ 偏航 / 俯仰，平滑跟随，限制在可转动范围内
     const inv = _m4.copy(c.inner.matrixWorld).invert();
     const vl = _v.copy(viewerW).applyMatrix4(inv).sub(c.F.H);
     const x = vl.dot(c.F.right), y = vl.dot(c.F.up), z = vl.dot(c.F.fwd);
-    const viewer = [Math.atan2(x, z), Math.atan2(y, Math.hypot(x, z))];
-    const [yaw, pitch] = lookAngles(t, viewer);
-    _q.setFromAxisAngle(c.F.up, yaw); _q2.setFromAxisAngle(c.F.right, -pitch); _q.multiply(_q2);
+    const ty = Math.max(-LOOK.maxYaw, Math.min(LOOK.maxYaw, Math.atan2(x, z)));
+    const tp = Math.max(-0.3, Math.min(LOOK.maxPitch, Math.atan2(y, Math.hypot(x, z))));
+    const k = reset ? 1 : 1 - Math.exp(-dt / LOOK.tau);
+    c.look[0] += (ty - c.look[0]) * k; c.look[1] += (tp - c.look[1]) * k;
+    _q.setFromAxisAngle(c.F.up, c.look[0]); _q2.setFromAxisAngle(c.F.right, -c.look[1]); _q.multiply(_q2);
     return _q;
   }
 
@@ -371,6 +295,7 @@ export async function createSinger(ctx) {
 
   return {
     chars,
+    get visible() { return !!(active && active.root.visible); },
     attachForCompile(hud) { const c = Object.values(chars)[0]; if (!c) return; hud.add(c.root); c.root.visible = true; c.U.uFade.value = 1; },
     detach() { for (const c of Object.values(chars)) { if (c.root.parent) c.root.parent.remove(c.root); c.root.visible = false; } },
     // view = { viewer: 观众眼睛世界坐标, hands: [世界坐标|null, …], dt }
@@ -391,23 +316,11 @@ export async function createSinger(ctx) {
       c.U.uOpen.value = o; c.U.uWide.value = w; c.U.uRound.value = r;
       // 呼吸与重心（不跟音乐）
       c.root.updateMatrixWorld(true);
-      // 转头
+      // 转头：一直看着观众
       const viewer = (view && view.viewer ? view.viewer : new THREE.Vector3(0, 1.6, 0)).clone();
-      const q = headRotation(c, t, viewer.clone()).clone();
+      const dtl = view && view.dt ? Math.min(0.1, view.dt) : 1 / 72;
+      const q = headRotation(c, viewer, dtl, jump).clone();
       c.U.uHeadR.value.setFromMatrix4(_m4.makeRotationFromQuaternion(q));
-      c.eyeHead.position.copy(c.F.N).sub(c.F.N.clone().applyQuaternion(q)); c.eyeHead.quaternion.copy(q);
-      // 眼睛看观众 + 眨眼（每 2.5~5 秒一次）
-      c.root.updateMatrixWorld(true);
-      const bi = Math.floor(t / 3.7), bp = t - bi * 3.7 - hash(bi) * 1.5;
-      const blink = bp > 0 && bp < 0.16 ? Math.sin(bp / 0.16 * Math.PI) : 0;
-      for (const e of c.eyes) {
-        const u = e.material.uniforms;
-        const vl = viewer.clone().applyMatrix4(_m4.copy(e.matrixWorld).invert());
-        const dir = vl.clone().normalize(), lim = Math.cos(SINGER.eye.look);
-        if (dir.z < lim) { const xy = Math.hypot(dir.x, dir.y) || 1; const s = Math.sqrt(1 - lim * lim) / xy; dir.set(dir.x * s, dir.y * s, lim); }
-        u.uV.value.copy(dir.multiplyScalar(Math.max(0.3, vl.length())));
-        u.uT.value = t; u.uBlink.value = blink; u.uFade.value = fade;
-      }
       // 手柄速度
       const hands = (view && view.hands) || [];
       const dt = view && view.dt ? Math.min(0.05, view.dt) : 1 / 72;
