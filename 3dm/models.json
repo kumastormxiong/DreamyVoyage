@@ -1,0 +1,110 @@
+[
+ {
+  "id": "girl",
+  "n": 1,
+  "file": "models/girl.glb",
+  "lod": "models_lod/girl.glb"
+ },
+ {
+  "id": "girl-2",
+  "n": 2,
+  "file": "models/girl-2.glb",
+  "lod": "models_lod/girl-2.glb"
+ },
+ {
+  "id": "girl-3",
+  "n": 3,
+  "file": "models/girl-3.glb",
+  "lod": "models_lod/girl-3.glb"
+ },
+ {
+  "id": "girl-4",
+  "n": 4,
+  "file": "models/girl-4.glb",
+  "lod": "models_lod/girl-4.glb"
+ },
+ {
+  "id": "girl-5",
+  "n": 5,
+  "file": "models/girl-5.glb",
+  "lod": "models_lod/girl-5.glb"
+ },
+ {
+  "id": "girl-6",
+  "n": 6,
+  "file": "models/girl-6.glb",
+  "lod": "models_lod/girl-6.glb"
+ },
+ {
+  "id": "girl-7",
+  "n": 7,
+  "file": "models/girl-7.glb",
+  "lod": "models_lod/girl-7.glb"
+ },
+ {
+  "id": "girl-8",
+  "n": 8,
+  "file": "models/girl-8.glb",
+  "lod": "models_lod/girl-8.glb"
+ },
+ {
+  "id": "girl-9",
+  "n": 9,
+  "file": "models/girl-9.glb",
+  "lod": "models_lod/girl-9.glb"
+ },
+ {
+  "id": "girl-10",
+  "n": 10,
+  "file": "models/girl-10.glb",
+  "lod": "models_lod/girl-10.glb"
+ },
+ {
+  "id": "girl-11",
+  "n": 11,
+  "file": "models/girl-11.glb",
+  "lod": "models_lod/girl-11.glb"
+ },
+ {
+  "id": "girl-12",
+  "n": 12,
+  "file": "models/girl-12.glb",
+  "lod": "models_lod/girl-12.glb"
+ },
+ {
+  "id": "girl-13",
+  "n": 13,
+  "file": "models/girl-13.glb",
+  "lod": "models_lod/girl-13.glb"
+ },
+ {
+  "id": "girl-14",
+  "n": 14,
+  "file": "models/girl-14.glb",
+  "lod": "models_lod/girl-14.glb"
+ },
+ {
+  "id": "girl-15",
+  "n": 15,
+  "file": "models/girl-15.glb",
+  "lod": "models_lod/girl-15.glb"
+ },
+ {
+  "id": "girl-16",
+  "n": 16,
+  "file": "models/girl-16.glb",
+  "lod": "models_lod/girl-16.glb"
+ },
+ {
+  "id": "girl-17",
+  "n": 17,
+  "file": "models/girl-17.glb",
+  "lod": "models_lod/girl-17.glb"
+ },
+ {
+  "id": "girl-18",
+  "n": 18,
+  "file": "models/girl-18.glb",
+  "lod": "models_lod/girl-18.glb"
+ }
+]

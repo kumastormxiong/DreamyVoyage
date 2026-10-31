@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3DM · 霓虹展厅</title>
+<link rel="icon" href="data:,">
+<meta name="description" content="虚空造物 · 18 位 3D 模型的霓虹赛博 VR 展厅：Quest 手柄飞行、巨大化、调灯光、切换环境。">
+<style>
+  :root { --a:#ff2fd0; --b:#30f0ff; --bg:#05030f; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: #e8ecff; font-family: "Noto Sans SC","PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif; overflow: hidden; }
+  #app, #app canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #launcher { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: 16px;
+    background: radial-gradient(ellipse at 50% 30%, rgba(5,3,15,.15), rgba(5,3,15,.82) 70%); transition: opacity .5s; }
+  #launcher.hide { opacity: 0; pointer-events: none; }
+  .card { width: min(560px, 100%); padding: 34px 30px 26px; border-radius: 26px; border: 2px solid transparent; text-align: center; backdrop-filter: blur(14px);
+    background: linear-gradient(rgba(8,5,26,.86), rgba(8,5,26,.86)) padding-box, linear-gradient(135deg, var(--a), var(--b)) border-box;
+    box-shadow: 0 0 60px rgba(255,47,208,.2), 0 0 90px rgba(48,240,255,.14); }
+  h1 { margin: 0; font-size: clamp(54px, 14vw, 84px); letter-spacing: .06em; font-weight: 800; line-height: 1;
+    background: linear-gradient(90deg, var(--a), var(--b)); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 18px rgba(255,47,208,.5)); }
+  .sub { margin: 10px 0 22px; color: #9fb4ff; letter-spacing: .12em; font-size: 14px; }
+  button { appearance: none; border: 0; cursor: pointer; width: 100%; padding: 17px 18px; margin: 7px 0; border-radius: 16px; font: 700 19px inherit; color: #fff;
+    background: rgba(255,255,255,.07); outline: 2px solid rgba(255,255,255,.28); transition: .15s; }
+  button:hover:not(:disabled) { outline-color: #fff; background: rgba(255,255,255,.14); }
+  button.primary { background: linear-gradient(90deg, rgba(255,47,208,.55), rgba(48,240,255,.5)); outline-color: transparent; box-shadow: 0 0 28px rgba(255,47,208,.35); }
+  button:disabled { opacity: .4; cursor: default; }
+  #status { margin: 12px 0 2px; font-size: 14px; color: #9fb4ff; min-height: 20px; }
+  .help { margin-top: 14px; text-align: left; font-size: 13.5px; line-height: 1.75; color: #b8c4f0; border-top: 1px solid rgba(255,255,255,.12); padding-top: 12px; }
+  .help b { color: var(--b); font-weight: 700; display: inline-block; min-width: 5.2em; }
+  .foot { margin-top: 10px; font-size: 12px; color: #6c78a8; } .foot a { color: #9fb4ff; }
+  body:not(.ready) .go { display: none; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/build/three.module.js", "three/addons/": "./vendor/three/examples/jsm/" } }
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="launcher">
+  <div class="card">
+    <h1>3DM</h1>
+    <div class="sub">霓虹赛博 · 18 位模型展厅 · NEON VIEWER</div>
+    <button class="primary go" id="bvr" disabled>进入 VR（Quest 浏览器）</button>
+    <button class="go" id="bdesk">桌面预览（鼠标 + 键盘）</button>
+    <div id="status">正在加载 …</div>
+    <div class="help">
+      <div><b>左摇杆</b>沿视线方向飞行　<b>右摇杆</b>↔ 转向　↕ 升降</div>
+      <div><b>A / B</b>模型放大 / 缩小（按住）</div>
+      <div><b>握把</b>抓住模型移动；<b>双手握把</b>拉开 = 巨大化，靠拢 = 缩小</div>
+      <div><b>X / Y</b>上一个 / 下一个　<b>左摇杆按下</b>菜单</div>
+      <div><b>菜单</b>切换模型/画廊 · 调灯光颜色与方位 · 切 8 个环境</div>
+    </div>
+    <div class="foot">© 虚空造物 · <a href="/">dreamy.voyage</a> · <a href="/vrmv/">ChainedGhost VR</a></div>
+  </div>
+</div>
+<script type="module" src="./src/main.js"></script>
+<script type="module">
+  const vr = document.getElementById('bvr'), desk = document.getElementById('bdesk');
+  const wait = () => new Promise((r) => { const t = setInterval(() => { if (window.DM && window.DM.startVR) { clearInterval(t); r(); } }, 60); });
+  await wait();
+  desk.onclick = () => window.DM.startDesktop();
+  if (navigator.xr) {
+    try { const ok = await navigator.xr.isSessionSupported('immersive-vr'); if (ok) { vr.disabled = false; vr.onclick = () => window.DM.startVR(); } else vr.textContent = '此设备未检测到 VR（用 Quest 浏览器打开）'; }
+    catch (e) { vr.textContent = '无法检测 VR'; }
+  } else vr.textContent = '此浏览器不支持 WebXR（用 Quest 浏览器打开）';
+</script>
+</body>
+</html>

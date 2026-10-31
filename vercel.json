@@ -59,6 +59,26 @@
       "source": "/3DGSMV/:path*",
       "destination": "/3dgsmv/:path*",
       "permanent": false
+    },
+    {
+      "source": "/3DM",
+      "destination": "/3dm/",
+      "permanent": false
+    },
+    {
+      "source": "/3DM/",
+      "destination": "/3dm/",
+      "permanent": false
+    },
+    {
+      "source": "/3DM/:path*",
+      "destination": "/3dm/:path*",
+      "permanent": false
+    },
+    {
+      "source": "/3dm",
+      "destination": "/3dm/",
+      "permanent": false
     }
   ]
 }
