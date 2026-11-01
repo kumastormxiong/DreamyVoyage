@@ -1,6 +1,7 @@
 // 输入：Quest 手柄（摇杆飞行、A/B 缩放、握把抓取、射线点菜单）+ 桌面（鼠标/键盘）
 import * as THREE from 'three';
 import { clamp, DEG } from './util.js';
+import { PED_H } from './stage.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpQ = new THREE.Quaternion();
@@ -11,6 +12,7 @@ export class Controls {
     this.app = app; const { renderer, rig } = app;
     this.hands = { left: null, right: null }; this.prev = { left: [], right: [] }; this.ptr = { left: {}, right: {} };
     this.grabState = null; this.snapCool = 0; this.boost = false;
+    this.carry = { left: null, right: null }; this.returning = []; this.zoneHot = { left: false, right: false };   // 手柄「拿起手办」
     this.ray = new THREE.Raycaster(); this.ray.far = 60;
     this.keys = new Set(); this.yaw = 0; this.pitch = 0; this.drag = null;
     this.ctrls = [];
@@ -45,6 +47,7 @@ export class Controls {
       else if (e.code === 'KeyR') { A.resetStage(); A.resetRig(); }
       else if (/^Digit[1-8]$/.test(e.code)) A.setEnv(+e.code.slice(5) - 1);
       else if (e.code === 'KeyM') A.toggleMusic();
+      else if (e.code === 'KeyB') A.openGame?.();
       else if (e.code === 'KeyP') A.addHere();
       else if (e.code === 'Delete' || e.code === 'Backspace') A.removeSel();
       else if (e.code === 'KeyT') { A.stage.cycleSel(1); A.ui.invalidate(); }
@@ -125,7 +128,8 @@ export class Controls {
     }
     const L = info.left, R = info.right;
     // 菜单/换模型/重置
-    if (L) { if (L.edge(3)) A.toggleUI(); if (L.edge(4)) A.prev(); if (L.edge(5)) A.next(); }
+    const holding = !!(this.carry.left || this.carry.right);
+    if (L) { if (L.edge(3)) A.toggleUI(); if (!holding && L.edge(4)) A.prev(); if (!holding && L.edge(5)) A.next(); }
     if (R) { if (R.edge(3)) { A.resetStage(); } }
     // 飞行 + 转向
     let boost = false;
@@ -140,8 +144,10 @@ export class Controls {
     }
     // 射线：菜单 / 画廊
     this.boost = false; let anyUiHit = false, hoverSlot = -1;
+    const busy = this.updateCarry(info, dt);
     for (const side of ['left', 'right']) {
       const h = this.hands[side], I = info[side], p = this.ptr[side]; if (!h || !I) continue;
+      if (busy[side]) { h.laser.visible = false; h.dot.visible = false; this.prev[side] = I.cur || []; continue; }   // 手在底座附近 / 正拿着手办：不发射线、不加速
       h.c.updateMatrixWorld(true); this.ray.ray.origin.setFromMatrixPosition(h.c.matrixWorld); this.ray.ray.direction.set(0, 0, -1).transformDirection(h.c.matrixWorld);
       let len = 2.2, hitUI = false;
       if (st.uiOpen) {
@@ -179,6 +185,62 @@ export class Controls {
     if (hoverSlot >= 0 || A.st.mode === 'gallery') A.stage.setHover(hoverSlot);
     if (!anyUiHit && ui.hover !== -1 && !ui.active) { ui.hover = -1; ui.invalidate(); }
     this.updateGrab(info);
+  }
+
+  // ---------------- 扳机拿起手办：手碰到底座 + 按扳机，模型就「卡」在手柄上，随手柄翻转；松开扳机放回展台 ----------
+  carryUnits() {
+    const s = this.app.stage, u = []; if (s.mode !== 'showcase') return u;
+    if (s.show.visible && s.cur && s.cur.parent === s.holderGroup) u.push({ k: 'main', node: s.cur, space: s.root, r: 0.8, y0: -0.15, y1: PED_H + 0.5 });
+    for (const it of s.placed) if (it.model && it.model.parent === it.inner) u.push({ k: 'placed', node: it.model, space: it.group, r: 0.55, y0: -0.12, y1: 0.5 });
+    return u;
+  }
+  grab(side, h, u) {
+    const node = u.node, parent = node.parent, A = this.app;
+    let orig = { pos: node.position.clone(), quat: node.quaternion.clone(), scl: node.scale.clone() };
+    const ri = this.returning.findIndex((r) => r.node === node); if (ri >= 0) { const r = this.returning[ri]; orig = { pos: r.pos, quat: r.quat, scl: r.scl }; this.returning.splice(ri, 1); }
+    h.c.updateMatrixWorld(true); h.c.attach(node); node.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(node), ctr = box.getCenter(new THREE.Vector3()), hgt = box.getSize(new THREE.Vector3()).y;
+    h.c.worldToLocal(ctr);
+    const off = clamp(0.12 + 0.12 * hgt, 0.15, 0.45);                                  // 模型中心放在手柄前方，翻转时绕着手转
+    const target = node.position.clone().add(new THREE.Vector3(0, 0, -off).sub(ctr));
+    this.carry[side] = { node, parent, orig, target, u };
+    this.haptic(side, 0.6, 50); A.ui.say(side === 'left' ? '左手拿起手办（松开扳机放回）' : '右手拿起手办（松开扳机放回）');
+  }
+  release(side) {
+    const c = this.carry[side]; if (!c) return; this.carry[side] = null;
+    c.parent.attach(c.node); this.returning.push({ node: c.node, pos: c.orig.pos, quat: c.orig.quat, scl: c.orig.scl }); this.haptic(side, 0.3, 30);
+  }
+  dropAll(instant = false) {
+    this.release('left'); this.release('right');
+    if (instant) { for (const r of this.returning) { r.node.position.copy(r.pos); r.node.quaternion.copy(r.quat); r.node.scale.copy(r.scl); } this.returning = []; }
+  }
+  updateCarry(info, dt) {
+    const A = this.app, busy = { left: false, right: false }, k = 1 - Math.exp(-dt * 12);
+    for (let i = this.returning.length - 1; i >= 0; i--) {
+      const r = this.returning[i]; r.node.position.lerp(r.pos, k); r.node.quaternion.slerp(r.quat, k); r.node.scale.lerp(r.scl, k);
+      if (r.node.position.distanceTo(r.pos) < 0.002 && r.node.quaternion.angleTo(r.quat) < 0.01) { r.node.position.copy(r.pos); r.node.quaternion.copy(r.quat); r.node.scale.copy(r.scl); this.returning.splice(i, 1); }
+    }
+    const units = this.carryUnits(), s = A.stage;
+    for (const side of ['left', 'right']) {
+      const h = this.hands[side], I = info[side], c = this.carry[side];
+      if (c) {
+        const alive = c.u.k === 'main' ? c.node === s.cur : s.placed.some((it) => it.model === c.node);
+        if (!alive) { c.node.parent?.remove(c.node); this.carry[side] = null; continue; }      // 拿着的时候模型被换掉 / 移除了
+        busy[side] = true;
+        if (!h || !I || !I.trig || c.node.parent !== h.c) { this.release(side); continue; }
+        c.node.position.lerp(c.target, 1 - Math.exp(-dt * 14)); continue;
+      }
+      if (!h || !I) { this.zoneHot[side] = false; continue; }
+      h.g.getWorldPosition(tmpV); let hit = null;
+      for (const u of units) {
+        if (this.carry.left?.node === u.node || this.carry.right?.node === u.node) continue;
+        u.space.updateMatrixWorld(true); tmpV2.copy(tmpV); u.space.worldToLocal(tmpV2);
+        if (Math.hypot(tmpV2.x, tmpV2.z) < u.r && tmpV2.y > u.y0 && tmpV2.y < u.y1) { hit = u; break; }
+      }
+      if (hit && !this.zoneHot[side]) this.haptic(side, 0.2, 20); this.zoneHot[side] = !!hit;
+      if (hit) { busy[side] = true; if (I.edge(0)) this.grab(side, h, hit); }
+    }
+    return busy;
   }
 
   // 握把：单手抓取移动，双手同时握住 = 缩放+旋转（拉开=巨大化）

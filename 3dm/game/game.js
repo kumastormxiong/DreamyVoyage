@@ -13,7 +13,7 @@ const TEST = Q.has('test'), BOT = Q.has('bot'), RATE = Number(Q.get('rate') || 1
 const COL = [0x30f0ff, 0xff2fd0];                    // 左手青 / 右手粉
 const COLX = [-0.5, -0.17, 0.17, 0.5];               // 四列的 x（米，相对玩家）
 const HIT_Z = -0.55, SPEED = 8, TIP_R = 0.17, LEAD = 3.0;
-const FIG_H = 30, FIG_Z = -20;                        // 巨像：30 米高、离玩家 20 米，要仰头才看得到脸
+const FIG_H = 25, FIG_Z = -20;                        // 巨像：25 米高、离玩家 20 米，略微抬头就能看到全貌
 const ROUND = 90;                                     // 每局时长（秒），从歌曲的随机位置开始
 const ENV_SCALE = 2.2;                                // 展厅场景放大倍数（配合 30 米巨像）
 const MP3_BASE = 'https://dreamy.voyage/mp3s/';
@@ -42,7 +42,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 4000);
 const rig = new THREE.Group(); rig.add(camera); scene.add(rig);
 const DESK_CAM = new THREE.Vector3(0, 1.5, 1.0);
-function deskCamera() { camera.position.copy(DESK_CAM); camera.lookAt(0, 2.3, -4.5); }
+function deskCamera() { camera.position.copy(DESK_CAM); camera.lookAt(0, 7.3, -19); }
 deskCamera();
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
 
@@ -108,7 +108,7 @@ const figure = new THREE.Group(); figure.position.set(0, 0, FIG_Z); figure.scale
 const scanPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x9ff8ff, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
 figure.add(scanPlane); scanPlane.visible = false;
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-const gltfCache = new Map(); let figToken = 0, figReveal = 0, figTarget = 0;
+const gltfCache = new Map(); const CACHE_MAX = 3; let figToken = 0, figReveal = 0, figTarget = 0;
 function normalize(gltf) {
   const sc = gltf.scene, box = new THREE.Box3().setFromObject(sc), size = box.getSize(new THREE.Vector3()), ctr = box.getCenter(new THREE.Vector3());
   const k = 1 / Math.max(Math.max(size.y, 0.85 * Math.max(size.x, size.z)), 1e-3), holder = new THREE.Group();
@@ -119,7 +119,7 @@ async function showFigure(i) {
   const m = models[i]; if (!m) return; const tok = ++figToken;
   while (figure.children.length > 1) { const o = figure.children.pop(); o.traverse((x) => { if (x.material) [].concat(x.material).forEach((mm) => mm.dispose()); }); }
   let holder = gltfCache.get(m.id);
-  if (!holder) { try { holder = normalize(await loader.loadAsync(m.lod || m.file)); gltfCache.set(m.id, holder); } catch (e) { console.warn('model', e); return; } }
+  if (!holder) { try { holder = normalize(await loader.loadAsync(m.file)); gltfCache.set(m.id, holder); while (gltfCache.size > CACHE_MAX) gltfCache.delete(gltfCache.keys().next().value); } catch (e) { console.warn('model', e); return; } }
   if (tok !== figToken) return;
   const real = holder.clone(true), ghost = holder.clone(true);
   real.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.clippingPlanes = [revealPlane]; } });
@@ -476,13 +476,12 @@ function frame(dtIn) {
   figReveal += (figTarget - figReveal) * Math.min(1, dt * (state === 'playing' ? 4 : 1.5));
   const cy = FIG_H * 1.03 * figReveal; revealPlane.constant = cy; ghostPlane.constant = -cy;
   scanPlane.visible = figReveal > 0.01 && figReveal < 0.985; scanPlane.position.y = figReveal * 1.03;
-  figure.rotation.y = Math.sin(T * 0.35) * 0.3; figure.position.y = Math.sin(T * 0.9) * 0.12;
+  const br = Math.sin(T * 1.3); figure.scale.set(FIG_H * (1 + 0.006 * br), FIG_H * (1 + 0.014 * br), FIG_H * (1 + 0.006 * br)); figure.position.y = 0;   // 只呼吸，不旋转
   lA.intensity = lB.intensity = 4500 + 5000 * pulse;
   for (const f of frames) { const u = f.userData; u.flash = Math.max(0, u.flash - dt * 3.5); f.material.opacity = 0.22 + u.flash * 0.8; f.scale.setScalar(1 + u.flash * 0.25); }
   if (judgeT > 0) { judgeT -= dt; hudDirty = true; }
   hudT += dt; if (state === 'playing' && hud.mesh.visible && (hudDirty || hudT > 0.12) && hudT > 0.05) { drawHud(); hudT = 0; hudDirty = false; }
   updateParticles(dt);
-  if (state === 'result') { figure.rotation.y += dt * 0.6; }
   renderer.render(scene, camera); if (++frames_ === 8) window.__ready = true;
 }
 

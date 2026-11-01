@@ -201,8 +201,9 @@ const startVR = () => startXR('vr'), startMR = () => startXR('ar');
 renderer.xr.addEventListener('sessionstart', () => { ui.dom.style.display = 'none'; app.resetRig(); app.toggleUI(true); camera.position.set(0, 0, 0); app.setPassthrough(app.sessionMode === 'ar'); });
 renderer.xr.addEventListener('sessionend', () => { app.sessionMode = null; app.setPassthrough(false); camera.position.set(0, 1.6, 0); app.toggleUI(st.uiOpen); document.getElementById('launcher')?.classList.remove('hide'); started = false; });
 window.DM.startVR = startVR; window.DM.startMR = startMR; window.DM.startDesktop = startDesktop;
+app.openGame = () => window.DM.openGame();
 window.DM.openGame = async () => {      // 打开音乐游戏（按需加载）；游戏里「去展厅看看」会回到这里的展厅，VR 会话不中断
-  try { const m = await import('../game/game.js'); if (!app.game) app.game = m.createGame(app); await app.game.activate(); }
+  try { controls.dropAll(true); const m = await import('../game/game.js'); if (!app.game) app.game = m.createGame(app); await app.game.activate(); }
   catch (e) { console.error(e); alert('无法打开音乐游戏：' + e.message); }
 };
 if (Q.has('fps')) { const d = document.createElement('div'); Object.assign(d.style, { position: 'fixed', right: '10px', top: '8px', color: '#0f0', font: '14px monospace', zIndex: 50 }); document.body.appendChild(d); let t0 = performance.now(); setInterval(() => { const dt = (performance.now() - t0) / 1000; d.textContent = renderer.info.render.calls + ' calls · ' + Math.round(renderer.info.render.triangles / 1000) + 'k tris · ' + Math.round(fcount / dt) + ' fps'; fcount = 0; t0 = performance.now(); }, 1000); }

@@ -49,6 +49,7 @@ export class UI {
       const pages = Math.max(1, Math.ceil(st.count / PER)); this.thumbPage = Math.min(this.thumbPage, pages - 1);
       btn(32, y, 200, 56, '展台 SHOW', () => A.setMode('showcase'), { active: S.mode === 'showcase', size: 26 });
       btn(244, y, 200, 56, '画廊 GALLERY', () => A.setMode('gallery'), { active: S.mode === 'gallery', size: 26 });
+      btn(456, y, 232, 56, '♪ 音乐游戏', () => A.openGame?.(), { size: 26, tint: css(PAL.b, 1) });
       if (pages > 1) {
         btn(700, y, 110, 56, '◀', () => { this.thumbPage = (this.thumbPage + pages - 1) % pages; this.dirty = true; });
         btn(822, y, 300, 56, `第 ${this.thumbPage + 1}/${pages} 页 · 共 ${st.count} 个`, null, { noop: true, size: 24 });
@@ -140,7 +141,8 @@ export class UI {
       btn(444, y, 400, 60, S.snap ? '转向：快速30° SNAP' : '转向：平滑 SMOOTH', () => { S.snap = !S.snap; }, { size: 25 });
       btn(856, y, 392, 60, S.invertY ? '升降：反向' : '升降：正常', () => { S.invertY = !S.invertY; }, { size: 25 }); y += 74;
       btn(32, y, 400, 60, '回到原点 HOME', () => A.resetRig(), { size: 26 }); btn(444, y, 400, 60, '重置模型 RESET', () => A.resetStage(), { size: 26 });
-      btn(856, y, 392, 60, '飞到画廊中心', () => { A.setMode('gallery'); }, { size: 26 }); y += 84;
+      btn(856, y, 392, 60, '飞到画廊中心', () => { A.setMode('gallery'); }, { size: 26 }); y += 70;
+      btn(32, y, 400, 60, '♪ 音乐游戏 GAME', () => A.openGame?.(), { size: 26, tint: css(PAL.b, 1) }); y += 74;
       this.helpY = y;
     }
     keepActive();
@@ -200,9 +202,9 @@ export class UI {
   }
   drawHelp() {
     const L = [['左摇杆', '沿视线方向 飞行 / 平移'], ['右摇杆 ↔', '转向（快速30° 或 平滑）'], ['右摇杆 ↕', '上升 / 下降'], ['A / B', '模型 放大 / 缩小（按住）'], ['握把', '抓住模型：移动、旋转；双手握把拉开/靠拢 = 巨大化/缩小'],
-      ['X / Y', '上一个 / 下一个 模型（画廊里 = 翻页）'], ['右扳机', '点菜单 / 选画廊模型 / 选中摆放的模型；空白处按住 = 加速'], ['场景页', '放入多个模型、摆放模式、MR 透视'], ['左摇杆按下', '显示 / 隐藏菜单'], ['右摇杆按下', '重置模型']];
+      ['X / Y', '上一个 / 下一个 模型（画廊里 = 翻页）'], ['右扳机', '点菜单 / 选画廊模型 / 选中摆放的模型；空白处按住 = 加速'], ['手碰底座+扳机', '把手办拿在手柄上，随手翻转；松开扳机放回（左右手都行）'], ['场景页', '放入多个模型、摆放模式、MR 透视'], ['左摇杆按下', '显示 / 隐藏菜单'], ['右摇杆按下', '重置模型']];
     let y = this.helpY + 6;
-    for (const [k, v] of L) { this.txt(k, 40, y, 26, css(PAL.a, 1.5), 'left', 800); this.txt(v, 290, y, 25, '#e8ecff', 'left', 500); y += 46; }
+    for (const [k, v] of L) { this.txt(k, 40, y, 26, css(PAL.a, 1.5), 'left', 800); this.txt(v, 290, y, 25, '#e8ecff', 'left', 500); y += 40; }
     this.txt('桌面预览：拖动鼠标转视角 · WASD/空格/C 飞行 · Shift 加速 · 滚轮 缩放模型 · Q/E 换模型 · Tab 菜单 · G 画廊', 40, y + 14, 22, '#9fb4ff', 'left', 500);
   }
 
