@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { clamp, DEG } from './util.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
-const tmpBox = new THREE.Box3(), tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpQ = new THREE.Quaternion();
+const tmpV3 = new THREE.Vector3(), tmpBox = new THREE.Box3(), tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpQ = new THREE.Quaternion();
 const dz = (v, d = 0.14) => (Math.abs(v) < d ? 0 : (v - Math.sign(v) * d) / (1 - d));
 
 export class Controls {
@@ -11,7 +11,7 @@ export class Controls {
     this.app = app; const { renderer, rig } = app;
     this.hands = { left: null, right: null }; this.prev = { left: [], right: [] }; this.ptr = { left: {}, right: {} };
     this.grabState = null; this.snapCool = 0; this.boost = false;
-    this.carry = { left: null, right: null }; this.free = []; this.returning = []; this.zoneHot = { left: false, right: false };   // 手柄「拿起手办」
+    this.carry = { left: null, right: null }; this.free = []; this.mods = new Map(); this.hot = null; this.returning = []; this.zoneHot = { left: false, right: false };   // 手柄「拿起手办」
     this.ray = new THREE.Raycaster(); this.ray.far = 60;
     this.keys = new Set(); this.yaw = 0; this.pitch = 0; this.drag = null;
     this.ctrls = [];
@@ -139,7 +139,10 @@ export class Controls {
       this.snapCool -= dt;
       if (st.snap) { if (Math.abs(x) > 0.65 && this.snapCool <= 0) { this.turn(-Math.sign(x) * 30 * DEG); this.snapCool = 0.28; this.haptic('right', 0.2, 15); } else if (Math.abs(x) < 0.3) this.snapCool = 0; }
       else if (x) this.turn(-x * 110 * DEG * dt);
-      if (R.P(4)) this.scaleBy(Math.exp(0.9 * dt)); if (R.P(5)) this.scaleBy(Math.exp(-0.9 * dt));
+      if (R.P(4) || R.P(5)) {      // A/B：光圈碰到（或正拿着）的模型 → 只放大/缩小这个模型；没碰到任何模型时仍然缩放当前选中的对象
+        const f = Math.exp(0.9 * dt * ((R.P(4) ? 1 : 0) - (R.P(5) ? 1 : 0))), t = this.scaleTarget();
+        if (t) this.scaleNode(t, f); else this.scaleBy(f);
+      }
     }
     // 射线：菜单 / 画廊
     this.boost = false; let anyUiHit = false, hoverSlot = -1;
@@ -194,60 +197,70 @@ export class Controls {
     for (const it of s.placed) if (it.model && it.model.parent === it.inner && !seen.has(it.model)) u.push({ k: 'placed', node: it.model, item: it });
     return u;
   }
-  grab(side, h, u) {
-    const node = u.node, A = this.app; let parent = node.parent, orig = { pos: node.position.clone(), quat: node.quaternion.clone(), scl: node.scale.clone() };
-    const fi = this.free.findIndex((f) => f.node === node); if (fi >= 0) { const f = this.free[fi]; parent = f.parent; orig = f.orig; this.free.splice(fi, 1); }   // 记住最初在展台上的位置（重置时用）
+  register(node, parent, k, item) { if (!this.mods.has(node)) this.mods.set(node, { parent, k, item, orig: { pos: node.position.clone(), quat: node.quaternion.clone(), scl: node.scale.clone() } }); return this.mods.get(node); }
+  grab(side, h, u) {       // 抓住的是光圈碰到的那个点：模型不会跳位置，保持当前相对手柄的姿态，随手柄转
+    const node = u.node, A = this.app;
+    const fi = this.free.findIndex((f) => f.node === node); if (fi >= 0) this.free.splice(fi, 1);
     const ri = this.returning.findIndex((r) => r.node === node); if (ri >= 0) this.returning.splice(ri, 1);
-    h.c.updateMatrixWorld(true); h.c.attach(node); node.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(node), ctr = box.getCenter(new THREE.Vector3()), hgt = box.getSize(new THREE.Vector3()).y;
-    h.c.worldToLocal(ctr);
-    const off = clamp(0.12 + 0.12 * hgt, 0.15, 0.45);                                  // 模型中心放在手柄前方，翻转时绕着手转
-    const target = node.position.clone().add(new THREE.Vector3(0, 0, -off).sub(ctr));
-    this.carry[side] = { node, parent, orig, target, k: u.k, item: u.item };
-    this.haptic(side, 0.6, 50); A.ui.say(side === 'left' ? '左手拿起手办（松开扳机：留在原地）' : '右手拿起手办（松开扳机：留在原地）');
+    const m = this.register(node, node.parent, u.k, u.item);
+    h.c.updateMatrixWorld(true); h.c.attach(node);
+    this.carry[side] = { node, parent: m.parent, k: u.k, item: u.item };
+    this.haptic(side, 0.6, 50); A.ui.say((side === 'left' ? '左手' : '右手') + '抓住手办（松开扳机：留在原地；A/B 放大缩小）');
   }
   release(side) {       // 松开扳机：手办留在空间里当前的位置，不回底座（按右摇杆重置才会回去）
     const c = this.carry[side]; if (!c) return; this.carry[side] = null;
-    this.app.scene.attach(c.node); this.free.push({ node: c.node, parent: c.parent, orig: c.orig, k: c.k, item: c.item }); this.haptic(side, 0.3, 30);
+    this.app.scene.attach(c.node); this.free.push({ node: c.node, k: c.k, item: c.item }); this.haptic(side, 0.3, 30);
   }
   dropAll() { this.release('left'); this.release('right'); }
-  returnAll() {         // 重置：所有被拿走的手办回到各自的底座
+  scaleTarget() { for (const side of ['left', 'right']) { const c = this.carry[side]; if (c) return { node: c.node, hand: side, k: c.k, item: c.item, parent: c.parent }; } return this.hot; }
+  scaleNode(t, f) {      // 以光圈所在的点为中心放大/缩小
+    const h = this.hands[t.hand], node = t.node; if (!h || !node.parent) return;
+    const m = this.register(node, t.parent || node.parent, t.k, t.item), base = m.orig.scl.x, cur = node.scale.x, ns = clamp(cur * f, base * 0.1, base * 30), nf = ns / cur; if (Math.abs(nf - 1) < 1e-7) return;
+    h.ring.getWorldPosition(tmpV3); node.parent.updateWorldMatrix(true, false); const r = node.parent.worldToLocal(tmpV3);
+    node.position.sub(r).multiplyScalar(nf).add(r); node.scale.multiplyScalar(nf);
+  }
+  restoreNow(node, m) { node.position.copy(m.orig.pos); node.quaternion.copy(m.orig.quat); node.scale.copy(m.orig.scl); }
+  returnAll() {         // 重置：所有被拿走 / 缩放过的手办回到各自的底座
     const s = this.app.stage; this.dropAll();
-    for (const f of this.free) {
-      const gone = f.k === 'placed' ? !s.placed.includes(f.item) : f.node !== s.cur;
-      if (gone) { f.node.parent?.remove(f.node); continue; }
-      f.parent.attach(f.node); this.returning.push({ node: f.node, pos: f.orig.pos, quat: f.orig.quat, scl: f.orig.scl });
+    for (const [node, m] of this.mods) {
+      const gone = m.k === 'placed' ? !s.placed.includes(m.item) : node !== s.cur;
+      if (gone) { this.restoreNow(node, m); if (node.parent === this.app.scene) node.parent.remove(node); continue; }
+      if (node.parent !== m.parent) m.parent.attach(node);
+      this.returning.push({ node, pos: m.orig.pos, quat: m.orig.quat, scl: m.orig.scl });
     }
-    this.free = [];
+    this.mods.clear(); this.free = [];
   }
   updateCarry(info, dt) {
-    const A = this.app, busy = { left: false, right: false }, s = A.stage, k = 1 - Math.exp(-dt * 12);
+    const A = this.app, busy = { left: false, right: false }, s = A.stage, k = 1 - Math.exp(-dt * 12); this.hot = null;
     for (let i = this.returning.length - 1; i >= 0; i--) {
       const r = this.returning[i]; r.node.position.lerp(r.pos, k); r.node.quaternion.slerp(r.quat, k); r.node.scale.lerp(r.scl, k);
       if (r.node.position.distanceTo(r.pos) < 0.002 && r.node.quaternion.angleTo(r.quat) < 0.01) { r.node.position.copy(r.pos); r.node.quaternion.copy(r.quat); r.node.scale.copy(r.scl); this.returning.splice(i, 1); }
     }
-    for (let i = this.free.length - 1; i >= 0; i--) {   // 留在空中的手办：只在展台模式显示；对应的摆放模型被删了就一起清掉
-      const f = this.free[i]; if (f.k === 'placed' && !s.placed.includes(f.item)) { f.node.parent?.remove(f.node); this.free.splice(i, 1); continue; }
-      f.node.visible = s.mode === 'showcase';
+    const carried = (n) => this.carry.left?.node === n || this.carry.right?.node === n;
+    for (const [node, m] of [...this.mods]) {   // 对应的模型被换掉 / 删掉了：恢复原样并清理（缓存的模型下次显示时不能带着变形）
+      if (carried(node)) continue;
+      const stale = m.k === 'placed' ? !s.placed.includes(m.item) : node !== s.cur;
+      if (stale) { this.restoreNow(node, m); if (node.parent === A.scene) A.scene.remove(node); this.mods.delete(node); const fi = this.free.findIndex((f) => f.node === node); if (fi >= 0) this.free.splice(fi, 1); }
     }
+    for (const f of this.free) f.node.visible = s.mode === 'showcase';
     const units = this.carryUnits();
-    for (const side of ['left', 'right']) {
+    for (const side of ['right', 'left']) {
       const h = this.hands[side], I = info[side], c = this.carry[side];
       if (c) {
         if (c.k === 'placed' && !s.placed.includes(c.item)) { c.node.parent?.remove(c.node); this.carry[side] = null; continue; }
         busy[side] = true;
-        if (!h || !I || !I.trig || c.node.parent !== h.c) { this.release(side); continue; }
-        c.node.position.lerp(c.target, 1 - Math.exp(-dt * 14)); continue;
+        if (!h || !I || !I.trig || c.node.parent !== h.c) this.release(side);
+        continue;
       }
       if (!h || !I) { this.zoneHot[side] = false; continue; }
-      h.g.getWorldPosition(tmpV); let hit = null;
+      h.ring.getWorldPosition(tmpV); let hit = null;       // 手柄顶端的彩色光圈
       for (const u of units) {
-        if (this.carry.left?.node === u.node || this.carry.right?.node === u.node) continue;
-        tmpBox.setFromObject(u.node).expandByScalar(0.05);                         // 手碰到手办本体（包围盒略放大一点）
+        if (carried(u.node)) continue;
+        tmpBox.setFromObject(u.node).expandByScalar(0.04);
         if (tmpBox.containsPoint(tmpV)) { hit = u; break; }
       }
       if (hit && !this.zoneHot[side]) this.haptic(side, 0.2, 20); this.zoneHot[side] = !!hit;
-      if (hit) { busy[side] = true; if (I.edge(0)) this.grab(side, h, hit); }
+      if (hit) { busy[side] = true; if (!this.hot) this.hot = { node: hit.node, hand: side, k: hit.k, item: hit.item, parent: hit.node.parent }; if (I.edge(0)) this.grab(side, h, hit); }
     }
     return busy;
   }
