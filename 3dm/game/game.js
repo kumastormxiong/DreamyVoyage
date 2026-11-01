@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { Envs, ENV_DEFS, PAL } from '../src/envs.js';
-import { lifeify, tickLife } from '../src/life.js';       // 呼吸方案与展示模式完全一致（同一套着色器 / 同一份设置）     // 复用展厅的 8 个场景
+import { lifeify, tickLife, LIFE } from '../src/life.js';       // 呼吸方案与展示模式完全一致（同一套着色器 / 同一份设置）     // 复用展厅的 8 个场景
 
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test'), BOT = Q.has('bot'), RATE = Number(Q.get('rate') || 1), SILENT = Q.has('silent');   // rate/silent/bot 仅用于自动化测试
@@ -14,15 +14,15 @@ const TEST = Q.has('test'), BOT = Q.has('bot'), RATE = Number(Q.get('rate') || 1
 const COL = [0x30f0ff, 0xff2fd0];                    // 左手青 / 右手粉
 const COLX = [-0.5, -0.17, 0.17, 0.5];               // 四列的 x（米，相对玩家）
 const HIT_Z = -0.55, SPEED = 8, TIP_R = 0.17, LEAD = 0.8, WARM = 5;   // WARM：每局先放 5 秒音乐热身，这段没有谱子
-const FIG_H = 25, FIG_Z = -20;                        // 巨像：25 米高、离玩家 20 米，略微抬头就能看到全貌
+const FIG_H = 25, FIG_Z = -30;                        // 巨像：25 米高、离玩家 30 米，略微抬头就能看到全貌
 const ROUND = 90;                                     // 每局时长（秒），从歌曲的随机位置开始
 const ENV_SCALE = 2.2;                                // 展厅场景放大倍数（配合 30 米巨像）
 const MP3_BASE = 'https://dreamy.voyage/mp3s/';
 const pick = (a) => a[(Math.random() * a.length) | 0];
 const DIFFS = {
-  easy:   { zh: '简单', appr: 2.0, need: 0.60, win: [0.06, 0.12, 0.2],    any: true,  desc: '约 1 个/秒 · 任意手触碰' },
-  normal: { zh: '普通', appr: 1.7, need: 0.75, win: [0.055, 0.105, 0.17], any: true,  desc: '约 2 个/秒 · 任意手触碰' },
-  hard:   { zh: '困难', appr: 1.45, need: 0.90, win: [0.045, 0.09, 0.15], any: false, desc: '约 3 个/秒 · 要用对应颜色的手' },
+  easy:   { zh: '简单', appr: 2.0, need: 0.60, win: [0.06, 0.12, 0.2],    any: false, desc: '约 1 个/秒 · 蓝球左手 · 红球右手' },
+  normal: { zh: '普通', appr: 1.7, need: 0.75, win: [0.055, 0.105, 0.17], any: false, desc: '约 2 个/秒 · 蓝球左手 · 红球右手' },
+  hard:   { zh: '困难', appr: 1.45, need: 0.90, win: [0.045, 0.09, 0.15], any: false, desc: '约 3 个/秒 · 蓝球左手 · 红球右手' },
 };
 const JUDGE = ['PERFECT', 'GREAT', 'GOOD', 'MISS'];
 const JPTS = [1000, 700, 400, 0];
@@ -44,7 +44,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 4000);
 const rig = new THREE.Group(); rig.add(camera); scene.add(rig);
 const DESK_CAM = new THREE.Vector3(0, 1.5, 1.0);
-function deskCamera() { camera.position.copy(DESK_CAM); camera.lookAt(0, 7.3, -19); }
+function deskCamera() { camera.position.copy(DESK_CAM); camera.lookAt(0, 8.6, -29); }
 deskCamera();
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
 
@@ -108,7 +108,28 @@ const lC = new THREE.DirectionalLight(0xffffff, 1.2); lC.position.set(0, 12, 8);
 const revealPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), ghostPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const figure = new THREE.Group(); figure.position.set(0, 0, FIG_Z); figure.scale.setScalar(FIG_H); play.add(figure);
 const scanPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x9ff8ff, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
-figure.add(scanPlane); scanPlane.visible = false;
+figure.add(scanPlane); scanPlane.visible = false;   // 旧的整面扫描平面已弃用（会划过视线）：改为只画在模型表面的“绘制”特效
+const revU = { uRev: { value: 0 }, uAct: { value: 0 } };
+const FX_BELOW = `
+  { float dd = uRev - vRW.y; float on = step(0.0, dd) * uAct;
+    float band = on * smoothstep(3.2, 0.0, dd), edge = on * smoothstep(0.55, 0.0, dd);
+    float hl = smoothstep(0.86, 1.0, abs(sin(vRW.y * 9.42 - uRT * 3.0))), vl = smoothstep(0.9, 1.0, abs(sin((vRW.x + vRW.z * 0.7) * 5.0 + uRT * 0.8)));
+    float grid = max(hl, vl) * (0.75 + 0.25 * sin(uRT * 37.0 + vRW.y * 3.0));
+    gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.25, 0.95, 1.0) * (0.3 + grid * 1.5), band * 0.6) + vec3(0.7, 1.0, 1.0) * edge * 2.2; }`;
+const FX_ABOVE = `
+  { float du = vRW.y - uRev; float on = step(0.0, du) * uAct; float gb = on * smoothstep(3.0, 0.0, du);
+    float hl = smoothstep(0.86, 1.0, abs(sin(vRW.y * 9.42 - uRT * 3.0))), vl = smoothstep(0.9, 1.0, abs(sin((vRW.x + vRW.z * 0.7) * 5.0 + uRT * 0.8)));
+    float grid = max(hl, vl) * (0.75 + 0.25 * sin(uRT * 37.0 + vRW.y * 3.0));
+    gl_FragColor.rgb += vec3(0.25, 0.95, 1.0) * (grid * 1.3 + 0.12) * gb * 1.6; gl_FragColor.a = max(gl_FragColor.a, gb * 0.9); }`;
+function revealfx(mat, below) {     // 解锁分界线只在模型表面发光 + 全息网格，像是正在被一笔笔画出来
+  const prev = mat.onBeforeCompile, key = mat.customProgramCacheKey ? mat.customProgramCacheKey.call(mat) : '';
+  mat.onBeforeCompile = (sh, r) => {
+    prev?.call(mat, sh, r); sh.uniforms.uRev = revU.uRev; sh.uniforms.uAct = revU.uAct; sh.uniforms.uRT = LIFE.uT;
+    sh.vertexShader = 'varying vec3 vRW;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vRW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = 'varying vec3 vRW; uniform float uRev, uAct, uRT;\n' + sh.fragmentShader.replace('#include <dithering_fragment>', (below ? FX_BELOW : FX_ABOVE) + '\n#include <dithering_fragment>');
+  };
+  mat.customProgramCacheKey = () => key + (below ? '|rvB' : '|rvG'); mat.needsUpdate = true;
+}
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const gltfCache = new Map(); const CACHE_MAX = 3; let figToken = 0, figReveal = 0, figTarget = 0;
 function normalize(gltf) {
@@ -124,8 +145,8 @@ async function showFigure(i) {
   if (!holder) { try { holder = normalize(await loader.loadAsync(m.file)); gltfCache.set(m.id, holder); while (gltfCache.size > CACHE_MAX) gltfCache.delete(gltfCache.keys().next().value); } catch (e) { console.warn('model', e); return; } }
   if (tok !== figToken) return;
   const real = holder.clone(true), ghost = holder.clone(true);
-  real.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.userData = {}; o.material.clippingPlanes = [revealPlane]; lifeify(o.material, o); } });
-  ghost.traverse((o) => { if (o.isMesh) { o.material = new THREE.MeshBasicMaterial({ color: 0x3b1f78, transparent: true, opacity: 0.62, clippingPlanes: [ghostPlane], side: THREE.DoubleSide, depthWrite: false, toneMapped: false }); lifeify(o.material, o); } });
+  real.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.userData = {}; o.material.clippingPlanes = [revealPlane]; lifeify(o.material, o); revealfx(o.material, true); } });
+  ghost.traverse((o) => { if (o.isMesh) { o.material = new THREE.MeshBasicMaterial({ color: 0x3b1f78, transparent: true, opacity: 0.62, clippingPlanes: [ghostPlane], side: THREE.DoubleSide, depthWrite: false, toneMapped: false }); lifeify(o.material, o); revealfx(o.material, false); } });
   figure.add(ghost, real); figReveal = 0; figTarget = isUnlocked(m.id) && state !== 'playing' ? 1 : 0;
 }
 
@@ -546,8 +567,9 @@ function frame(dtIn) {
   camera.getWorldPosition(tmpV3); const au = Math.min(1, 0.2 + pulse * 0.9) * (app.st?.react ?? 1);
   if (envIdx >= 0) genvs.update(T, dt, tmpV3, au, 0.9 / ENV_SCALE);
   figReveal += (figTarget - figReveal) * Math.min(1, dt * (state === 'playing' ? 4 : 1.5));
+  if (Q.has('greveal')) figReveal = figTarget = +Q.get('greveal');      // 测试用：固定解锁进度
   const cy = FIG_H * 1.03 * figReveal; revealPlane.constant = cy; ghostPlane.constant = -cy;
-  scanPlane.visible = figReveal > 0.01 && figReveal < 0.985; scanPlane.position.y = figReveal * 1.03;
+  revU.uRev.value = cy; revU.uAct.value = Math.min(1, figReveal / 0.03) * (1 - Math.min(1, Math.max(0, (figReveal - 0.95) / 0.04)));
   tickLife(T);                                          // 呼吸 / 发丝：和展示模式同一套（不旋转）
   lA.intensity = lB.intensity = 4500 + 5000 * pulse;
   for (const f of frames) { f.visible = !!save.frames; const u = f.userData; u.flash = Math.max(0, u.flash - dt * 3.5); f.material.opacity = 0.22 + u.flash * 0.8; f.scale.setScalar(1 + u.flash * 0.25); }
