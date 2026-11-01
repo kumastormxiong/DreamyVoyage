@@ -13,7 +13,7 @@ const TEST = Q.has('test'), BOT = Q.has('bot'), RATE = Number(Q.get('rate') || 1
 // ---------- 常量 ----------
 const COL = [0x30f0ff, 0xff2fd0];                    // 左手青 / 右手粉
 const COLX = [-0.5, -0.17, 0.17, 0.5];               // 四列的 x（米，相对玩家）
-const HIT_Z = -0.55, SPEED = 8, TIP_R = 0.17, LEAD = 3.0;
+const HIT_Z = -0.55, SPEED = 8, TIP_R = 0.17, LEAD = 0.8, WARM = 5;   // WARM：每局先放 5 秒音乐热身，这段没有谱子
 const FIG_H = 25, FIG_Z = -20;                        // 巨像：25 米高、离玩家 20 米，略微抬头就能看到全貌
 const ROUND = 90;                                     // 每局时长（秒），从歌曲的随机位置开始
 const ENV_SCALE = 2.2;                                // 展厅场景放大倍数（配合 30 米巨像）
@@ -29,7 +29,7 @@ const JPTS = [1000, 700, 400, 0];
 
 // ---------- 存档 ----------
 const SKEY = 'dm_game_v1';
-const save = { unlocked: [], best: {}, offset: 0, sel: 0, diff: 'normal' };
+const save = { unlocked: [], best: {}, offset: 0, sel: 0, diff: 'normal', frames: false };
 try { const s = JSON.parse(localStorage.getItem(SKEY) || 'null'); if (s) Object.assign(save, s); } catch (e) { /* 无痕模式 */ }
 const persist = () => { try { localStorage.setItem(SKEY, JSON.stringify(save)); } catch (e) { /* ignore */ } };
 if (Q.get('diff') && DIFFS[Q.get('diff')]) save.diff = Q.get('diff');
@@ -152,7 +152,7 @@ function makeRound() {
     const d = await getChart(song.id); r.data = d;
     const ok = d.starts.filter((t) => t + ROUND + 2 <= d.duration), st = Q.has('gstart') ? Number(Q.get('gstart')) : ok.length ? pick(ok) : Math.max(0, d.duration - ROUND - 2);
     r.start = st; r.beats = d.beats.filter((t) => t >= st && t <= st + ROUND + 2).map((t) => t - st);
-    r.charts = {}; for (const k of Object.keys(DIFFS)) r.charts[k] = d.charts[k].filter((a) => a[0] >= st && a[0] <= st + ROUND).map((a) => [a[0] - st, a[1], a[2], a[3]]);
+    r.charts = {}; for (const k of Object.keys(DIFFS)) r.charts[k] = d.charts[k].filter((a) => a[0] >= st + WARM && a[0] <= st + ROUND).map((a) => [a[0] - st, a[1], a[2], a[3]]);
     if (!actx || SILENT) { r.state = 'ok'; return; }
     try {
       const ab = await (await fetch(MP3_BASE + encodeURIComponent(song.file))).arrayBuffer(), full = await actx.decodeAudioData(ab), sr = full.sampleRate;
@@ -236,7 +236,7 @@ function updatePlay(dt) {
   if (!prefetched && now > 15) { prefetched = true; newPending(); }       // 开局后再悄悄预载下一局，避免开场卡顿
   // 结束
   if (now > ROUND + 1.2 || (notes.length && lo >= notes.length && now > notes[notes.length - 1].t + 1.5)) finish();
-  if (now < 0) { const c = Math.ceil(-now); if (c <= 3 && judgeText !== String(c)) { judgeText = String(c); judgeK = 1; judgeT = 0.9; hudDirty = true; } }
+  if (now < WARM && now > WARM - 3) { const c = Math.ceil(WARM - now); if (judgeText !== String(c)) { judgeText = String(c); judgeK = 1; judgeT = 0.9; hudDirty = true; } }   // 热身最后 3 秒倒数
 }
 
 function grade(acc) { return acc >= 0.95 ? 'S' : acc >= 0.85 ? 'A' : acc >= 0.7 ? 'B' : acc >= 0.5 ? 'C' : 'D'; }
@@ -306,7 +306,10 @@ class Panel {
     this.mesh.renderOrder = 50; play.add(this.mesh);
   }
 }
-const panel = new Panel(1024, 768, 1.6, 1.2), hud = new Panel(768, 256, 1.6, 0.533); hud.mesh.visible = false;
+const panel = new Panel(1024, 768, 1.6, 1.2);
+// 节奏光剑式 HUD：连击在左侧、分数/倍数在右侧、进度条在视线下方，都不挡正前方
+const hudL = new Panel(384, 256, 0.9, 0.6), hudR = new Panel(384, 256, 0.9, 0.6), hudB = new Panel(768, 192, 1.3, 0.325);
+const hudG = new THREE.Group(); play.add(hudG); hudG.add(hudL.mesh, hudR.mesh, hudB.mesh); hudG.visible = false; const hud = { mesh: hudG };
 const FONT = '"Noto Sans SC","PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif';
 let rects = [], hoverId = null, hudDirty = true, page = 0;
 const P = { a: '#ff2fd0', b: '#30f0ff' };
@@ -355,10 +358,10 @@ function drawPanel() {
   btn(g, 'start', 300, 630, 424, 84, ready ? '▶  开始演奏' : '加载中 …', { fs: 34, sel: ready, dim: !ready });
   btn(g, 'back', 40, 650, 190, 52, '← 返回展厅', { fs: 22 });
   txt(g, `延迟补偿 ${save.offset >= 0 ? '+' : ''}${save.offset}ms`, 856, 612, 19, '#9fb4ff', 'center');
-  btn(g, 'off:-10', 756, 628, 66, 44, '−10', { fs: 20 }); btn(g, 'off:10', 890, 628, 66, 44, '+10', { fs: 20 });
+  btn(g, 'frames', 730, 556, 254, 40, save.frames ? '判定框线：开' : '判定框线：关', { fs: 19, sel: save.frames }); btn(g, 'off:-10', 756, 628, 66, 44, '−10', { fs: 20 }); btn(g, 'off:10', 890, 628, 66, 44, '+10', { fs: 20 });
   if (pending) {
     const sg = pending.song, ev = ENV_DEFS[pending.env];
-    txt(g, `♪ ${sg.zh}  ${sg.en}`, 262, 556, 21, '#fff', 'left', 700); txt(g, `◈ 场景：${ev.zh} · ${sg.bpm | 0} BPM · ${ROUND} 秒随机片段`, 262, 588, 19, '#9fb4ff');
+    txt(g, `♪ ${sg.zh}  ${sg.en}`, 262, 556, 21, '#fff', 'left', 700); txt(g, `◈ 场景：${ev.zh} · ${sg.bpm | 0} BPM · 5 秒热身 + ${ROUND - WARM} 秒`, 262, 588, 19, '#9fb4ff');
     btn(g, 'reroll', 590, 536, 126, 40, '🎲 换一局', { fs: 18 });
     if (pending.state === 'fail') txt(g, '⚠ 谱面加载失败，请点「换一局」重试', 512, 738, 18, '#ffb0b0', 'center');
     else if (pending.silent) txt(g, '⚠ 歌曲音频加载失败，将静音游玩', 512, 738, 18, '#ffb0b0', 'center');
@@ -382,19 +385,26 @@ function drawResult(g) {
   btn(g, 'gallery', 680, 626, 284, 76, r.m ? '去展厅看看' : '展厅', { fs: 28 });
   panel.tex.needsUpdate = true;
 }
+function hudBox(g, w, h) { g.clearRect(0, 0, w, h); rr(g, 6, 6, w - 12, h - 12, 26); g.fillStyle = 'rgba(8,4,28,.5)'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = 'rgba(255,255,255,.35)'; g.stroke(); }
 function drawHud() {
-  const g = hud.g; g.clearRect(0, 0, 768, 256); if (!stats) return;
-  rr(g, 6, 6, 756, 244, 24); g.fillStyle = 'rgba(8,4,28,.55)'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = 'rgba(255,255,255,.35)'; g.stroke();
-  txt(g, 'SCORE', 36, 40, 20, '#9fb4ff'); txt(g, String(stats.score).padStart(7, '0'), 36, 82, 44, '#fff', 'left', 800);
-  const acc = stats.total ? (stats.counts[0] + stats.counts[1] * 0.8 + stats.counts[2] * 0.5) / Math.max(1, stats.counts.reduce((a, b) => a + b, 0)) : 0;
-  txt(g, 'ACC', 732, 40, 20, '#9fb4ff', 'right'); txt(g, (acc * 100).toFixed(1) + '%', 732, 82, 44, '#fff', 'right', 800);
-  if (stats.combo > 1) neon(g, `${stats.combo} COMBO`, 384, 50, 40, P.b);
-  if (judgeT > 0) { const col = ['#ffe35a', '#6dffb0', '#9fd0ff', '#ff6b8a'][judgeK]; g.save(); g.shadowColor = col; g.shadowBlur = 18; txt(g, judgeText, 384, 124, judgeText.length > 5 ? 44 : 56, col, 'center', 800); g.restore(); }
-  const p = songTime() / ROUND, ur = Math.min(1, stats.hits / Math.max(1, cfg.need * stats.total));
-  g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(36, 176, 696, 14); g.fillStyle = P.b; g.fillRect(36, 176, 696 * Math.min(1, Math.max(0, p)), 14);
-  txt(g, '解锁进度', 36, 214, 20, '#ffd0f4'); g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(140, 206, 592, 16);
-  const gr = g.createLinearGradient(140, 0, 732, 0); gr.addColorStop(0, P.a); gr.addColorStop(1, '#ffe35a'); g.fillStyle = gr; g.fillRect(140, 206, 592 * ur, 16);
-  hud.tex.needsUpdate = true;
+  if (!stats) return; const now = songTime(), mult = 1 + Math.min(stats.combo, 50) / 50;
+  const acc = stats.counts.reduce((x, y) => x + y, 0) ? (stats.counts[0] + stats.counts[1] * 0.8 + stats.counts[2] * 0.5) / stats.counts.reduce((x, y) => x + y, 0) : 0;
+  { const g = hudL.g; hudBox(g, 384, 256);          // 左：连击 + 判定
+    txt(g, 'COMBO', 192, 40, 24, '#9fb4ff', 'center'); neon(g, String(stats.combo), 192, 112, stats.combo > 99 ? 84 : 100, P.b);
+    if (judgeT > 0) { const col = ['#ffe35a', '#6dffb0', '#9fd0ff', '#ff6b8a'][judgeK]; g.save(); g.shadowColor = col; g.shadowBlur = 18; txt(g, judgeText, 192, 204, judgeText.length > 5 ? 44 : 60, col, 'center', 800); g.restore(); }
+    hudL.tex.needsUpdate = true; }
+  { const g = hudR.g; hudBox(g, 384, 256);          // 右：分数 + 倍数
+    txt(g, 'SCORE', 192, 36, 22, '#9fb4ff', 'center'); txt(g, String(stats.score).padStart(7, '0'), 192, 82, 52, '#fff', 'center', 800);
+    neon(g, '×' + mult.toFixed(1), 192, 160, 74, P.a); txt(g, `ACC ${(acc * 100).toFixed(1)}%`, 192, 222, 28, '#cfd8ff', 'center', 700);
+    hudR.tex.needsUpdate = true; }
+  { const g = hudB.g; hudBox(g, 768, 192);          // 下：歌名 + 歌曲进度 + 解锁进度
+    const p = Math.min(1, Math.max(0, now / ROUND)), ur = Math.min(1, stats.hits / Math.max(1, cfg.need * stats.total));
+    txt(g, `♪ ${cur ? cur.song.zh : ''}`, 36, 38, 26, '#fff', 'left', 700); txt(g, now < WARM ? '热身中 …' : `${Math.max(0, Math.ceil(ROUND - now))} s`, 732, 38, 24, now < WARM ? '#ffe35a' : '#9fb4ff', 'right', 700);
+    g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(36, 66, 696, 14); g.fillStyle = P.b; g.fillRect(36, 66, 696 * p, 14);
+    txt(g, '解锁进度', 36, 124, 22, '#ffd0f4'); g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(150, 116, 582, 16);
+    const gr = g.createLinearGradient(150, 0, 732, 0); gr.addColorStop(0, P.a); gr.addColorStop(1, '#ffe35a'); g.fillStyle = gr; g.fillRect(150, 116, 582 * ur, 16);
+    txt(g, `${Math.round(ur * 100)}%`, 36, 160, 20, '#9fb4ff');
+    hudB.tex.needsUpdate = true; }
 }
 
 // ---------- 面板交互 ----------
@@ -403,6 +413,7 @@ function click(id) {
   if (id.startsWith('d:')) { save.diff = id.slice(2); cfg = DIFFS[save.diff]; persist(); }
   else if (id.startsWith('m:')) { save.sel = +id.slice(2); persist(); showFigure(save.sel); }
   else if (id.startsWith('pg:')) { const pages = Math.max(1, Math.ceil(models.length / 18)); page = (page + +id.slice(3) + pages) % pages; }
+  else if (id === 'frames') { save.frames = !save.frames; persist(); }
   else if (id.startsWith('off:')) { save.offset = Math.max(-300, Math.min(300, save.offset + +id.slice(4))); persist(); }
   else if (id === 'reroll') { newPending(); showPending(); return; }
   else if (id === 'start' || id === 'again') { if (pReady()) { if (actx) actx.resume(); startSong(); } }
@@ -442,8 +453,13 @@ function recenter() {
     play.position.set(tmpV.x, 0, tmpV.z); play.rotation.set(0, yaw, 0); headY = tmpV.y || 1.6;
   } else { play.position.set(0, 0, 0.6); play.rotation.set(0, 0, 0); headY = 1.5; }
   base = Math.min(1.25, Math.max(0.6, headY - 0.65)); layoutFrames();
-  const k = renderer.xr.isPresenting ? 1 : 1.45; panel.mesh.scale.setScalar(k); hud.mesh.scale.setScalar(k);
-  panel.mesh.position.set(0, headY - 0.08, -1.55); hud.mesh.position.set(0, base + 1.12, -3.0);
+  const xr = renderer.xr.isPresenting, k = xr ? 1 : 1.45; panel.mesh.scale.setScalar(k);
+  panel.mesh.position.set(0, headY - 0.08, -1.55);
+  const sx = xr ? 1.4 : 1.5, sz = 3.2;                 // 左右 HUD：在判定区两侧，稍微朝向玩家
+  hudL.mesh.position.set(-sx, base + 0.62, -sz); hudL.mesh.rotation.set(0, Math.atan2(sx, sz), 0);
+  hudR.mesh.position.set(sx, base + 0.62, -sz); hudR.mesh.rotation.set(0, -Math.atan2(sx, sz), 0);
+  const dy = xr ? 0.95 : 0.36, dz = xr ? 1.5 : 1.15;     // 下方 HUD：在视线下方，向上倾斜朝向眼睛
+  hudB.mesh.position.set(0, headY - dy, -dz); hudB.mesh.rotation.set(-Math.atan2(dy, dz), 0, 0);
 }
 function checkRecenter() { if (needRecenter > 0 && renderer.xr.isPresenting && ++needRecenter > 8) { needRecenter = 0; recenter(); drawPanel(); } }
 let needRecenter = 0;
@@ -479,7 +495,7 @@ function frame(dtIn) {
   scanPlane.visible = figReveal > 0.01 && figReveal < 0.985; scanPlane.position.y = figReveal * 1.03;
   tickLife(T);                                          // 呼吸 / 发丝：和展示模式同一套（不旋转）
   lA.intensity = lB.intensity = 4500 + 5000 * pulse;
-  for (const f of frames) { const u = f.userData; u.flash = Math.max(0, u.flash - dt * 3.5); f.material.opacity = 0.22 + u.flash * 0.8; f.scale.setScalar(1 + u.flash * 0.25); }
+  for (const f of frames) { f.visible = !!save.frames; const u = f.userData; u.flash = Math.max(0, u.flash - dt * 3.5); f.material.opacity = 0.22 + u.flash * 0.8; f.scale.setScalar(1 + u.flash * 0.25); }
   if (judgeT > 0) { judgeT -= dt; hudDirty = true; }
   hudT += dt; if (state === 'playing' && hud.mesh.visible && (hudDirty || hudT > 0.12) && hudT > 0.05) { drawHud(); hudT = 0; hudDirty = false; }
   updateParticles(dt);
