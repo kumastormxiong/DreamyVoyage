@@ -30,7 +30,7 @@ const JPTS = [1000, 700, 400, 0];
 // ---------- 存档 ----------
 const SKEY = 'dm_game_v1';
 const BASE_SONGS = ['s48', 's50', 's51', 's58', 's74', 's79'];       // 默认可玩的歌，其余歌曲通关解锁
-const save = { unlocked: [], songs: [], best: {}, offset: 0, sel: 0, diff: 'normal', frames: false };
+const save = { unlocked: [], songs: [], best: {}, offset: 0, sel: 0, diff: 'normal', frames: false, pick: null };
 try { const s = JSON.parse(localStorage.getItem(SKEY) || 'null'); if (s) Object.assign(save, s); } catch (e) { /* 无痕模式 */ }
 const persist = () => { try { localStorage.setItem(SKEY, JSON.stringify(save)); } catch (e) { /* ignore */ } };
 if (Q.get('diff') && DIFFS[Q.get('diff')]) save.diff = Q.get('diff');
@@ -144,23 +144,36 @@ const songTime = () => (cur && cur.state === 'ok' && cur.buf && actx && !SILENT 
 let songs = [], models = [], sheet = null, state = 'menu', cfg = DIFFS[save.diff] || DIFFS.normal;
 // ---------- 回合：随机歌曲 + 随机场景 + 随机 90 秒片段 ----------
 const songOpen = (id) => BASE_SONGS.includes(id) || save.songs.includes(id);
+// 可选时长：1分30秒 / 3分30秒（歌曲够长才有）/ 完整；很短的歌只有完整版
+const modesFor = (sg) => { const d = sg.duration, m = []; if (d >= 95) m.push(90); if (d >= 225) m.push(210); m.push('full'); return m; };
+const fmtT = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+const modeName = (sg, m) => (m === 'full' ? `完整版 ${fmtT(sg.duration)}` : m === 90 ? '1分30秒版' : '3分30秒版');
 const chartCache = new Map(); let cur = null, pending = null, lastSong = null;
 async function getChart(id) { if (!chartCache.has(id)) chartCache.set(id, fetch(`./game/charts/${id}.json`).then((r) => r.json())); return chartCache.get(id); }
 function makeRound() {
-  const song = (Q.get('gsong') && songs.find((x) => x.id === Q.get('gsong'))) || (() => { const pool = songs.filter((x) => songOpen(x.id)), p2 = pool.filter((x) => x.id !== lastSong); return pick(p2.length ? p2 : pool.length ? pool : songs); })(); lastSong = song.id;
+  const pk = save.pick && songs.find((x) => x.id === save.pick.id && songOpen(x.id));
+  const song = (Q.get('gsong') && songs.find((x) => x.id === Q.get('gsong'))) || pk || (() => { const pool = songs.filter((x) => songOpen(x.id)), p2 = pool.filter((x) => x.id !== lastSong); return pick(p2.length ? p2 : pool.length ? pool : songs); })(); lastSong = song.id;
   const env = Q.has('genv') ? (Number(Q.get('genv')) | 0) % ENV_DEFS.length : (Math.random() * ENV_DEFS.length) | 0;
-  const r = { song, env, state: 'loading', start: 0, buf: null, beats: [], charts: null };
+  const ms = modesFor(song); let mode = Q.get('gmode') ? (Q.get('gmode') === 'full' ? 'full' : +Q.get('gmode')) : (pk && song === pk ? save.pick.mode : null); if (!ms.includes(mode)) mode = ms[0];
+  const r = { song, env, mode, len: mode === 'full' ? song.duration : mode, state: 'loading', start: 0, buf: null, beats: [], charts: null };
   r.promise = (async () => {
-    const d = await getChart(song.id); r.data = d;
-    const ok = d.starts.filter((t) => t + ROUND + 2 <= d.duration), st = Q.has('gstart') ? Number(Q.get('gstart')) : ok.length ? pick(ok) : Math.max(0, d.duration - ROUND - 2);
-    r.start = st; r.beats = d.beats.filter((t) => t >= st && t <= st + ROUND + 2).map((t) => t - st);
-    r.charts = {}; for (const k of Object.keys(DIFFS)) r.charts[k] = d.charts[k].filter((a) => a[0] >= st + WARM && a[0] <= st + ROUND).map((a) => [a[0] - st, a[1], a[2], a[3]]);
+    const d = await getChart(song.id); r.data = d; const dur = d.duration, full_ = mode === 'full', need = (full_ ? dur : mode) + 2;
+    let st = 0;
+    if (!full_) {
+      const ok = (mode === 90 ? d.starts : d.beats.filter((t, i) => i % 8 === 0)).filter((t) => t + need <= dur);
+      st = Q.has('gstart') ? Number(Q.get('gstart')) : ok.length ? pick(ok) : Math.max(0, dur - need);
+    }
+    const len = full_ ? dur : Math.min(mode, dur - st); r.len = len; r.start = st;
+    r.beats = d.beats.filter((t) => t >= st && t <= st + len + 2).map((t) => t - st);
+    const tEnd = st + len - (full_ ? 1.5 : 0);
+    r.charts = {}; for (const k of Object.keys(DIFFS)) r.charts[k] = d.charts[k].filter((a) => a[0] >= st + WARM && a[0] <= tEnd).map((a) => [a[0] - st, a[1], a[2], a[3]]);
     if (!actx || SILENT) { r.state = 'ok'; return; }
     try {
       const ab = await (await fetch(MP3_BASE + encodeURIComponent(song.file))).arrayBuffer(), full = await actx.decodeAudioData(ab), sr = full.sampleRate;
-      const s0 = Math.floor(st * sr), len = Math.min(full.length - s0, Math.floor((ROUND + 2.5) * sr)), win = actx.createBuffer(full.numberOfChannels, len, sr);   // 只保留这一局用到的片段，省内存
-      for (let c = 0; c < full.numberOfChannels; c++) win.copyToChannel(full.getChannelData(c).subarray(s0, s0 + len), c);
-      r.buf = win; r.state = 'ok';
+      const s0 = Math.floor(st * sr), n = Math.min(full.length - s0, Math.floor((len + 2.5) * sr));
+      if (s0 === 0 && n >= full.length) r.buf = full;       // 完整版：直接用整首
+      else { const win = actx.createBuffer(full.numberOfChannels, n, sr); for (let c = 0; c < full.numberOfChannels; c++) win.copyToChannel(full.getChannelData(c).subarray(s0, s0 + n), c); r.buf = win; }   // 只保留这一局用到的片段，省内存
+      r.state = 'ok';
     } catch (e) { console.warn('song', e); r.state = 'ok'; r.silent = true; }      // 加载失败：静音游玩
   })().catch((e) => { console.warn('round', e); r.state = 'fail'; }).then(() => { drawPanel(); });
   return r;
@@ -190,13 +203,13 @@ function startSong() {
   recenter(); layoutFrames(); panel.mesh.visible = false; hud.mesh.visible = true; hudDirty = true;
   if (actx && cur.buf && !SILENT) {
     actx.resume(); src = actx.createBufferSource(); src.buffer = cur.buf; roundGain = actx.createGain(); src.connect(roundGain).connect(musicGain); startAt = actx.currentTime + LEAD; src.start(startAt);
-    roundGain.gain.setValueAtTime(0, startAt); roundGain.gain.linearRampToValueAtTime(1, startAt + 0.5); roundGain.gain.setValueAtTime(1, startAt + ROUND - 2.5); roundGain.gain.linearRampToValueAtTime(0, startAt + ROUND);
+    roundGain.gain.setValueAtTime(0, startAt); roundGain.gain.linearRampToValueAtTime(1, startAt + 0.5); roundGain.gain.setValueAtTime(1, startAt + cur.len - 2.5); roundGain.gain.linearRampToValueAtTime(0, startAt + cur.len);
   } else fallbackT0 = performance.now();
   state = 'playing'; figTarget = 0; figReveal = 0; doneT = 0;
   for (const m of frames) m.userData.flash = 0;
 }
 function stopSong() { try { src?.stop(); } catch (e) { /* 已停止 */ } src = null; }
-function quitToMenu() { stopSong(); state = 'menu'; showPending(); hud.mesh.visible = false; panel.mesh.visible = true; recenter(); showFigure(save.sel); drawPanel(); }
+function quitToMenu() { stopSong(); state = 'menu'; view = 'main'; showPending(); hud.mesh.visible = false; panel.mesh.visible = true; recenter(); showFigure(save.sel); drawPanel(); }
 
 function judge(n, dt, hand) {
   const w = cfg.win, a = Math.abs(dt), k = a <= w[0] ? 0 : a <= w[1] ? 1 : 2;
@@ -235,9 +248,9 @@ function updatePlay(dt) {
   // 节拍脉冲
   const bt = cur.beats; while (beatIdx < bt.length && bt[beatIdx] < now) { beatIdx++; pulse = Math.max(pulse, 0.85); }
   figTarget = Math.min(1, stats.hits / Math.max(1, cfg.need * stats.total));
-  if (!prefetched && now > 15) { prefetched = true; newPending(); }       // 开局后再悄悄预载下一局，避免开场卡顿
+  if (!prefetched && now > 15) { prefetched = true; if (cur.mode === 90 || !save.pick) newPending(); }   // 长版本不预载，省内存       // 开局后再悄悄预载下一局，避免开场卡顿
   // 结束
-  if (now > ROUND + 1.2 || (notes.length && lo >= notes.length && now > notes[notes.length - 1].t + 1.5)) finish();
+  if (now > cur.len + 1.2 || (notes.length && lo >= notes.length && now > notes[notes.length - 1].t + 1.5)) finish();
   if (now < WARM && now > WARM - 3) { const c = Math.ceil(WARM - now); if (judgeText !== String(c)) { judgeText = String(c); judgeK = 1; judgeT = 0.9; hudDirty = true; } }   // 热身最后 3 秒倒数
 }
 
@@ -251,7 +264,7 @@ function finish() {
   const newSongs = [];      // 通关解锁 1 首歌，S 评级解锁 2 首
   if (pass) { const locked = songs.filter((x) => !songOpen(x.id)); for (let i = 0; i < (gr === 'S' ? 2 : 1) && locked.length; i++) { const k = (Math.random() * locked.length) | 0, sg = locked.splice(k, 1)[0]; save.songs.push(sg.id); newSongs.push(sg); } }
   persist(); result = { acc, pass, gr, newly, newSongs, s: stats, diff: save.diff, m };
-  hud.mesh.visible = false; panel.mesh.visible = true; recenter(); noteCore.count = noteWire.count = 0; figTarget = pass ? 1 : figTarget; drawPanel();
+  hud.mesh.visible = false; panel.mesh.visible = true; recenter(); noteCore.count = noteWire.count = 0; figTarget = pass ? 1 : figTarget; view = 'main'; if (!pending) newPending(); drawPanel();
   if (pass) { burst(0, 1.4, -1.5, 0xffffff, 120); burst(0, 1.8, -1.5, COL[0], 80); burst(0, 1.8, -1.5, COL[1], 80); }
 }
 
@@ -315,7 +328,7 @@ const panel = new Panel(1024, 768, 1.6, 1.2);
 const hudL = new Panel(384, 256, 0.9, 0.6), hudR = new Panel(384, 256, 0.9, 0.6), hudB = new Panel(768, 192, 1.3, 0.325);
 const hudG = new THREE.Group(); play.add(hudG); hudG.add(hudL.mesh, hudR.mesh, hudB.mesh); hudG.visible = false; const hud = { mesh: hudG };
 const FONT = '"Noto Sans SC","PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif';
-let rects = [], hoverId = null, hudDirty = true, page = 0;
+let rects = [], hoverId = null, hudDirty = true, page = 0, view = 'main', spage = 0, spick = null, smode = 90;
 const P = { a: '#ff2fd0', b: '#30f0ff' };
 function rr(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 function btn(g, id, x, y, w, h, label, o = {}) {
@@ -336,9 +349,39 @@ function bg(g, w, h) {
   const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, 'rgba(14,6,40,.94)'); gr.addColorStop(1, 'rgba(6,16,40,.94)');
   rr(g, 4, 4, w - 8, h - 8, 28); g.fillStyle = gr; g.fill(); g.lineWidth = 4; const s = g.createLinearGradient(0, 0, w, 0); s.addColorStop(0, P.a); s.addColorStop(1, P.b); g.strokeStyle = s; g.stroke();
 }
+let spgPages = 1;
+function drawSongs(g) {
+  neon(g, '选择音乐', 512, 44, 42, P.b);
+  const nOpen = songs.filter((x) => songOpen(x.id)).length;
+  txt(g, `已解锁 ${nOpen} / ${songs.length} · 通关解锁新歌，S 评级一次解锁 2 首`, 512, 84, 19, '#9fb4ff', 'center');
+  const per = 16, pages = Math.max(1, Math.ceil(songs.length / per)); spage = Math.min(spage, pages - 1); spgPages = pages;
+  for (let i = 0; i < per; i++) {
+    const idx = spage * per + i; if (idx >= songs.length) break; const sg = songs[idx], op = songOpen(sg.id), sel = sg.id === spick;
+    const x = 40 + (i % 2) * 488, y = 108 + (i >> 1) * 56, w = 468, h = 50; rects.push({ id: 'sg:' + sg.id, x, y, w, h });
+    rr(g, x, y, w, h, 10); g.fillStyle = sel ? 'rgba(48,240,255,.28)' : op ? 'rgba(255,255,255,.09)' : 'rgba(6,2,20,.55)'; g.fill();
+    g.lineWidth = sel || hoverId === 'sg:' + sg.id ? 3 : 1.4; g.strokeStyle = sel ? P.b : hoverId === 'sg:' + sg.id ? '#fff' : 'rgba(255,255,255,.28)'; g.stroke();
+    txt(g, String(sg.n).padStart(2, '0'), x + 16, y + 26, 22, op ? '#ffd0f4' : '#6a5a88', 'left', 800);
+    let t = sg.zh; g.font = `700 21px ${FONT}`; while (g.measureText(t).width > 290 && t.length > 2) t = t.slice(0, -1); if (t.length < sg.zh.length) t += '…';
+    txt(g, t, x + 62, y + 26, 21, op ? '#fff' : '#7d6f9c', 'left', 700);
+    if (op) { txt(g, fmtT(sg.duration), x + w - 14, y + 26, 18, '#9fb4ff', 'right', 600); if (save.pick && save.pick.id === sg.id) txt(g, '●', x + w - 70, y + 26, 16, '#6dffb0', 'right'); }
+    else txt(g, '🔒', x + w - 16, y + 26, 22, '#fff', 'right');
+  }
+  btn(g, 'spg:-1', 40, 560, 70, 36, '◀', { fs: 20 }); btn(g, 'spg:1', 120, 560, 70, 36, '▶', { fs: 20 }); txt(g, `${spage + 1}/${pages}`, 205, 579, 20);
+  const sg = songs.find((x) => x.id === spick);
+  if (sg) {
+    const op = songOpen(sg.id); txt(g, `♪ ${sg.zh}  ${sg.en}`.slice(0, 40), 300, 570, 22, '#fff', 'left', 700);
+    txt(g, op ? `${fmtT(sg.duration)} · ${sg.bpm | 0} BPM` : '🔒 未解锁 · 通关其他歌曲后随机解锁', 760, 570, 19, op ? '#9fb4ff' : '#ffb0e8', 'left');
+    const ms = modesFor(sg); ms.forEach((m, k) => btn(g, 'md:' + m, 40 + k * 232, 612, 220, 56, modeName(sg, m), { fs: 24, sel: op && smode === m, dim: !op }));
+    btn(g, 'sok', 740, 612, 244, 56, '✓ 选定', { fs: 28, sel: op, dim: !op });
+  } else txt(g, '点选一首歌曲', 512, 640, 24, '#9fb4ff', 'center');
+  btn(g, 'srand', 40, 690, 220, 46, '🎲 随机选曲', { fs: 20 }); btn(g, 'sback', 280, 690, 200, 46, '← 返回', { fs: 20 });
+  txt(g, '时长：1分30秒（随机片段）· 3分30秒 · 完整版；不足 3分30 的歌没有 3分30 选项', 500, 720, 16, '#7d8fc0', 'left');
+  panel.tex.needsUpdate = true;
+}
 function drawPanel() {
   const g = panel.g; g.clearRect(0, 0, 1024, 768); bg(g, 1024, 768); rects = [];
   if (state === 'result' && result) return drawResult(g);
+  if (view === 'songs') return drawSongs(g);
   neon(g, 'GHOSTCHAIN · RHYTHM', 512, 52, 46, P.a); txt(g, '用手柄触碰沿节奏飞来的音符 · 通关即可解锁手办', 512, 96, 22, '#9fb4ff', 'center');
   ['easy', 'normal', 'hard'].forEach((d, i) => btn(g, 'd:' + d, 40 + i * 156, 128, 146, 46, DIFFS[d].zh, { sel: save.diff === d, fs: 24 }));
   txt(g, DIFFS[save.diff].desc + ` · 命中率 ≥ ${Math.round(DIFFS[save.diff].need * 100)}% 解锁`, 520, 151, 19, '#9fb4ff');
@@ -365,8 +408,9 @@ function drawPanel() {
   btn(g, 'frames', 730, 556, 254, 40, save.frames ? '判定框线：开' : '判定框线：关', { fs: 19, sel: save.frames }); btn(g, 'off:-10', 756, 628, 66, 44, '−10', { fs: 20 }); btn(g, 'off:10', 890, 628, 66, 44, '+10', { fs: 20 });
   if (pending) {
     const sg = pending.song, ev = ENV_DEFS[pending.env];
-    { let t = `♪ ${sg.zh}  ${sg.en}`; g.font = `700 20px ${FONT}`; while (g.measureText(t).width > 310 && t.length > 6) t = t.slice(0, -2); if (t.length < `♪ ${sg.zh}  ${sg.en}`.length) t += '…'; txt(g, t, 262, 556, 20, '#fff', 'left', 700); } txt(g, `◈ 场景：${ev.zh} · ${sg.bpm | 0} BPM · 5 秒热身 + ${ROUND - WARM} 秒`, 262, 588, 19, '#9fb4ff');
-    btn(g, 'reroll', 584, 538, 130, 38, '🎲 换一局', { fs: 18 });
+    { let t = `♪ ${sg.zh}  ${sg.en}`; const full = t; g.font = `700 20px ${FONT}`; while (g.measureText(t).width > 290 && t.length > 6) t = t.slice(0, -2); if (t.length < full.length) t += '…'; txt(g, t, 262, 556, 20, '#fff', 'left', 700); }
+    txt(g, `◈ 场景：${ev.zh} · ${sg.bpm | 0} BPM`, 262, 584, 19, '#9fb4ff'); txt(g, `⏱ ${modeName(sg, pending.mode)} · 含 5 秒热身${save.pick && save.pick.id === sg.id ? ' · 已选曲' : ''}`, 262, 610, 18, '#ffe9a8');
+    btn(g, 'songs', 574, 538, 140, 36, '♪ 选曲', { fs: 19, sel: view === 'songs' }); btn(g, 'reroll', 574, 580, 140, 36, '🎲 随机', { fs: 18 });
     if (pending.state === 'fail') txt(g, '⚠ 谱面加载失败，请点「换一局」重试', 512, 738, 18, '#ffb0b0', 'center');
     else if (pending.silent) txt(g, '⚠ 歌曲音频加载失败，将静音游玩', 512, 738, 18, '#ffb0b0', 'center');
   }
@@ -403,8 +447,8 @@ function drawHud() {
     neon(g, '×' + mult.toFixed(1), 192, 160, 74, P.a); txt(g, `ACC ${(acc * 100).toFixed(1)}%`, 192, 222, 28, '#cfd8ff', 'center', 700);
     hudR.tex.needsUpdate = true; }
   { const g = hudB.g; hudBox(g, 768, 192);          // 下：歌名 + 歌曲进度 + 解锁进度
-    const p = Math.min(1, Math.max(0, now / ROUND)), ur = Math.min(1, stats.hits / Math.max(1, cfg.need * stats.total));
-    txt(g, `♪ ${cur ? cur.song.zh : ''}`, 36, 38, 26, '#fff', 'left', 700); txt(g, now < WARM ? '热身中 …' : `${Math.max(0, Math.ceil(ROUND - now))} s`, 732, 38, 24, now < WARM ? '#ffe35a' : '#9fb4ff', 'right', 700);
+    const p = Math.min(1, Math.max(0, now / cur.len)), ur = Math.min(1, stats.hits / Math.max(1, cfg.need * stats.total));
+    txt(g, `♪ ${cur ? cur.song.zh : ''}`, 36, 38, 26, '#fff', 'left', 700); txt(g, now < WARM ? '热身中 …' : fmtT(Math.max(0, Math.ceil(cur.len - now))), 732, 38, 24, now < WARM ? '#ffe35a' : '#9fb4ff', 'right', 700);
     g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(36, 66, 696, 14); g.fillStyle = P.b; g.fillRect(36, 66, 696 * p, 14);
     txt(g, '解锁进度', 36, 124, 22, '#ffd0f4'); g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(150, 116, 582, 16);
     const gr = g.createLinearGradient(150, 0, 732, 0); gr.addColorStop(0, P.a); gr.addColorStop(1, '#ffe35a'); g.fillStyle = gr; g.fillRect(150, 116, 582 * ur, 16);
@@ -420,7 +464,13 @@ function click(id) {
   else if (id.startsWith('pg:')) { const pages = Math.max(1, Math.ceil(models.length / 18)); page = (page + +id.slice(3) + pages) % pages; }
   else if (id === 'frames') { save.frames = !save.frames; persist(); }
   else if (id.startsWith('off:')) { save.offset = Math.max(-300, Math.min(300, save.offset + +id.slice(4))); persist(); }
-  else if (id === 'reroll') { newPending(); showPending(); return; }
+  else if (id === 'reroll' || id === 'srand') { save.pick = null; persist(); view = 'main'; newPending(); showPending(); return; }
+  else if (id === 'songs') { view = 'songs'; spick = save.pick?.id || pending?.song.id || null; const ix = songs.findIndex((x) => x.id === spick); if (ix >= 0) spage = (ix / 16) | 0; const sg0 = songs[ix]; smode = sg0 ? (save.pick && save.pick.id === spick ? save.pick.mode : pending?.mode ?? modesFor(sg0)[0]) : 90; }
+  else if (id === 'sback') { view = 'main'; }
+  else if (id.startsWith('spg:')) { spage = (spage + +id.slice(4) + spgPages) % spgPages; }
+  else if (id.startsWith('sg:')) { spick = id.slice(3); const sg = songs.find((x) => x.id === spick), ms = modesFor(sg); smode = save.pick && save.pick.id === spick && ms.includes(save.pick.mode) ? save.pick.mode : ms[0]; }
+  else if (id.startsWith('md:')) { const sg = songs.find((x) => x.id === spick); if (sg && songOpen(sg.id)) { const m = id.slice(3) === 'full' ? 'full' : +id.slice(3); if (modesFor(sg).includes(m)) smode = m; } }
+  else if (id === 'sok') { const sg = songs.find((x) => x.id === spick); if (sg && songOpen(sg.id)) { save.pick = { id: sg.id, mode: smode }; persist(); view = 'main'; newPending(); showPending(); return; } }
   else if (id === 'start' || id === 'again') { if (pReady()) { if (actx) actx.resume(); startSong(); } }
   else if (id === 'menu') { quitToMenu(); return; }
   else if (id === 'back') { exitToShowcase(null); return; }

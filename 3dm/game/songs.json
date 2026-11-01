@@ -709,5 +709,68 @@
   "file": "79-空虚空相-Emptiness Voidness-Mastered.mp3",
   "duration": 148.3,
   "bpm": 92.3
+ },
+ {
+  "id": "s80",
+  "n": 80,
+  "zh": "厌世表象界",
+  "en": "Misanthropy Phenomenology",
+  "file": "80-厌世表象界-Misanthropy Phenomenology-Mastered.mp3",
+  "duration": 262.7,
+  "bpm": 126.0
+ },
+ {
+  "id": "s81",
+  "n": 81,
+  "zh": "协奏震颤",
+  "en": "Concerto Convulsion",
+  "file": "81-协奏震颤-Concerto Convulsion-Mastered.mp3",
+  "duration": 404.0,
+  "bpm": 178.2
+ },
+ {
+  "id": "s82",
+  "n": 82,
+  "zh": "逻辑门雀跃",
+  "en": "Logicgate Exultation",
+  "file": "82-逻辑门雀跃-Logicgate Exultation-Mastered.mp3",
+  "duration": 189.7,
+  "bpm": 136.0
+ },
+ {
+  "id": "s83",
+  "n": 83,
+  "zh": "虔诚内在性",
+  "en": "Piety Immanence",
+  "file": "83-虔诚内在性-Piety Immanence-Mastered.mp3",
+  "duration": 184.2,
+  "bpm": 143.6
+ },
+ {
+  "id": "s84",
+  "n": 84,
+  "zh": "平衡子空间",
+  "en": "Balance Subspace",
+  "file": "84-平衡子空间-Balance Subspace-Mastered.mp3",
+  "duration": 167.4,
+  "bpm": 143.6
+ },
+ {
+  "id": "s85",
+  "n": 85,
+  "zh": "流体极乐",
+  "en": "Fluid Bliss",
+  "file": "85-流体极乐-Fluid Bliss-Mastered.mp3",
+  "duration": 253.0,
+  "bpm": 101.3
+ },
+ {
+  "id": "s86",
+  "n": 86,
+  "zh": "永生玄妙",
+  "en": "Immortality Arcane",
+  "file": "86-永生玄妙-Immortality Arcane-Mastered.mp3",
+  "duration": 109.8,
+  "bpm": 123.0
  }
 ]
