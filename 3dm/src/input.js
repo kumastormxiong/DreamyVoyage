@@ -11,7 +11,7 @@ export class Controls {
     this.app = app; const { renderer, rig } = app;
     this.hands = { left: null, right: null }; this.prev = { left: [], right: [] }; this.ptr = { left: {}, right: {} };
     this.grabState = null; this.snapCool = 0; this.boost = false;
-    this.carry = { left: null, right: null }; this.free = []; this.mods = new Map(); this.hot = null; this.returning = []; this.zoneHot = { left: false, right: false };   // 手柄「拿起手办」
+    this.carry = { left: null, right: null }; this.free = []; this.mods = new Map(); this.hot = null; this.hotSide = { left: null, right: null }; this.sel = new Map(); this.gripRoot = null; this.returning = []; this.zoneHot = { left: false, right: false };   // 手柄「拿起手办」
     this.ray = new THREE.Raycaster(); this.ray.far = 60;
     this.keys = new Set(); this.yaw = 0; this.pitch = 0; this.drag = null;
     this.ctrls = [];
@@ -128,7 +128,9 @@ export class Controls {
     const L = info.left, R = info.right;
     // 菜单/换模型/重置
     const holding = !!(this.carry.left || this.carry.right);
-    if (L) { if (L.edge(3)) A.toggleUI(); if (!holding && L.edge(4)) A.prev(); if (!holding && L.edge(5)) A.next(); }
+    const lh = this.hotSide.left, lSel = lh && lh.k !== 'main';
+    if (L && L.edge(4) && lSel) this.toggleSelect(lh.node);       // 左手光圈碰着空中的手办时，X = 选中 / 取消选中（用来批量隐藏）
+    if (L) { if (L.edge(3)) A.toggleUI(); if (!holding && !lSel && L.edge(4)) A.prev(); if (!holding && L.edge(5)) A.next(); }
     if (R) { if (R.edge(3)) { A.resetStage(); } }
     // 飞行 + 转向
     let boost = false;
@@ -192,19 +194,20 @@ export class Controls {
   // ---------------- 扳机拿起手办：手碰到底座 + 按扳机，模型就「卡」在手柄上，随手柄翻转；松开扳机放回展台 ----------
   carryUnits() {      // 可被拿起的手办：展台上的主模型、摆放的模型、以及被松手留在空中的模型
     const s = this.app.stage, u = [], seen = new Set(); if (s.mode !== 'showcase') return u;
-    for (const f of this.free) if (f.node.parent) { u.push({ k: f.k, node: f.node, item: f.item }); seen.add(f.node); }
+    for (const f of this.free) if (f.node.parent && !f.hidden) { u.push({ k: f.k, node: f.node, item: f.item }); seen.add(f.node); }
     if (s.show.visible && s.cur && s.cur.parent === s.holderGroup && !seen.has(s.cur)) u.push({ k: 'main', node: s.cur });
     for (const it of s.placed) if (it.model && it.model.parent === it.inner && !seen.has(it.model)) u.push({ k: 'placed', node: it.model, item: it });
     return u;
   }
   register(node, parent, k, item) { if (!this.mods.has(node)) this.mods.set(node, { parent, k, item, orig: { pos: node.position.clone(), quat: node.quaternion.clone(), scl: node.scale.clone() } }); return this.mods.get(node); }
   grab(side, h, u) {       // 抓住的是光圈碰到的那个点：模型不会跳位置，保持当前相对手柄的姿态，随手柄转
-    const node = u.node, A = this.app;
+    const A = this.app, node = u.node; let k = u.k;
     const fi = this.free.findIndex((f) => f.node === node); if (fi >= 0) this.free.splice(fi, 1);
     const ri = this.returning.findIndex((r) => r.node === node); if (ri >= 0) this.returning.splice(ri, 1);
-    const m = this.register(node, node.parent, u.k, u.item);
+    if (k === 'main') { this.mods.delete(node); A.stage.takeCur(); k = 'float'; }     // 从展台拿走：展台立刻补上一份新的，拿走的这份是独立的空中模型
+    else if (k === 'placed') this.register(node, node.parent, k, u.item);
     h.c.updateMatrixWorld(true); h.c.attach(node);
-    this.carry[side] = { node, parent: m.parent, k: u.k, item: u.item };
+    this.carry[side] = { node, parent: null, k, item: u.item };
     this.haptic(side, 0.6, 50); A.ui.say((side === 'left' ? '左手' : '右手') + '抓住手办（松开扳机：留在原地；A/B 放大缩小）');
   }
   release(side) {       // 松开扳机：手办留在空间里当前的位置，不回底座（按右摇杆重置才会回去）
@@ -212,6 +215,35 @@ export class Controls {
     this.app.scene.attach(c.node); this.free.push({ node: c.node, k: c.k, item: c.item }); this.haptic(side, 0.3, 30);
   }
   dropAll() { this.release('left'); this.release('right'); }
+  detachToFloat(u) {     // 握把操作用：把光圈碰到的模型变成独立的空中模型，返回它的节点
+    const A = this.app, node = u.node; let k = u.k; if (this.free.some((f) => f.node === node)) return node;
+    if (k === 'main') { this.mods.delete(node); A.stage.takeCur(); k = 'float'; } else if (k === 'placed') this.register(node, node.parent, k, u.item);
+    A.scene.attach(node); this.free.push({ node, k, item: u.item }); return node;
+  }
+  // ---- 空中模型的选择 / 隐藏 ----
+  floaters() { return this.free.filter((f) => f.node.parent); }
+  toggleSelect(node) {
+    const A = this.app;
+    if (this.sel.has(node)) { const hp = this.sel.get(node); A.scene.remove(hp); hp.geometry.dispose(); this.sel.delete(node); }
+    else { const hp = new THREE.Box3Helper(new THREE.Box3(), 0x30f0ff); hp.material.toneMapped = false; A.scene.add(hp); this.sel.set(node, hp); }
+    this.haptic('left', 0.3, 25); A.ui.say(`已选中 ${this.sel.size} 个空中模型`); A.ui.invalidate();
+  }
+  clearSelection() { for (const [, hp] of this.sel) { this.app.scene.remove(hp); hp.geometry.dispose(); } this.sel.clear(); }
+  selectAllToggle() {
+    const vis = this.floaters().filter((f) => !f.hidden);
+    if (this.sel.size >= vis.length && vis.length) this.clearSelection(); else for (const f of vis) if (!this.sel.has(f.node)) this.toggleSelect(f.node);
+    this.app.ui.say(`已选中 ${this.sel.size} 个空中模型`); this.app.ui.invalidate();
+  }
+  hideSelected() {
+    let n = 0; for (const f of this.free) if (this.sel.has(f.node)) { f.hidden = true; f.node.visible = false; n++; }
+    this.clearSelection(); this.app.ui.say(n ? `已隐藏 ${n} 个空中模型（菜单里可恢复）` : '先用左手光圈碰到空中的手办，按 X 选中'); this.app.ui.invalidate();
+  }
+  showHidden() { let n = 0; for (const f of this.free) if (f.hidden) { f.hidden = false; n++; } this.app.ui.say(`恢复显示 ${n} 个`); this.app.ui.invalidate(); }
+  clearFloaters() {      // 彻底删除所有空中模型
+    const A = this.app; this.dropAll(); this.clearSelection();
+    for (const f of this.free) { f.node.parent?.remove(f.node); f.node.traverse((n) => { if (n.isMesh) { n.geometry?.dispose(); for (const m of [].concat(n.material)) m.dispose(); } }); }
+    this.free = []; A.ui.say('空中模型已清空'); A.ui.invalidate();
+  }
   scaleTarget() { for (const side of ['left', 'right']) { const c = this.carry[side]; if (c) return { node: c.node, hand: side, k: c.k, item: c.item, parent: c.parent }; } return this.hot; }
   scaleNode(t, f) {      // 以光圈所在的点为中心放大/缩小
     const h = this.hands[t.hand], node = t.node; if (!h || !node.parent) return;
@@ -223,12 +255,13 @@ export class Controls {
   returnAll() {         // 重置：所有被拿走 / 缩放过的手办回到各自的底座
     const s = this.app.stage; this.dropAll();
     for (const [node, m] of this.mods) {
+      if (m.k === 'float') continue;      // 空中的独立模型没有「底座」，重置不动它
       const gone = m.k === 'placed' ? !s.placed.includes(m.item) : node !== s.cur;
       if (gone) { this.restoreNow(node, m); if (node.parent === this.app.scene) node.parent.remove(node); continue; }
       if (node.parent !== m.parent) m.parent.attach(node);
       this.returning.push({ node, pos: m.orig.pos, quat: m.orig.quat, scl: m.orig.scl });
     }
-    this.mods.clear(); this.free = [];
+    this.mods.clear(); this.free = this.free.filter((f) => f.k === 'float');
   }
   updateCarry(info, dt) {
     const A = this.app, busy = { left: false, right: false }, s = A.stage, k = 1 - Math.exp(-dt * 12); this.hot = null;
@@ -239,10 +272,12 @@ export class Controls {
     const carried = (n) => this.carry.left?.node === n || this.carry.right?.node === n;
     for (const [node, m] of [...this.mods]) {   // 对应的模型被换掉 / 删掉了：恢复原样并清理（缓存的模型下次显示时不能带着变形）
       if (carried(node)) continue;
-      const stale = m.k === 'placed' ? !s.placed.includes(m.item) : node !== s.cur;
+      const stale = m.k === 'placed' ? !s.placed.includes(m.item) : m.k === 'main' ? node !== s.cur : false;
       if (stale) { this.restoreNow(node, m); if (node.parent === A.scene) A.scene.remove(node); this.mods.delete(node); const fi = this.free.findIndex((f) => f.node === node); if (fi >= 0) this.free.splice(fi, 1); }
     }
-    for (const f of this.free) f.node.visible = s.mode === 'showcase';
+    for (const f of this.free) f.node.visible = s.mode === 'showcase' && !f.hidden;
+    for (const [node, hp] of this.sel) { if (!node.parent) { A.scene.remove(hp); this.sel.delete(node); continue; } hp.box.setFromObject(node); hp.visible = node.visible; }
+    this.hotSide = { left: null, right: null };
     const units = this.carryUnits();
     for (const side of ['right', 'left']) {
       const h = this.hands[side], I = info[side], c = this.carry[side];
@@ -260,15 +295,21 @@ export class Controls {
         if (tmpBox.containsPoint(tmpV)) { hit = u; break; }
       }
       if (hit && !this.zoneHot[side]) this.haptic(side, 0.2, 20); this.zoneHot[side] = !!hit;
-      if (hit) { busy[side] = true; if (!this.hot) this.hot = { node: hit.node, hand: side, k: hit.k, item: hit.item, parent: hit.node.parent }; if (I.edge(0)) this.grab(side, h, hit); }
+      if (hit) { this.hotSide[side] = hit; busy[side] = true; if (!this.hot) this.hot = { node: hit.node, hand: side, k: hit.k, item: hit.item, parent: hit.node.parent }; if (I.edge(0)) this.grab(side, h, hit); }
     }
     return busy;
   }
 
   // 握把：单手抓取移动，双手同时握住 = 缩放+旋转（拉开=巨大化）
   updateGrab(info) {
-    const A = this.app, stg = A.stage, st = { root: stg.target, get scale() { return this.root.scale.x; } }, L = this.hands.left, R = this.hands.right;
+    const A = this.app, stg = A.stage, L = this.hands.left, R = this.hands.right;
     const gl = !!(info.left && info.left.grip && L), gr = !!(info.right && info.right.grip && R);
+    if (!gl && !gr) this.gripRoot = null;
+    else if (!this.gripRoot || (!this.gripRoot.parent)) {     // 握把开始：光圈碰着某个模型就操作这个模型，否则操作展台
+      const u = (gr && this.hotSide.right) || (gl && this.hotSide.left) || null;
+      this.gripRoot = u ? this.detachToFloat(u) : stg.target;
+    }
+    const st = { root: this.gripRoot || stg.target, get scale() { return this.root.scale.x; } };
     const pos = (h, out) => h.g.getWorldPosition(out);
     if (gl && gr) {
       const pl = pos(L, new THREE.Vector3()), pr = pos(R, new THREE.Vector3()), mid = pl.clone().add(pr).multiplyScalar(0.5), d = Math.max(pl.distanceTo(pr), 0.04), yaw = Math.atan2(pr.x - pl.x, pr.z - pl.z);

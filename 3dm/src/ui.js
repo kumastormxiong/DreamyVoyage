@@ -68,6 +68,11 @@ export class UI {
       y += 64;
       slider(y, '模型大小 SCALE', () => st.tgtScale, (v) => st.setScale(v), 0.02, 80, (v) => '×' + (v < 1 ? v.toFixed(2) : v.toFixed(1)), { log: true }); y += 56;
       slider(y, '自转速度 SPIN SPEED', () => S.rotSpeed, (v) => { S.rotSpeed = v; st.rotSpeed = v; }, 0, 3, (v) => Math.round(v * 57.3) + '°/s');
+      { const C = A.controls, fl = C.floaters(), hid = fl.filter((f) => f.hidden).length;       // 空中模型：选中 / 隐藏
+        btn(32, 866, 300, 56, `隐藏已选 (${C.sel.size})`, () => C.hideSelected(), { size: 24 });
+        btn(344, 866, 300, 56, `全选/取消 空中${fl.length - hid}个`, () => C.selectAllToggle(), { size: 24 });
+        btn(656, 866, 300, 56, `恢复隐藏 (${hid})`, () => C.showHidden(), { size: 24 });
+        btn(968, 866, 280, 56, '清空空中模型', () => C.clearFloaters(), { size: 24 }); }
     } else if (this.tab === 1) {
       const pages = st.galPages, sel = st.sel;
       lb(32, y, 222, 56, '画廊每页 GALLERY', { size: 24, color: css(PAL.a, 1.5), weight: 800 });
@@ -202,9 +207,9 @@ export class UI {
   }
   drawHelp() {
     const L = [['左摇杆', '沿视线方向 飞行 / 平移'], ['右摇杆 ↔', '转向（快速30° 或 平滑）'], ['右摇杆 ↕', '上升 / 下降'], ['A / B', '放大 / 缩小（按住）；光圈碰着或抓着某个手办时只缩放它'], ['握把', '抓住模型：移动、旋转；双手握把拉开/靠拢 = 巨大化/缩小'],
-      ['X / Y', '上一个 / 下一个 模型（画廊里 = 翻页）'], ['右扳机', '点菜单 / 选画廊模型 / 选中摆放的模型；空白处按住 = 加速'], ['光圈碰手办+扳机', '手柄顶端的彩色光圈碰到手办，按住扳机抓着翻看；松开留在原地（左右手都行）'], ['场景页', '放入多个模型、摆放模式、MR 透视'], ['左摇杆按下', '显示 / 隐藏菜单'], ['右摇杆按下', '重置模型']];
-    let y = this.helpY + 6;
-    for (const [k, v] of L) { this.txt(k, 40, y, 26, css(PAL.a, 1.5), 'left', 800); this.txt(v, 290, y, 25, '#e8ecff', 'left', 500); y += 40; }
+      ['X / Y', '上一个 / 下一个 模型（画廊里 = 翻页）'], ['右扳机', '点菜单 / 选画廊模型 / 选中摆放的模型；空白处按住 = 加速'], ['光圈碰手办+扳机', '按住扳机抓着翻看；松开留在空中，可从展台拿出多个'], ['光圈碰手办+握把', '握把移动 / 双手握把缩放这个手办；光圈不在手办上时才操作展台'], ['左手 X', '光圈碰着空中手办时：选中 / 取消；菜单「模型」页底部批量隐藏'], ['场景页', '放入多个模型、摆放模式、MR 透视'], ['左摇杆按下', '显示 / 隐藏菜单'], ['右摇杆按下', '重置模型']];
+    let y = this.helpY - 20;
+    for (const [k, v] of L) { this.txt(k, 40, y, 26, css(PAL.a, 1.5), 'left', 800); this.txt(v, 290, y, 25, '#e8ecff', 'left', 500); y += 37; }
     this.txt('桌面预览：拖动鼠标转视角 · WASD/空格/C 飞行 · Shift 加速 · 滚轮 缩放模型 · Q/E 换模型 · Tab 菜单 · G 画廊', 40, y + 14, 22, '#9fb4ff', 'left', 500);
   }
 

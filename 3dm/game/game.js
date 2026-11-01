@@ -455,9 +455,9 @@ function recenter() {
   base = Math.min(1.25, Math.max(0.6, headY - 0.65)); layoutFrames();
   const xr = renderer.xr.isPresenting, k = xr ? 1 : 1.45; panel.mesh.scale.setScalar(k);
   panel.mesh.position.set(0, headY - 0.08, -1.55);
-  const sx = xr ? 1.4 : 1.5, sz = 3.2;                 // 左右 HUD：在判定区两侧，稍微朝向玩家
-  hudL.mesh.position.set(-sx, base + 0.62, -sz); hudL.mesh.rotation.set(0, Math.atan2(sx, sz), 0);
-  hudR.mesh.position.set(sx, base + 0.62, -sz); hudR.mesh.rotation.set(0, -Math.atan2(sx, sz), 0);
+  const sx = xr ? 2.35 : 2.5, sz = 3.0;                 // 左右 HUD：在判定区两侧，稍微朝向玩家
+  hudL.mesh.position.set(-sx, base + 0.5, -sz); hudL.mesh.rotation.set(0, Math.atan2(sx, sz), 0);
+  hudR.mesh.position.set(sx, base + 0.5, -sz); hudR.mesh.rotation.set(0, -Math.atan2(sx, sz), 0);
   const dy = xr ? 0.95 : 0.36, dz = xr ? 1.5 : 1.15;     // 下方 HUD：在视线下方，向上倾斜朝向眼睛
   hudB.mesh.position.set(0, headY - dy, -dz); hudB.mesh.rotation.set(-Math.atan2(dy, dz), 0, 0);
 }

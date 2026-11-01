@@ -246,6 +246,12 @@ export class Stage {
     // 预加载相邻两个
     this.getFull((i + 1) % this.list.length).catch(() => {});
   }
+  // 主展台的模型被手柄拿走：缓存里不再指向它（它变成独立的空中模型，切换展台模型也不会影响它），展台重新载入一份新的
+  takeCur() {
+    const node = this.cur; if (!node) return null; const idx = this.curIdx;
+    this.cache.delete(idx); this.order = this.order.filter((x) => x !== idx); this.cur = null;
+    this.showModel(idx, { instant: true }); return node;
+  }
   next(d = 1) { this.showModel(this.index + d); }
 
   setMode(mode) {
