@@ -17,7 +17,7 @@ const FB = { low: 0.8, mid: 1.0, high: 1.25 }[qual] ?? 1.0;
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: TEST });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1;
-renderer.xr.enabled = true; renderer.xr.setReferenceSpaceType('local-floor'); renderer.xr.setFoveation(1); renderer.xr.setFramebufferScaleFactor(FB);
+renderer.xr.enabled = true; renderer.xr.setReferenceSpaceType('local-floor'); renderer.xr.setFoveation(Math.min(1, Math.max(0, parseFloat(new URLSearchParams(location.search).get('fov') ?? '0') || 0))); renderer.xr.setFramebufferScaleFactor(FB);
 document.getElementById('app').appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 3500);
