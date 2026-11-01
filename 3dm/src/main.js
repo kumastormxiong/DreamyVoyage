@@ -6,6 +6,7 @@ import { UI } from './ui.js';
 import { Controls } from './input.js';
 import { Music } from './audio.js';
 import { clamp } from './util.js';
+import { LIFE, setLife, tickLife } from './life.js';
 
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test');
@@ -35,7 +36,8 @@ const st = {
   rotSpeed: 0.35, galCount: 12, dropScale: 0.6, placeMode: false, spinPlaced: false, mainVisible: true, pass: false,
 };
 const app = { renderer, scene, camera, rig, st, statusText: '正在加载 …', sessionMode: null };
-window.DM = { app, U, PAL };
+window.DM = { app, U, PAL, LIFE };
+app.setLife = (o) => { setLife(o); ui.invalidate(); };
 
 const envs = new Envs(scene);
 const stage = new Stage(scene);
@@ -154,7 +156,7 @@ let last = performance.now(); let T = 0, started = false, frames = 0, fcount = 0
 function frame() {
   const now = performance.now(); const dt = Math.min((now - last) / 1000, 0.1); last = now; T += dt;
   if (!started && !renderer.xr.isPresenting) { controls.yaw = Math.sin(T * 0.12) * 0.45; controls.pitch = -0.05; }   // 启动页背景：缓慢摇镜
-  controls.update(dt);
+  controls.update(dt); tickLife(T);
   const audio = music.update(dt) * st.react;
   stage.update(T, dt);
   stage.center(center); lights.update(dt, center, stage.scale, 0, st.mode === 'gallery');

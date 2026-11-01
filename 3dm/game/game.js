@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { LIFE, setLife, tickLife, lifeify } from '../src/life.js';   // 呼吸 + 发丝摆动（与展厅共用，可在选歌界面关闭）
 
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test'), BOT = Q.has('bot'), RATE = Number(Q.get('rate') || 1), SILENT = Q.has('silent');   // rate/silent/bot 仅用于自动化测试
@@ -147,8 +148,8 @@ async function showFigure(i) {
   if (!holder) { try { holder = normalize(await loader.loadAsync(m.lod || m.file)); gltfCache.set(m.id, holder); } catch (e) { console.warn('model', e); return; } }
   if (tok !== figToken) return;
   const real = holder.clone(true), ghost = holder.clone(true);
-  real.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.clippingPlanes = [revealPlane]; } });
-  ghost.traverse((o) => { if (o.isMesh) { o.material = new THREE.MeshBasicMaterial({ color: 0x3b1f78, transparent: true, opacity: 0.62, clippingPlanes: [ghostPlane], side: THREE.DoubleSide, depthWrite: false, toneMapped: false }); } });
+  real.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.clippingPlanes = [revealPlane]; lifeify(o.material, o); } });
+  ghost.traverse((o) => { if (o.isMesh) { o.material = new THREE.MeshBasicMaterial({ color: 0x3b1f78, transparent: true, opacity: 0.62, clippingPlanes: [ghostPlane], side: THREE.DoubleSide, depthWrite: false, toneMapped: false }); lifeify(o.material, o); } });
   figure.add(ghost, real); figReveal = 0; figTarget = isUnlocked(m.id) && state !== 'playing' ? 1 : 0;
 }
 
@@ -338,6 +339,7 @@ function drawPanel() {
     if (hoverId === 'm:' + idx) { g.lineWidth = 3; g.strokeStyle = '#fff'; g.strokeRect(x, y, 100, 100); }
     if (isUnlocked(models[idx].id)) txt(g, '✓', x + 90, y + 12, 18, '#6dffb0', 'right', 800);
   }
+  btn(g, 'life', 290, 538, 250, 36, LIFE.on ? '✨ 呼吸·发丝动态：开' : '呼吸·发丝动态：关', { fs: 18, sel: LIFE.on });
   if (pages > 1) { btn(g, 'pg:-1', 40, 538, 70, 36, '◀', { fs: 20 }); btn(g, 'pg:1', 120, 538, 70, 36, '▶', { fs: 20 }); txt(g, `${page + 1}/${pages}`, 205, 556, 20); }
   const m = models[save.sel];
   if (m) {
@@ -392,6 +394,7 @@ function click(id) {
   if (id.startsWith('d:')) { save.diff = id.slice(2); cfg = DIFFS[save.diff]; persist(); }
   else if (id.startsWith('m:')) { save.sel = +id.slice(2); persist(); showFigure(save.sel); }
   else if (id.startsWith('pg:')) { const pages = Math.max(1, Math.ceil(models.length / 18)); page = (page + +id.slice(3) + pages) % pages; }
+  else if (id === 'life') { setLife({ on: !LIFE.on }); }
   else if (id.startsWith('off:')) { save.offset = Math.max(-300, Math.min(300, save.offset + +id.slice(4))); persist(); }
   else if (id === 'start' || id === 'again') { if (beatmap && audioState !== 'loading') { if (actx) actx.resume(); startSong(); } }
   else if (id === 'menu') { quitToMenu(); return; }
@@ -470,6 +473,7 @@ function frame() {
   const cy = FIG_H * 1.03 * figReveal; revealPlane.constant = cy; ghostPlane.constant = -cy;
   scanPlane.visible = figReveal > 0.01 && figReveal < 0.985; scanPlane.position.y = figReveal * 1.03;
   figure.rotation.y = Math.sin(T * 0.35) * 0.3; figure.position.y = Math.sin(T * 0.9) * 0.08;
+  tickLife(T, 1 + 1.6 * Math.sin(Math.PI * Math.min(1, Math.max(0, figReveal))) + 0.7 * pulse);   // 解锁点亮过程中动得更明显，随鼓点轻轻带动
   lA.intensity = 700 + 900 * pulse; lB.intensity = 700 + 900 * pulse;
   for (const f of frames) { const u = f.userData; u.flash = Math.max(0, u.flash - dt * 3.5); f.material.opacity = 0.22 + u.flash * 0.8; f.scale.setScalar(1 + u.flash * 0.25); }
   if (judgeT > 0) { judgeT -= dt; hudDirty = true; }

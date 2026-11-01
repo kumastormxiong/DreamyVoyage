@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { PAL, U } from './envs.js';
 import { clamp } from './util.js';
+import { lifeify } from './life.js';
 
 export const PED_H = 0.55;       // 展台高度（米）
 export const MODEL_H = 1.15;     // 模型归一化后的高度（米）
@@ -47,7 +48,7 @@ function prepare(gltf) {
       found = true; o.geometry.computeBoundingBox(); yr = [o.geometry.boundingBox.min.y, o.geometry.boundingBox.max.y]; o.frustumCulled = false;
     }
   });
-  scene.traverse((o) => { if (o.isMesh) { o.frustumCulled = false; for (const m of [].concat(o.material)) { if (!m.userData.uReveal) patchMaterial(m, yr); } } });
+  scene.traverse((o) => { if (o.isMesh) { o.frustumCulled = false; for (const m of [].concat(o.material)) { if (!m.userData.uReveal) patchMaterial(m, yr); lifeify(m, o); } } });
   const box = new THREE.Box3().setFromObject(scene), size = box.getSize(new THREE.Vector3()), ctr = box.getCenter(new THREE.Vector3());
   const ref = Math.max(size.y, 0.85 * Math.max(size.x, size.z));   // 宽扁的模型（躺姿、爬行）按宽度归一化
   const k = MODEL_H / Math.max(ref, 1e-3);

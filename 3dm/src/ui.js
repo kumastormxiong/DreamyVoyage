@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { PAL, ENV_DEFS } from './envs.js';
 import { PRESETS } from './lights.js';
 import { hsColor } from './util.js';
+import { LIFE } from './life.js';
 
 export const PW = 1280, PH = 960;
 const FONT = '"Noto Sans SC","PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif';
@@ -93,7 +94,11 @@ export class UI {
       lb(32, y, 1216, 36, 'MR 透视 PASSTHROUGH', { size: 26, color: css(PAL.a, 1.5), weight: 800 }); y += 42;
       const ar = A.sessionMode === 'ar';
       btn(32, y, 700, 62, ar ? (S.pass ? '透视：开　点击关闭（回到虚拟环境）' : '透视：关　点击开启（显示真实房间）') : (A.sessionMode === 'vr' ? '切换到 MR：退出 VR，再点页面「进入 MR」' : 'MR 只能在 Quest 头显里使用'), () => A.toggleMR(), { active: S.pass, size: 25 });
-      lb(750, y, 498, 62, '', { lines: ['开启后背景隐藏，模型摆在真实房间里；', '摆放模式 + 扳机 = 放到射线指向的地面。'], size: 20, color: '#9fb4ff', weight: 500 });
+      lb(750, y, 498, 62, '', { lines: ['开启后背景隐藏，模型摆在真实房间里；', '摆放模式 + 扳机 = 放到射线指向的地面。'], size: 20, color: '#9fb4ff', weight: 500 }); y += 70;
+      lb(32, y, 300, 46, '角色动态 LIFE', { size: 26, color: css(PAL.a, 1.5), weight: 800 });
+      btn(330, y, 330, 46, LIFE.on ? '呼吸 + 发丝：开' : '呼吸 + 发丝：关（静态）', () => A.setLife({ on: !LIFE.on }), { active: LIFE.on, size: 23 }); y += 54;
+      slider(y, '呼吸 BREATH', () => LIFE.breath, (v) => A.setLife({ breath: v }), 0, 2.5, (v) => Math.round(v * 100) + '%'); y += 52;
+      slider(y, '发丝/衣摆 HAIR', () => LIFE.hair, (v) => A.setLife({ hair: v }), 0, 2.5, (v) => Math.round(v * 100) + '%');
     } else if (this.tab === 2) {
       const L = A.lights.items[S.selLight];
       A.lights.items.forEach((it, i) => btn(32 + i * 305, y, 293, 60, it.zh, () => { S.selLight = i; this.dirty = true; }, { active: S.selLight === i, tint: css(it.color, 1) }));
