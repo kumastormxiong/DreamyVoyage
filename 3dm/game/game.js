@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { Envs, ENV_DEFS, PAL } from '../src/envs.js';     // 复用展厅的 8 个场景
 
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test'), BOT = Q.has('bot'), RATE = Number(Q.get('rate') || 1), SILENT = Q.has('silent');   // rate/silent/bot 仅用于自动化测试
@@ -12,7 +13,11 @@ const TEST = Q.has('test'), BOT = Q.has('bot'), RATE = Number(Q.get('rate') || 1
 const COL = [0x30f0ff, 0xff2fd0];                    // 左手青 / 右手粉
 const COLX = [-0.5, -0.17, 0.17, 0.5];               // 四列的 x（米，相对玩家）
 const HIT_Z = -0.55, SPEED = 8, TIP_R = 0.17, LEAD = 3.0;
-const FIG_H = 16, FIG_Z = -9;                         // 巨像：16 米高、离玩家 9 米，要仰头才看得到脸
+const FIG_H = 30, FIG_Z = -20;                        // 巨像：30 米高、离玩家 20 米，要仰头才看得到脸
+const ROUND = 90;                                     // 每局时长（秒），从歌曲的随机位置开始
+const ENV_SCALE = 2.2;                                // 展厅场景放大倍数（配合 30 米巨像）
+const MP3_BASE = 'https://dreamy.voyage/mp3s/';
+const pick = (a) => a[(Math.random() * a.length) | 0];
 const DIFFS = {
   easy:   { zh: '简单', appr: 2.0, need: 0.60, win: [0.06, 0.12, 0.2],    any: true,  desc: '约 1 个/秒 · 任意手触碰' },
   normal: { zh: '普通', appr: 1.7, need: 0.75, win: [0.055, 0.105, 0.17], any: true,  desc: '约 2 个/秒 · 任意手触碰' },
@@ -33,11 +38,11 @@ export function createGame(app) {
 // ---------- 场景（渲染器由展厅提供）----------
 const renderer = app.renderer; renderer.localClippingEnabled = true;
 let active = false;
-const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x08031c, 10, 46);
-const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 220);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 4000);
 const rig = new THREE.Group(); rig.add(camera); scene.add(rig);
 const DESK_CAM = new THREE.Vector3(0, 1.5, 1.0);
-function deskCamera() { camera.position.copy(DESK_CAM); camera.lookAt(0, 1.05, -2.5); }
+function deskCamera() { camera.position.copy(DESK_CAM); camera.lookAt(0, 2.3, -4.5); }
 deskCamera();
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
 
@@ -45,40 +50,13 @@ const play = new THREE.Group(); scene.add(play);       // 所有玩法内容：�
 let base = 0.95;                                      // 最低一排的离地高度
 const rowY = (r) => base + r * 0.26;
 
-// 天空：渐变 + 星点 + 复古落日（在手办身后）
-const sky = new THREE.Mesh(new THREE.SphereGeometry(120, 32, 16), new THREE.ShaderMaterial({
-  side: THREE.BackSide, depthWrite: false, fog: false, uniforms: { uT: { value: 0 }, uPulse: { value: 0 }, uProg: { value: 0 } },
-  vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `varying vec3 vP; uniform float uT, uPulse, uProg;
-    float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-    void main(){
-      vec3 d = normalize(vP); float y = d.y;
-      vec3 col = mix(vec3(0.02, 0.0, 0.06), vec3(0.20, 0.03, 0.30), smoothstep(-0.05, 0.7, y));
-      col += pow(1.0 - min(abs(y), 1.0), 7.0) * vec3(1.0, 0.22, 0.75) * (0.35 + 0.55 * uPulse);
-      vec2 g = floor(vec2(atan(d.x, d.z) * 90.0, y * 90.0)); float st = step(0.9965, h21(g)) * smoothstep(0.0, 0.3, y);
-      col += st * vec3(0.8, 0.9, 1.0) * (0.5 + 0.5 * sin(uT * 2.0 + h21(g) * 40.0));
-      if (d.z < 0.0) { vec2 p = d.xy / -d.z - vec2(0.0, 0.34); float r = length(p);
-        float stripe = step(0.0, sin(p.y * 48.0 - uT * 0.6) + (0.34 - p.y) * 3.0 - 0.7) + step(0.0, p.y);
-        float sun = smoothstep(0.36, 0.35, r) * clamp(stripe, 0.0, 1.0);
-        col += sun * mix(vec3(1.0, 0.2, 0.7), vec3(1.0, 0.85, 0.3), clamp((p.y + 0.16) * 3.0, 0.0, 1.0)) * (0.6 + 0.6 * uPulse + 0.5 * uProg); }
-      gl_FragColor = vec4(col, 1.0); }`,
-}));
-sky.renderOrder = -10; play.add(sky);
-
-// 地面：向玩家流动的霓虹网格
-const floorMat = new THREE.ShaderMaterial({
-  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uScroll: { value: 0 }, uPulse: { value: 0 } },
-  vertexShader: 'varying vec2 vXZ; void main(){ vXZ = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `varying vec2 vXZ; uniform float uScroll, uPulse;
-    void main(){
-      vec2 q = vec2(vXZ.x, vXZ.y - uScroll); vec2 f = abs(fract(q - 0.5) - 0.5) / max(fwidth(q), vec2(1e-4));
-      float l = 1.0 - min(min(f.x, f.y), 1.0);
-      float fade = smoothstep(46.0, 8.0, -vXZ.y) * smoothstep(-3.0, 1.0, -vXZ.y + 6.0);
-      vec3 c = mix(vec3(0.15, 0.9, 1.0), vec3(1.0, 0.2, 0.8), smoothstep(-8.0, 8.0, vXZ.x));
-      gl_FragColor = vec4(c * l * fade * (0.55 + 0.9 * uPulse), 1.0); }`,
-});
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(70, 90).rotateX(-Math.PI / 2).translate(0, 0, -30), floorMat);
-floor.position.y = 0.0; floor.renderOrder = -5; floor.frustumCulled = false; play.add(floor);
+// 场景：复用展厅的 8 个环境（天空 / 地面 / 特效），放大后包住玩家和巨像
+const genvs = new Envs(scene); const worldG = genvs.group; worldG.scale.setScalar(ENV_SCALE); play.add(worldG);
+let envIdx = -1;
+function applyEnv(i) {
+  if (i === envIdx) return; envIdx = i; const d = genvs.set(i);
+  lA.color.copy(PAL.a); lB.color.copy(PAL.b);
+}
 
 // 判定框：四列 × 三排
 const frames = [];
@@ -122,9 +100,9 @@ function updateParticles(dt) {
 
 // 手办（背景巨像）：未解锁时是暗色剪影，随命中数从下往上被"点亮"
 scene.add(new THREE.HemisphereLight(0xa8b8ff, 0x3a1060, 1.4));
-const lA = new THREE.PointLight(0xff2fd0, 900, 60, 2); lA.position.set(-9, 10, FIG_Z + 6); play.add(lA);
-const lB = new THREE.PointLight(0x30f0ff, 900, 60, 2); lB.position.set(9, 10, FIG_Z + 6); play.add(lB);
-const lC = new THREE.DirectionalLight(0xffffff, 1.2); lC.position.set(0, 6, 4); play.add(lC);
+const lA = new THREE.PointLight(0xff2fd0, 5000, 160, 2); lA.position.set(-18, 20, FIG_Z + 14); play.add(lA);
+const lB = new THREE.PointLight(0x30f0ff, 5000, 160, 2); lB.position.set(18, 20, FIG_Z + 14); play.add(lB);
+const lC = new THREE.DirectionalLight(0xffffff, 1.2); lC.position.set(0, 12, 8); play.add(lC);
 const revealPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), ghostPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const figure = new THREE.Group(); figure.position.set(0, 0, FIG_Z); figure.scale.setScalar(FIG_H); play.add(figure);
 const scanPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x9ff8ff, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
@@ -150,52 +128,72 @@ async function showFigure(i) {
 }
 
 // ---------- 音频 ----------
-const AC = window.AudioContext || window.webkitAudioContext; let actx = null, musicGain = null, sfxGain = null, audioBuf = null, audioState = 'loading', src = null, startAt = 0;
-const CANDIDATES = ['./audio/ChainedGhost.mp3', '/vrmv/VRMV/audio/ChainedGhost.mp3', '../vrmv/VRMV/audio/ChainedGhost.mp3', '../GhostChain_MV/VRMV/audio/ChainedGhost.mp3', '/vrmv/audio/ChainedGhost.mp3'];
+const AC = window.AudioContext || window.webkitAudioContext; let actx = null, musicGain = null, sfxGain = null, src = null, startAt = 0, roundGain = null;
 try { actx = new AC(); musicGain = actx.createGain(); musicGain.gain.value = 0.85; sfxGain = actx.createGain(); sfxGain.gain.value = 0.5; musicGain.connect(actx.destination); sfxGain.connect(actx.destination); } catch (e) { actx = null; }
-async function loadAudio() {
-  for (const u of CANDIDATES) {
-    try { const r = await fetch(u); if (!r.ok) continue; const ab = await r.arrayBuffer(); if (ab.byteLength < 100000) continue; audioBuf = await actx.decodeAudioData(ab); audioState = 'ok'; return; } catch (e) { /* 试下一个 */ }
-  }
-  audioState = 'fail';
-}
 function blip(hand, kind) {
   if (!actx || actx.state !== 'running') return; const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
   o.type = 'triangle'; o.frequency.value = (hand ? 784 : 587) * (kind === 0 ? 1.5 : 1); g.gain.setValueAtTime(0.16, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
   o.connect(g).connect(sfxGain); o.start(t); o.stop(t + 0.13);
 }
 let fallbackT0 = 0;
-const songTime = () => (audioState === 'ok' && actx && !SILENT ? actx.currentTime - startAt - (actx.outputLatency || 0) : ((performance.now() - fallbackT0) / 1000) * RATE - LEAD) + save.offset / 1000;
+const songTime = () => (cur && cur.state === 'ok' && cur.buf && actx && !SILENT ? actx.currentTime - startAt - (actx.outputLatency || 0) : ((performance.now() - fallbackT0) / 1000) * RATE - LEAD) + save.offset / 1000;
 
 // ---------- 数据 ----------
-let models = [], beatmap = null, sheet = null, state = 'menu', cfg = DIFFS[save.diff] || DIFFS.normal;
+let songs = [], models = [], sheet = null, state = 'menu', cfg = DIFFS[save.diff] || DIFFS.normal;
+// ---------- 回合：随机歌曲 + 随机场景 + 随机 90 秒片段 ----------
+const chartCache = new Map(); let cur = null, pending = null, lastSong = null;
+async function getChart(id) { if (!chartCache.has(id)) chartCache.set(id, fetch(`./game/charts/${id}.json`).then((r) => r.json())); return chartCache.get(id); }
+function makeRound() {
+  const song = (Q.get('gsong') && songs.find((x) => x.id === Q.get('gsong'))) || pick(songs.length > 1 ? songs.filter((x) => x.id !== lastSong) : songs); lastSong = song.id;
+  const env = Q.has('genv') ? (Number(Q.get('genv')) | 0) % ENV_DEFS.length : (Math.random() * ENV_DEFS.length) | 0;
+  const r = { song, env, state: 'loading', start: 0, buf: null, beats: [], charts: null };
+  r.promise = (async () => {
+    const d = await getChart(song.id); r.data = d;
+    const ok = d.starts.filter((t) => t + ROUND + 2 <= d.duration), st = Q.has('gstart') ? Number(Q.get('gstart')) : ok.length ? pick(ok) : Math.max(0, d.duration - ROUND - 2);
+    r.start = st; r.beats = d.beats.filter((t) => t >= st && t <= st + ROUND + 2).map((t) => t - st);
+    r.charts = {}; for (const k of Object.keys(DIFFS)) r.charts[k] = d.charts[k].filter((a) => a[0] >= st && a[0] <= st + ROUND).map((a) => [a[0] - st, a[1], a[2], a[3]]);
+    if (!actx || SILENT) { r.state = 'ok'; return; }
+    try {
+      const ab = await (await fetch(MP3_BASE + encodeURIComponent(song.file))).arrayBuffer(), full = await actx.decodeAudioData(ab), sr = full.sampleRate;
+      const s0 = Math.floor(st * sr), len = Math.min(full.length - s0, Math.floor((ROUND + 2.5) * sr)), win = actx.createBuffer(full.numberOfChannels, len, sr);   // 只保留这一局用到的片段，省内存
+      for (let c = 0; c < full.numberOfChannels; c++) win.copyToChannel(full.getChannelData(c).subarray(s0, s0 + len), c);
+      r.buf = win; r.state = 'ok';
+    } catch (e) { console.warn('song', e); r.state = 'ok'; r.silent = true; }      // 加载失败：静音游玩
+  })().catch((e) => { console.warn('round', e); r.state = 'fail'; }).then(() => { drawPanel(); });
+  return r;
+}
+function newPending() { pending = makeRound(); }
+function showPending() { if (!pending) newPending(); applyEnv(pending.env); drawPanel(); }
+const pReady = () => !!pending && pending.state === 'ok';
 const isUnlocked = (id) => save.unlocked.includes(id);
 async function loadData() {
   models = await (await fetch('./models.json')).json();
-  beatmap = await (await fetch('./game/beatmap.json')).json();
+  songs = await (await fetch('./game/songs.json')).json();
   sheet = await new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = './thumbs.webp'; });
   save.sel = Math.min(save.sel, models.length - 1);
 }
 
 // ---------- 玩法状态 ----------
 let notes = [], lo = 0, hi = 0, stats = null, judgeText = '', judgeT = 0, judgeK = 0, beatIdx = 0, pulse = 0, hudT = 0, doneT = 0, result = null;
-const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler(), tmpS = new THREE.Vector3(), tmpC = new THREE.Color();
+const tmpV3 = new THREE.Vector3(), tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler(), tmpS = new THREE.Vector3(), tmpC = new THREE.Color();
 const noteZ = (n, now) => HIT_Z - (n.t - now) * SPEED;
 function resetStats() { return { score: 0, combo: 0, maxCombo: 0, counts: [0, 0, 0, 0], total: notes.length, hits: 0 }; }
 const hitRate = () => (stats.total ? stats.hits / stats.total : 0);
 
 function startSong() {
-  const ch = beatmap.charts[save.diff]; cfg = DIFFS[save.diff];
+  if (!pReady()) return; cur = pending; pending = null; prefetched = false; applyEnv(cur.env); cfg = DIFFS[save.diff];
+  const ch = cur.charts[save.diff];
   notes = ch.map((a) => ({ t: a[0], c: a[1], r: a[2], h: a[3], s: 0 })); lo = hi = 0; beatIdx = 0; stats = resetStats(); judgeText = ''; result = null; notified = false;
   recenter(); layoutFrames(); panel.mesh.visible = false; hud.mesh.visible = true; hudDirty = true;
-  if (actx && audioState === 'ok' && !SILENT) {
-    actx.resume(); src = actx.createBufferSource(); src.buffer = audioBuf; src.connect(musicGain); startAt = actx.currentTime + LEAD; src.start(startAt);
+  if (actx && cur.buf && !SILENT) {
+    actx.resume(); src = actx.createBufferSource(); src.buffer = cur.buf; roundGain = actx.createGain(); src.connect(roundGain).connect(musicGain); startAt = actx.currentTime + LEAD; src.start(startAt);
+    roundGain.gain.setValueAtTime(0, startAt); roundGain.gain.linearRampToValueAtTime(1, startAt + 0.5); roundGain.gain.setValueAtTime(1, startAt + ROUND - 2.5); roundGain.gain.linearRampToValueAtTime(0, startAt + ROUND);
   } else fallbackT0 = performance.now();
   state = 'playing'; figTarget = 0; figReveal = 0; doneT = 0;
   for (const m of frames) m.userData.flash = 0;
 }
 function stopSong() { try { src?.stop(); } catch (e) { /* 已停止 */ } src = null; }
-function quitToMenu() { stopSong(); state = 'menu'; hud.mesh.visible = false; panel.mesh.visible = true; recenter(); showFigure(save.sel); drawPanel(); }
+function quitToMenu() { stopSong(); state = 'menu'; showPending(); hud.mesh.visible = false; panel.mesh.visible = true; recenter(); showFigure(save.sel); drawPanel(); }
 
 function judge(n, dt, hand) {
   const w = cfg.win, a = Math.abs(dt), k = a <= w[0] ? 0 : a <= w[1] ? 1 : 2;
@@ -207,7 +205,7 @@ function judge(n, dt, hand) {
   if (hand != null && hand >= 0) controls.haptic(hand, k === 0 ? 0.7 : 0.45, 35);
   if (!notified && stats.hits >= cfg.need * stats.total) { notified = true; judgeText = 'UNLOCK READY'; judgeT = 1.4; judgeK = 0; burst(0, 1.4, -1.5, 0xffffff, 60); }
 }
-let notified = false;
+let notified = false, prefetched = false;
 function miss(n) { n.s = 2; stats.counts[3]++; stats.combo = 0; judgeText = 'MISS'; judgeK = 3; judgeT = 0.4; hudDirty = true; }
 
 function updatePlay(dt) {
@@ -232,10 +230,11 @@ function updatePlay(dt) {
   noteCore.count = noteWire.count = cnt; noteCore.instanceMatrix.needsUpdate = noteWire.instanceMatrix.needsUpdate = true;
   if (noteCore.instanceColor) { noteCore.instanceColor.needsUpdate = true; noteWire.instanceColor.needsUpdate = true; }
   // 节拍脉冲
-  const bt = beatmap.beats; while (beatIdx < bt.length && bt[beatIdx] < now) { beatIdx++; pulse = Math.max(pulse, 0.85); }
+  const bt = cur.beats; while (beatIdx < bt.length && bt[beatIdx] < now) { beatIdx++; pulse = Math.max(pulse, 0.85); }
   figTarget = Math.min(1, stats.hits / Math.max(1, cfg.need * stats.total));
+  if (!prefetched && now > 15) { prefetched = true; newPending(); }       // 开局后再悄悄预载下一局，避免开场卡顿
   // 结束
-  if (now > beatmap.duration + 1.2 || (notes.length && lo >= notes.length && now > notes[notes.length - 1].t + 1.5)) finish();
+  if (now > ROUND + 1.2 || (notes.length && lo >= notes.length && now > notes[notes.length - 1].t + 1.5)) finish();
   if (now < 0) { const c = Math.ceil(-now); if (c <= 3 && judgeText !== String(c)) { judgeText = String(c); judgeK = 1; judgeT = 0.9; hudDirty = true; } }
 }
 
@@ -351,12 +350,18 @@ function drawPanel() {
     txt(g, b ? `最佳 ${b.score}  ${b.grade}（${DIFFS[b.diff].zh}）` : '尚无记录', 730, 536, 20, '#9fb4ff');
   }
   txt(g, `已解锁 ${save.unlocked.length} / ${models.length}`, 40, 604, 22, '#cfd8ff', 'left', 700);
-  const ready = beatmap && audioState !== 'loading';
+  const ready = pReady();
   btn(g, 'start', 300, 630, 424, 84, ready ? '▶  开始演奏' : '加载中 …', { fs: 34, sel: ready, dim: !ready });
   btn(g, 'back', 40, 650, 190, 52, '← 返回展厅', { fs: 22 });
   txt(g, `延迟补偿 ${save.offset >= 0 ? '+' : ''}${save.offset}ms`, 856, 612, 19, '#9fb4ff', 'center');
   btn(g, 'off:-10', 756, 628, 66, 44, '−10', { fs: 20 }); btn(g, 'off:10', 890, 628, 66, 44, '+10', { fs: 20 });
-  if (audioState === 'fail') txt(g, '⚠ 未找到歌曲音频，将静音游玩', 512, 738, 18, '#ffb0b0', 'center');
+  if (pending) {
+    const sg = pending.song, ev = ENV_DEFS[pending.env];
+    txt(g, `♪ ${sg.zh}  ${sg.en}`, 262, 556, 21, '#fff', 'left', 700); txt(g, `◈ 场景：${ev.zh} · ${sg.bpm | 0} BPM · ${ROUND} 秒随机片段`, 262, 588, 19, '#9fb4ff');
+    btn(g, 'reroll', 590, 536, 126, 40, '🎲 换一局', { fs: 18 });
+    if (pending.state === 'fail') txt(g, '⚠ 谱面加载失败，请点「换一局」重试', 512, 738, 18, '#ffb0b0', 'center');
+    else if (pending.silent) txt(g, '⚠ 歌曲音频加载失败，将静音游玩', 512, 738, 18, '#ffb0b0', 'center');
+  }
   panel.tex.needsUpdate = true;
 }
 function drawResult(g) {
@@ -364,6 +369,7 @@ function drawResult(g) {
   neon(g, r.pass ? 'CLEAR !' : 'TRY AGAIN', 512, 70, 62, r.pass ? P.b : P.a);
   neon(g, r.gr, 190, 240, 170, r.gr === 'S' ? '#ffe35a' : P.a);
   txt(g, `SCORE  ${r.s.score}`, 330, 180, 40, '#fff', 'left', 800); txt(g, `命中率 ${(hitRate() * 100).toFixed(1)}%（需要 ${Math.round(DIFFS[r.diff].need * 100)}%）`, 330, 226, 26);
+  txt(g, `♪ ${cur.song.zh} · ${ENV_DEFS[cur.env].zh}`, 330, 332, 20, '#ffd0f4');
   txt(g, `最大连击 ${r.s.maxCombo}`, 330, 262, 26);
   txt(g, `PERFECT ${c[0]}   GREAT ${c[1]}   GOOD ${c[2]}   MISS ${c[3]}`, 330, 300, 24, '#9fb4ff');
   if (r.pass && r.newly.length) {
@@ -371,7 +377,7 @@ function drawResult(g) {
     r.newly.forEach((m, k) => { const idx = models.indexOf(m), x = 512 - r.newly.length * 90 + k * 180 + 10; tile(g, idx, x, 390, 160, false, true); txt(g, `#${m.n ?? idx + 1}`, x + 80, 570, 22, '#fff', 'center', 800); });
   } else if (r.pass) txt(g, '已解锁过的手办 · 刷新了你的最高分', 512, 420, 26, '#9fb4ff', 'center');
   else txt(g, `再多命中 ${Math.max(0, Math.ceil(DIFFS[r.diff].need * r.s.total) - r.s.hits)} 个音符就能解锁`, 512, 420, 28, '#ffb0e8', 'center');
-  btn(g, 'again', 60, 626, 270, 76, '再来一次', { fs: 30, sel: true }); btn(g, 'menu', 370, 626, 270, 76, '返回选择', { fs: 30 });
+  btn(g, 'again', 60, 626, 270, 76, pReady() ? '再来一次' : '加载下一局…', { fs: 28, sel: pReady(), dim: !pReady() }); btn(g, 'menu', 370, 626, 270, 76, '返回选择', { fs: 30 });
   btn(g, 'gallery', 680, 626, 284, 76, r.m ? '去展厅看看' : '展厅', { fs: 28 });
   panel.tex.needsUpdate = true;
 }
@@ -383,7 +389,7 @@ function drawHud() {
   txt(g, 'ACC', 732, 40, 20, '#9fb4ff', 'right'); txt(g, (acc * 100).toFixed(1) + '%', 732, 82, 44, '#fff', 'right', 800);
   if (stats.combo > 1) neon(g, `${stats.combo} COMBO`, 384, 50, 40, P.b);
   if (judgeT > 0) { const col = ['#ffe35a', '#6dffb0', '#9fd0ff', '#ff6b8a'][judgeK]; g.save(); g.shadowColor = col; g.shadowBlur = 18; txt(g, judgeText, 384, 124, judgeText.length > 5 ? 44 : 56, col, 'center', 800); g.restore(); }
-  const p = songTime() / beatmap.duration, ur = Math.min(1, stats.hits / Math.max(1, cfg.need * stats.total));
+  const p = songTime() / ROUND, ur = Math.min(1, stats.hits / Math.max(1, cfg.need * stats.total));
   g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(36, 176, 696, 14); g.fillStyle = P.b; g.fillRect(36, 176, 696 * Math.min(1, Math.max(0, p)), 14);
   txt(g, '解锁进度', 36, 214, 20, '#ffd0f4'); g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(140, 206, 592, 16);
   const gr = g.createLinearGradient(140, 0, 732, 0); gr.addColorStop(0, P.a); gr.addColorStop(1, '#ffe35a'); g.fillStyle = gr; g.fillRect(140, 206, 592 * ur, 16);
@@ -397,7 +403,8 @@ function click(id) {
   else if (id.startsWith('m:')) { save.sel = +id.slice(2); persist(); showFigure(save.sel); }
   else if (id.startsWith('pg:')) { const pages = Math.max(1, Math.ceil(models.length / 18)); page = (page + +id.slice(3) + pages) % pages; }
   else if (id.startsWith('off:')) { save.offset = Math.max(-300, Math.min(300, save.offset + +id.slice(4))); persist(); }
-  else if (id === 'start' || id === 'again') { if (beatmap && audioState !== 'loading') { if (actx) actx.resume(); startSong(); } }
+  else if (id === 'reroll') { newPending(); showPending(); return; }
+  else if (id === 'start' || id === 'again') { if (pReady()) { if (actx) actx.resume(); startSong(); } }
   else if (id === 'menu') { quitToMenu(); return; }
   else if (id === 'back') { exitToShowcase(null); return; }
   else if (id === 'gallery') { exitToShowcase(result?.m ? models.indexOf(result.m) : save.sel); return; }
@@ -464,13 +471,13 @@ function frame(dtIn) {
   if (state === 'playing') updatePlay(dt);
   // 视觉
   pulse *= Math.exp(-dt * 6); const sp = state === 'playing' ? songTime() : T * 0.5;
-  sky.material.uniforms.uT.value = T; sky.material.uniforms.uPulse.value = pulse; sky.material.uniforms.uProg.value = figReveal;
-  floorMat.uniforms.uScroll.value = (sp * SPEED) % 1000; floorMat.uniforms.uPulse.value = pulse;
+  camera.getWorldPosition(tmpV3); const au = Math.min(1, 0.2 + pulse * 0.9) * (app.st?.react ?? 1);
+  if (envIdx >= 0) genvs.update(T, dt, tmpV3, au, 0.9 / ENV_SCALE);
   figReveal += (figTarget - figReveal) * Math.min(1, dt * (state === 'playing' ? 4 : 1.5));
   const cy = FIG_H * 1.03 * figReveal; revealPlane.constant = cy; ghostPlane.constant = -cy;
   scanPlane.visible = figReveal > 0.01 && figReveal < 0.985; scanPlane.position.y = figReveal * 1.03;
   figure.rotation.y = Math.sin(T * 0.35) * 0.3; figure.position.y = Math.sin(T * 0.9) * 0.12;
-  lA.intensity = 700 + 900 * pulse; lB.intensity = 700 + 900 * pulse;
+  lA.intensity = lB.intensity = 4500 + 5000 * pulse;
   for (const f of frames) { const u = f.userData; u.flash = Math.max(0, u.flash - dt * 3.5); f.material.opacity = 0.22 + u.flash * 0.8; f.scale.setScalar(1 + u.flash * 0.25); }
   if (judgeT > 0) { judgeT -= dt; hudDirty = true; }
   hudT += dt; if (state === 'playing' && hud.mesh.visible && (hudDirty || hudT > 0.12) && hudT > 0.05) { drawHud(); hudT = 0; hudDirty = false; }
@@ -482,7 +489,7 @@ function frame(dtIn) {
 // ---------- 进入 / 退出游戏（与展厅共用同一个页面和 XR 会话）----------
 let booting = null;
 function boot() {
-  if (!booting) booting = (async () => { await loadData(); if (actx) loadAudio().then(() => drawPanel()); else audioState = 'fail'; })();
+  if (!booting) booting = (async () => { await loadData(); newPending(); })();
   return booting;
 }
 async function activate() {
@@ -496,11 +503,12 @@ async function activate() {
   if (actx) actx.resume();
   recenter(); layoutFrames(); drawPanel();
   await boot(); if (!active) return;
-  recenter(); layoutFrames(); drawPanel(); showFigure(save.sel);
+  recenter(); layoutFrames(); showPending(); showFigure(save.sel);
 }
 function deactivate() {
   if (!active) return; active = false; stopSong(); state = 'menu'; hud.mesh.visible = false; noteCore.count = noteWire.count = 0;
   for (let i = 0; i < 2; i++) { app.rig.add(renderer.xr.getController(i), renderer.xr.getControllerGrip(i)); ctrls[i].laser.visible = ctrls[i].tip.visible = ctrls[i].halo.visible = false; }
+  if (app.envs && app.envs.cur >= 0) app.envs.set(app.envs.cur);        // 把展厅的调色板还回去
   if (app.st?.music) app.music?.start();
   app.toggleUI?.(app.st.uiOpen); app.ui?.invalidate();
 }
@@ -509,7 +517,7 @@ function exitToShowcase(idx) {                           // 回到展厅（VR �
 }
 const api = {
   get active() { return active; }, frame, activate, deactivate,
-  debug: { notes: () => notes, now: songTime, toWorld: (x, y, z) => play.localToWorld(new THREE.Vector3(x, y, z)), COLX, rowY, HIT_Z, SPEED, panelPos: () => panel.mesh.getWorldPosition(new THREE.Vector3()), hover: () => hoverId },
+  debug: { round: () => cur, pending: () => pending, notes: () => notes, now: songTime, toWorld: (x, y, z) => play.localToWorld(new THREE.Vector3(x, y, z)), COLX, rowY, HIT_Z, SPEED, panelPos: () => panel.mesh.getWorldPosition(new THREE.Vector3()), hover: () => hoverId },
   skip: (sec) => { fallbackT0 -= (sec * 1000) / RATE; startAt -= sec; }, state: () => state, save, click, get stats() { return stats; }, get result() { return result; },
 };
 window.GM = api;

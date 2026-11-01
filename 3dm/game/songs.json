@@ -1,0 +1,56 @@
+[
+ {
+  "id": "s48",
+  "n": 48,
+  "zh": "凝固痉挛",
+  "en": "Solidification Spasm",
+  "file": "48-凝固痉挛-Solidification Spasm.mp3",
+  "duration": 480.0,
+  "bpm": 114.8
+ },
+ {
+  "id": "s50",
+  "n": 50,
+  "zh": "静态延迟",
+  "en": "Static Delay",
+  "file": "50-静态延迟-Static Delay.mp3",
+  "duration": 480.0,
+  "bpm": 161.5
+ },
+ {
+  "id": "s51",
+  "n": 51,
+  "zh": "意识永远",
+  "en": "Consciousness Forever",
+  "file": "51-意识永远-Consciousness Forever.mp3",
+  "duration": 409.2,
+  "bpm": 123.0
+ },
+ {
+  "id": "s58",
+  "n": 58,
+  "zh": "自省",
+  "en": "Inner reflection",
+  "file": "58-自省-Inner reflection.mp3",
+  "duration": 352.8,
+  "bpm": 126.0
+ },
+ {
+  "id": "s74",
+  "n": 74,
+  "zh": "噪点彷徨",
+  "en": "Noise Wandering",
+  "file": "74-噪点彷徨-Noise Wandering-Mastered.mp3",
+  "duration": 243.7,
+  "bpm": 126.0
+ },
+ {
+  "id": "s79",
+  "n": 79,
+  "zh": "空虚空相",
+  "en": "Emptiness Voidness",
+  "file": "79-空虚空相-Emptiness Voidness-Mastered.mp3",
+  "duration": 148.3,
+  "bpm": 92.3
+ }
+]
