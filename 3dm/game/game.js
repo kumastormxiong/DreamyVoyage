@@ -153,11 +153,34 @@ async function showFigure(i) {
 // ---------- 音频 ----------
 const AC = window.AudioContext || window.webkitAudioContext; let actx = null, musicGain = null, sfxGain = null, src = null, startAt = 0, roundGain = null;
 try { actx = new AC(); musicGain = actx.createGain(); musicGain.gain.value = 0.85; sfxGain = actx.createGain(); sfxGain.gain.value = 0.5; musicGain.connect(actx.destination); sfxGain.connect(actx.destination); } catch (e) { actx = null; }
-function blip(hand, kind) {
-  if (!actx || actx.state !== 'running') return; const t = actx.currentTime, o = actx.createOscillator(), g = actx.createGain();
-  o.type = 'triangle'; o.frequency.value = (hand ? 784 : 587) * (kind === 0 ? 1.5 : 1); g.gain.setValueAtTime(0.16, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-  o.connect(g).connect(sfxGain); o.start(t); o.stop(t + 0.13);
+// 音效：全部用振荡器 / 噪声现场合成，不需要音频文件。触碰方块本身不再有音效。
+const sfxOn = () => actx && actx.state === 'running';
+function tone(f, t0 = 0, d = 0.15, type = 'sine', vol = 0.18, f2 = 0) {
+  if (!sfxOn()) return; const t = actx.currentTime + t0, o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  o.connect(g).connect(sfxGain); o.start(t); o.stop(t + d + 0.03);
 }
+function noiseSweep(t0, d, vol, fa, fb) {
+  if (!sfxOn()) return; const t = actx.currentTime + t0, n = Math.floor(actx.sampleRate * d), buf = actx.createBuffer(1, n, actx.sampleRate), ch = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) ch[i] = Math.random() * 2 - 1;
+  const sr = actx.createBufferSource(), bp = actx.createBiquadFilter(), g = actx.createGain(); sr.buffer = buf; bp.type = 'bandpass'; bp.Q.value = 3;
+  bp.frequency.setValueAtTime(fa, t); bp.frequency.exponentialRampToValueAtTime(fb, t + d);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + d * 0.25); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  sr.connect(bp).connect(g).connect(sfxGain); sr.start(t); sr.stop(t + d + 0.02);
+}
+const sfxTick = (p) => tone(700 + p * 1100, 0, 0.035, 'square', 0.05);
+function sfxGrade(gr) {            // 不同评价，不同音效
+  const arp = (fs, gap, type, vol, d) => fs.forEach((f, k) => tone(f, k * gap, d, type, vol));
+  if (gr === 'S') { arp([523, 659, 784, 1047, 1319], 0.085, 'triangle', 0.2, 0.28); [1047, 1319, 1568].forEach((f) => tone(f, 0.5, 1.5, 'sine', 0.11)); tone(130, 0.45, 0.9, 'square', 0.07); noiseSweep(0.4, 1.1, 0.09, 1800, 9000); }
+  else if (gr === 'A') { arp([523, 659, 784, 1047], 0.1, 'triangle', 0.18, 0.3); tone(1047, 0.4, 0.9, 'sine', 0.08); }
+  else if (gr === 'B') { arp([494, 659, 784], 0.12, 'triangle', 0.16, 0.28); }
+  else if (gr === 'C') { arp([392, 523], 0.16, 'sine', 0.16, 0.3); }
+  else if (gr === 'D') { arp([330, 262], 0.2, 'sawtooth', 0.09, 0.35); }
+  else { tone(330, 0, 1.0, 'sawtooth', 0.14, 70); tone(80, 0.05, 0.6, 'sine', 0.3, 40); }   // 失败
+}
+const sfxWhoosh = () => noiseSweep(0, 0.85, 0.13, 300, 3200);
+function sfxBoxOpen() { tone(120, 0, 0.35, 'sine', 0.35, 40); noiseSweep(0, 0.6, 0.16, 500, 7000); [1319, 1568, 1976, 2637].forEach((f, k) => tone(f, 0.14 + k * 0.07, 0.5, 'sine', 0.12)); tone(1047, 0.2, 1.3, 'triangle', 0.1); }
 let fallbackT0 = 0;
 const songTime = () => (cur && cur.state === 'ok' && cur.buf && actx && !SILENT ? actx.currentTime - startAt - (actx.outputLatency || 0) : ((performance.now() - fallbackT0) / 1000) * RATE - LEAD) + save.offset / 1000;
 
@@ -171,18 +194,18 @@ const fmtT = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart
 const modeName = (sg, m) => (m === 'full' ? `完整版 ${fmtT(sg.duration)}` : m === 90 ? '1分30秒版' : '3分30秒版');
 const chartCache = new Map(); let cur = null, pending = null, lastSong = null;
 async function getChart(id) { if (!chartCache.has(id)) chartCache.set(id, fetch(`./game/charts/${id}.json`).then((r) => r.json())); return chartCache.get(id); }
-function makeRound() {
+function makeRound(fo = null) {
   const pk = save.pick && songs.find((x) => x.id === save.pick.id && songOpen(x.id));
-  const song = (Q.get('gsong') && songs.find((x) => x.id === Q.get('gsong'))) || pk || (() => { const pool = songs.filter((x) => songOpen(x.id)), p2 = pool.filter((x) => x.id !== lastSong); return pick(p2.length ? p2 : pool.length ? pool : songs); })(); lastSong = song.id;
-  const env = Q.has('genv') ? (Number(Q.get('genv')) | 0) % ENV_DEFS.length : (Math.random() * ENV_DEFS.length) | 0;
-  const ms = modesFor(song); let mode = Q.get('gmode') ? (Q.get('gmode') === 'full' ? 'full' : +Q.get('gmode')) : (pk && song === pk ? save.pick.mode : null); if (!ms.includes(mode)) mode = ms[0];
+  const song = fo?.song || (Q.get('gsong') && songs.find((x) => x.id === Q.get('gsong'))) || pk || (() => { const pool = songs.filter((x) => songOpen(x.id)), p2 = pool.filter((x) => x.id !== lastSong); return pick(p2.length ? p2 : pool.length ? pool : songs); })(); lastSong = song.id;
+  const env = fo ? fo.env : Q.has('genv') ? (Number(Q.get('genv')) | 0) % ENV_DEFS.length : (Math.random() * ENV_DEFS.length) | 0;
+  const ms = modesFor(song); let mode = Q.get('gmode') ? (Q.get('gmode') === 'full' ? 'full' : +Q.get('gmode')) : (fo ? fo.mode : pk && song === pk ? save.pick.mode : null); if (!ms.includes(mode)) mode = ms[0];
   const r = { song, env, mode, len: mode === 'full' ? song.duration : mode, state: 'loading', start: 0, buf: null, beats: [], charts: null };
   r.promise = (async () => {
     const d = await getChart(song.id); r.data = d; const dur = d.duration, full_ = mode === 'full', need = (full_ ? dur : mode) + 2;
     let st = 0;
     if (!full_) {
       const ok = (mode === 90 ? d.starts : d.beats.filter((t, i) => i % 8 === 0)).filter((t) => t + need <= dur);
-      st = Q.has('gstart') ? Number(Q.get('gstart')) : ok.length ? pick(ok) : Math.max(0, dur - need);
+      st = Q.has('gstart') ? Number(Q.get('gstart')) : fo ? fo.start : ok.length ? pick(ok) : Math.max(0, dur - need);
     }
     const len = full_ ? dur : Math.min(mode, dur - st); r.len = len; r.start = st;
     r.beats = d.beats.filter((t) => t >= st && t <= st + len + 2).map((t) => t - st);
@@ -226,26 +249,39 @@ function startSong() {
     actx.resume(); src = actx.createBufferSource(); src.buffer = cur.buf; roundGain = actx.createGain(); src.connect(roundGain).connect(musicGain); startAt = actx.currentTime + LEAD; src.start(startAt);
     roundGain.gain.setValueAtTime(0, startAt); roundGain.gain.linearRampToValueAtTime(1, startAt + 0.5); roundGain.gain.setValueAtTime(1, startAt + cur.len - 2.5); roundGain.gain.linearRampToValueAtTime(0, startAt + cur.len);
   } else fallbackT0 = performance.now();
-  state = 'playing'; figTarget = 0; figReveal = 0; doneT = 0;
+  state = 'playing'; figTarget = 0; figReveal = 0; doneT = 0; hp = HP_START; hurtT = 0; failing = false; failT = 0; hideGacha();
   for (const m of frames) m.userData.flash = 0;
 }
 function stopSong() { try { src?.stop(); } catch (e) { /* 已停止 */ } src = null; }
-function quitToMenu() { stopSong(); state = 'menu'; view = 'main'; showPending(); hud.mesh.visible = false; panel.mesh.visible = true; recenter(); showFigure(save.sel); drawPanel(); }
+function quitToMenu() { stopSong(); state = 'menu'; view = 'main'; failing = false; hideGacha(); showPending(); hud.mesh.visible = false; panel.mesh.visible = true; recenter(); showFigure(save.sel); drawPanel(); }
 
 function judge(n, dt, hand) {
   const w = cfg.win, a = Math.abs(dt), k = a <= w[0] ? 0 : a <= w[1] ? 1 : 2;
   n.s = 1; stats.counts[k]++; stats.hits++; stats.combo++; stats.maxCombo = Math.max(stats.maxCombo, stats.combo);
-  stats.score += Math.round(JPTS[k] * (1 + Math.min(stats.combo, 50) / 50));
+  stats.score += Math.round(JPTS[k] * (1 + Math.min(stats.combo, 50) / 50)); hpAdd(HP_HIT);
   judgeText = JUDGE[k]; judgeK = k; judgeT = 0.5; hudDirty = true;
-  const x = COLX[n.c], y = rowY(n.r); burst(x, y, HIT_Z, COL[n.h], k === 0 ? 20 : 12); blip(hand ?? n.h, k);
+  const x = COLX[n.c], y = rowY(n.r); burst(x, y, HIT_Z, COL[n.h], k === 0 ? 20 : 12); 
   const fr = frames.find((f) => f.userData.c === n.c && f.userData.r === n.r); if (fr) fr.userData.flash = 1; pulse = Math.max(pulse, 0.6);
   if (hand != null && hand >= 0) controls.haptic(hand, k === 0 ? 0.7 : 0.45, 35);
   if (!notified && stats.hits >= cfg.need * stats.total) { notified = true; judgeText = 'UNLOCK READY'; judgeT = 1.4; judgeK = 0; burst(0, 1.4, -1.5, 0xffffff, 60); }
 }
 let notified = false, prefetched = false;
-function miss(n) { n.s = 2; stats.counts[3]++; stats.combo = 0; judgeText = 'MISS'; judgeK = 3; judgeT = 0.4; hudDirty = true; }
+// 能量条（参考节奏光剑）：一开始 50%，命中 +1%，漏掉大幅下降，降到 0 就失败（音乐变慢 → LEVEL FAILED → 重来）
+const HP_START = 50, HP_HIT = 1, HP_MISS = { easy: 1.0, normal: 1.8, hard: 4.0 };
+let hp = HP_START, hurtT = 0, failing = false, failT = 0;
+const hpAdd = (v) => { hp = Math.max(0, Math.min(100, hp + v)); };
+function miss(n) {
+  n.s = 2; stats.counts[3]++; stats.combo = 0; judgeText = 'MISS'; judgeK = 3; judgeT = 0.4; hudDirty = true;
+  if (failing) return; hpAdd(-HP_MISS[save.diff]); hurtT = 0.4;
+  if (hp <= 0) {            // 能量耗尽：音乐渐慢，稍等一下再进入失败结算
+    failing = true; failT = 1.1; judgeText = 'LEVEL FAILED'; judgeK = 3; judgeT = 2; controls.haptic(0, 1, 250); controls.haptic(1, 1, 250);
+    try { src?.playbackRate.cancelScheduledValues(0); src?.playbackRate.setValueAtTime(1, actx.currentTime); src?.playbackRate.linearRampToValueAtTime(0.12, actx.currentTime + 1.0); roundGain?.gain.linearRampToValueAtTime(0, actx.currentTime + 1.1); } catch (e) { /* ignore */ }
+    tone(330, 0, 1.0, 'sawtooth', 0.12, 70);
+  }
+}
 
 function updatePlay(dt) {
+  if (failing) { failT -= dt; hudDirty = true; if (failT <= 0) finish(true); return; }
   const now = songTime(), w = cfg.win, W = w[2];
   // 新音符进入视野 / 判定 MISS
   while (hi < notes.length && notes[hi].t - now < cfg.appr + 0.15) hi++;
@@ -276,17 +312,24 @@ function updatePlay(dt) {
 }
 
 function grade(acc) { return acc >= 0.95 ? 'S' : acc >= 0.85 ? 'A' : acc >= 0.7 ? 'B' : acc >= 0.5 ? 'C' : 'D'; }
-function finish() {
-  stopSong(); state = 'result'; const c = stats.counts, acc = stats.total ? (c[0] + c[1] * 0.8 + c[2] * 0.5) / stats.total : 0, pass = hitRate() >= cfg.need, m = models[save.sel];
-  const gr = grade(acc), newly = [];
+function finish(failed = false) {
+  stopSong(); state = 'result'; failing = false; const c = stats.counts, acc = stats.total ? (c[0] + c[1] * 0.8 + c[2] * 0.5) / stats.total : 0, pass = !failed && hitRate() >= cfg.need, m = models[save.sel];
+  const gr = failed ? 'F' : grade(acc), newly = [], newSongs = [];
   if (pass && m && !isUnlocked(m.id)) { save.unlocked.push(m.id); newly.push(m); }
-  if (pass && gr === 'S') { const b = models.find((x) => !isUnlocked(x.id)); if (b) { save.unlocked.push(b.id); newly.push(b); } }
-  if (m) { const old = save.best[m.id]; if (!old || stats.score > old.score) save.best[m.id] = { score: stats.score, grade: gr, diff: save.diff }; }
-  const newSongs = [];      // 通关解锁 1 首歌，S 评级解锁 2 首
-  if (pass) { const locked = songs.filter((x) => !songOpen(x.id)); for (let i = 0; i < (gr === 'S' ? 2 : 1) && locked.length; i++) { const k = (Math.random() * locked.length) | 0, sg = locked.splice(k, 1)[0]; save.songs.push(sg.id); newSongs.push(sg); } }
-  persist(); result = { acc, pass, gr, newly, newSongs, s: stats, diff: save.diff, m };
-  hud.mesh.visible = false; panel.mesh.visible = true; recenter(); noteCore.count = noteWire.count = 0; figTarget = pass ? 1 : figTarget; view = 'main'; if (!pending) newPending(); drawPanel();
-  if (pass) { burst(0, 1.4, -1.5, 0xffffff, 120); burst(0, 1.8, -1.5, COL[0], 80); burst(0, 1.8, -1.5, COL[1], 80); }
+  if (m && !failed) { const old = save.best[m.id]; if (!old || stats.score > old.score) save.best[m.id] = { score: stats.score, grade: gr, diff: save.diff }; }
+  if (pass) { const locked = songs.filter((x) => !songOpen(x.id)); if (locked.length) { const sg = pick(locked); save.songs.push(sg.id); newSongs.push(sg); } }   // 通关解锁 1 首歌
+  let gacha = null;          // S 评级：额外抽卡，3 个盒子里选 1 个，每个盒子 = 1 个手办 + 1 首音乐
+  if (pass && gr === 'S') {
+    const shuf = (a) => a.map((v) => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map((x) => x[1]);
+    const lm = shuf(models.filter((x) => !isUnlocked(x.id) && x !== m && !newly.includes(x))), ls = shuf(songs.filter((x) => !songOpen(x.id) && !newSongs.includes(x)));
+    const boxes = [0, 1, 2].map((i) => ({ model: lm.length ? lm[i % lm.length] : null, song: ls.length ? ls[i % ls.length] : null })).filter((b) => b.model || b.song);
+    if (boxes.length) { while (boxes.length < 3) boxes.push(boxes[boxes.length - 1]); gacha = { boxes, opened: -1, t: 0, openT: 0 }; }
+  }
+  persist(); result = { acc, pass, gr, newly, newSongs, s: stats, diff: save.diff, m, fail: failed, gacha };
+  resT = 0; resF = {}; resNext = 0; hideGacha();
+  hud.mesh.visible = false; panel.mesh.visible = true; recenter(); noteCore.count = noteWire.count = 0; figTarget = pass ? 1 : figTarget; view = 'main';
+  if (failed) pending = makeRound({ song: cur.song, env: cur.env, mode: cur.mode, start: cur.start }); else if (!pending) newPending();
+  drawPanel();
 }
 
 // ---------- 手柄（VR） ----------
@@ -307,7 +350,10 @@ for (let i = 0; i < 2; i++) {
     const col = COL[rec.side]; tip.material.color.setHex(col); halo.material.color.setHex(col); laser.material.color.setHex(col);
   });
   c.addEventListener('disconnected', () => { if (controls.hands[rec.side] === rec) controls.hands[rec.side] = null; });
-  c.addEventListener('selectstart', () => { if (active && panel.mesh.visible) { const h = controls.hover[i]; if (h) click(h.id); } });
+  c.addEventListener('selectstart', () => {
+    if (active && gachaLive()) { rec.c.updateMatrixWorld(true); ray.ray.origin.setFromMatrixPosition(rec.c.matrixWorld); ray.ray.direction.set(0, 0, -1).transformDirection(rec.c.matrixWorld); const b = gachaRay(ray); if (b) { openBox(b.userData.i); return; } }
+    if (active && panel.mesh.visible) { const h = controls.hover[i]; if (h) click(h.id); }
+  });
   ctrls.push(rec);
 }
 function syncMainControllers() {       // 展厅先建立的手柄信息（会话开始时已触发过 connected）
@@ -437,24 +483,125 @@ function drawPanel() {
   }
   panel.tex.needsUpdate = true;
 }
+let resT = 0, resF = {}, resNext = 0, resDraw = 0;
+const RES_END = 2.9, GRADE_T = 1.9;
+const GCOLR = { S: '#ffe35a', A: '#6dffb0', B: '#30f0ff', C: '#c9a7ff', D: '#ff8aa0', F: '#ff4466' };
+const GWORD = { S: 'SUPERB !', A: 'EXCELLENT', B: 'GOOD', C: 'NOT BAD', D: 'KEEP TRYING', F: 'LEVEL FAILED' };
+const btnsReady = () => !!result && resT >= RES_END && (!result.gacha || result.gacha.opened >= 0);
 function drawResult(g) {
-  const r = result, c = r.s.counts;
-  neon(g, r.pass ? 'CLEAR !' : 'TRY AGAIN', 512, 70, 62, r.pass ? P.b : P.a);
-  neon(g, r.gr, 190, 240, 170, r.gr === 'S' ? '#ffe35a' : P.a);
-  txt(g, `SCORE  ${r.s.score}`, 330, 180, 40, '#fff', 'left', 800); txt(g, `命中率 ${(hitRate() * 100).toFixed(1)}%（需要 ${Math.round(DIFFS[r.diff].need * 100)}%）`, 330, 226, 26);
-  txt(g, `♪ ${cur.song.zh} · ${ENV_DEFS[cur.env].zh}`, 330, 332, 20, '#ffd0f4');
-  txt(g, `最大连击 ${r.s.maxCombo}`, 330, 262, 26);
-  txt(g, `PERFECT ${c[0]}   GREAT ${c[1]}   GOOD ${c[2]}   MISS ${c[3]}`, 330, 300, 24, '#9fb4ff');
-  if (r.pass && r.newly.length) {
-    txt(g, '✨ 新解锁手办', 512, 360, 30, '#ffe35a', 'center', 800);
-    r.newly.forEach((m, k) => { const idx = models.indexOf(m), x = 512 - r.newly.length * 90 + k * 180 + 10; tile(g, idx, x, 390, 160, false, true); txt(g, `#${m.n ?? idx + 1}`, x + 80, 570, 22, '#fff', 'center', 800); });
-  } else if (r.pass) txt(g, '已解锁过的手办 · 刷新了你的最高分', 512, 420, 26, '#9fb4ff', 'center');
-  else txt(g, `再多命中 ${Math.max(0, Math.ceil(DIFFS[r.diff].need * r.s.total) - r.s.hits)} 个音符就能解锁`, 512, 420, 28, '#ffb0e8', 'center');
-  if (r.pass) txt(g, r.newSongs.length ? `♪ 解锁音乐：${r.newSongs.map((x) => x.zh).join('、')}${r.gr === 'S' ? '（S 评级 +2）' : ''}` : '♪ 音乐已全部解锁', 512, 600, 21, '#9fe8ff', 'center', 700);
-  btn(g, 'again', 60, 626, 270, 76, pReady() ? '再来一次' : '加载下一局…', { fs: 28, sel: pReady(), dim: !pReady() }); btn(g, 'menu', 370, 626, 270, 76, '返回选择', { fs: 30 });
-  btn(g, 'gallery', 680, 626, 284, 76, r.m ? '去展厅看看' : '展厅', { fs: 28 });
+  const r = result, c = r.s.counts, t = resT; if (t < RES_END) rects.push({ id: 'skip', x: 0, y: 0, w: 1024, h: 768 });
+  const pk = Math.min(1, Math.max(0, (t - 0.15) / 1.6)), e = 1 - Math.pow(1 - pk, 3), gt = t - GRADE_T, col = GCOLR[r.gr];
+  if (gt < 0) txt(g, 'RESULT', 512, 70, 44, 'rgba(159,180,255,.8)', 'center', 800);
+  else { g.save(); g.globalAlpha = Math.min(1, gt / 0.3); neon(g, r.fail ? 'FAILED' : r.pass ? 'CLEAR !' : 'TRY AGAIN', 512, 70, 62, r.pass ? P.b : P.a); g.restore(); }
+  const sp = pk < 1 ? 1 + 0.04 * Math.sin(t * 40) : 1;      // 计数时分数轻微跳动
+  g.save(); g.translate(330, 180); g.scale(sp, sp); txt(g, `SCORE  ${Math.round(r.s.score * e)}`, 0, 0, 40, '#fff', 'left', 800); g.restore();
+  txt(g, `命中率 ${(hitRate() * 100 * e).toFixed(1)}%（需要 ${Math.round(DIFFS[r.diff].need * 100)}%）`, 330, 226, 26);
+  txt(g, `最大连击 ${Math.round(r.s.maxCombo * e)}`, 330, 262, 26);
+  txt(g, `PERFECT ${Math.round(c[0] * e)}   GREAT ${Math.round(c[1] * e)}   GOOD ${Math.round(c[2] * e)}   MISS ${Math.round(c[3] * e)}`, 330, 300, 24, '#9fb4ff');
+  if (gt >= 0) {                                              // 评价：砸入 + 冲击波 + 光点
+    const k = Math.min(1, gt / 0.5), sc = 1 + 2.4 * Math.pow(1 - k, 2);
+    if (gt < 1.0) { g.save(); g.globalAlpha = (1 - gt) * 0.9; g.strokeStyle = col; g.lineWidth = 9 * (1 - gt) + 1; g.beginPath(); g.arc(190, 240, 40 + gt * 440, 0, 7); g.stroke(); g.restore(); }
+    g.save(); g.globalAlpha = Math.min(1, gt / 0.15); g.translate(190, 240); g.scale(sc, sc); neon(g, r.gr, 0, 0, 170, col); g.restore();
+    if (r.gr === 'S' || r.gr === 'A') { const nS = r.gr === 'S' ? 16 : 8; for (let i = 0; i < nS; i++) { const a = i * 2.4 + gt * (r.gr === 'S' ? 1.2 : 0.6), rad = 100 + ((gt * 0.9 + i * 0.37) % 1) * 90, al = 1 - ((gt * 0.9 + i * 0.37) % 1); g.save(); g.globalAlpha = Math.max(0, al) * Math.min(1, gt); g.fillStyle = col; const x = 190 + Math.cos(a) * rad, y = 240 + Math.sin(a) * rad * 0.8; g.fillRect(x - 1.5, y - 7, 3, 14); g.fillRect(x - 7, y - 1.5, 14, 3); g.restore(); } }
+    g.save(); g.globalAlpha = Math.min(1, Math.max(0, (gt - 0.25) / 0.3)); g.translate(Math.min(0, -60 * (1 - Math.min(1, (gt - 0.25) / 0.4))), 0); g.shadowColor = col; g.shadowBlur = 16; txt(g, GWORD[r.gr], 190, 345, 24, col, 'center', 800); g.restore();
+  }
+  const fa = Math.min(1, Math.max(0, (t - RES_END + 0.4) / 0.4)); g.save(); g.globalAlpha = fa;
+  if (fa > 0) {
+    txt(g, `♪ ${cur.song.zh} · ${ENV_DEFS[cur.env].zh}`, 330, 332, 20, '#ffd0f4');
+    if (r.fail) txt(g, '能量耗尽 · 点「重来」再试一次（同一首歌、同一个片段）', 512, 440, 26, '#ffb0e8', 'center');
+    else if (r.gacha && r.gacha.opened < 0) { txt(g, '✨ S 评级奖励 ✨', 512, 410, 38, '#ffe35a', 'center', 800); txt(g, '触碰面前三个盒子中的一个 · 每个盒子藏着 1 个手办 + 1 首音乐', 512, 458, 22, '#cfe8ff', 'center'); }
+    else if (r.pass && r.newly.length) {
+      txt(g, '✨ 新解锁手办', 512, 360, 30, '#ffe35a', 'center', 800);
+      r.newly.forEach((m, k) => { const idx = models.indexOf(m), x = 512 - r.newly.length * 90 + k * 180 + 10; tile(g, idx, x, 390, 160, false, true); txt(g, `#${m.n ?? idx + 1}`, x + 80, 570, 22, '#fff', 'center', 800); });
+    } else if (r.pass) txt(g, '已解锁过的手办 · 刷新了你的最高分', 512, 420, 26, '#9fb4ff', 'center');
+    else if (!r.fail) txt(g, `再多命中 ${Math.max(0, Math.ceil(DIFFS[r.diff].need * r.s.total) - r.s.hits)} 个音符就能解锁`, 512, 420, 28, '#ffb0e8', 'center');
+    if (r.pass && !(r.gacha && r.gacha.opened < 0)) txt(g, r.newSongs.length ? `♪ 解锁音乐：${r.newSongs.map((x) => x.zh).join('、')}${r.gacha ? '（含抽卡）' : ''}` : '♪ 音乐已全部解锁', 512, 600, 21, '#9fe8ff', 'center', 700);
+  }
+  g.restore();
+  if (btnsReady()) {
+    btn(g, 'again', 60, 626, 270, 76, pReady() ? (r.fail ? '重来' : '再来一次') : '加载中…', { fs: 28, sel: pReady(), dim: !pReady() }); btn(g, 'menu', 370, 626, 270, 76, '返回选择', { fs: 30 });
+    btn(g, 'gallery', 680, 626, 284, 76, r.m ? '去展厅看看' : '展厅', { fs: 28 });
+  }
   panel.tex.needsUpdate = true;
 }
+function updateResult(dt) {
+  if (!result) return; const prev = resT; resT += dt;
+  if (resT > 0.15 && resT < 1.75 && resT >= resNext) { sfxTick(Math.min(1, (resT - 0.15) / 1.6)); resNext = resT + 0.055; }
+  if (resT >= GRADE_T && !resF.grade) { resF.grade = 1; sfxGrade(result.gr); controls.haptic(0, 0.6, 80); controls.haptic(1, 0.6, 80); if (result.pass) { burst(0, 1.8, -1.5, 0xffffff, 60); } }
+  if (resT >= RES_END + 0.1 && result.gacha && !resF.gacha) { resF.gacha = 1; startGacha(); }
+  const busy = resT < RES_END + 0.6 || (result.gacha && result.gacha.opened >= 0 && result.gacha.t - result.gacha.openT < 2.5);
+  resDraw += dt; if (busy && resDraw > 0.033) { resDraw = 0; drawPanel(); } else if (!busy && prev < RES_END + 0.6) drawPanel();
+}
+
+// ---------- S 评级抽卡：飞出 3 个带特效的盒子，触碰其中一个打开 ----------
+const gachaG = new THREE.Group(); gachaG.visible = false; play.add(gachaG);
+const GBOX = [0xff2fd0, 0x30f0ff, 0xffe35a]; let gboxes = null, gcard = null, gcardCv = null, gcardTex = null, gHover = -1;
+const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), gr = x.createRadialGradient(64, 64, 2, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
+const boxMat = (col) => new THREE.ShaderMaterial({
+  uniforms: { uT: { value: 0 }, uC: { value: new THREE.Color(col) }, uA: { value: 1 } }, transparent: true,
+  vertexShader: 'varying vec2 vUv; varying vec3 vN; void main(){ vUv = uv; vN = normalMatrix * normal; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'uniform float uT, uA; uniform vec3 uC; varying vec2 vUv; varying vec3 vN; void main(){ float e = min(min(vUv.x, 1.0 - vUv.x), min(vUv.y, 1.0 - vUv.y)); float edge = smoothstep(0.14, 0.0, e); float sc = 0.5 + 0.5 * sin(vUv.y * 28.0 - uT * 4.0); float fr = pow(1.0 - abs(normalize(vN).z), 2.0); vec3 c = uC * (0.16 + 0.2 * sc + fr * 0.9) + uC * edge * 1.7 + vec3(edge * 0.3); gl_FragColor = vec4(c, uA); }',
+});
+function ensureBoxes() {
+  if (gboxes) return; gboxes = GBOX.map((col, i) => {
+    const g = new THREE.Group(), mat = boxMat(col);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, 0.2), mat); body.position.y = -0.03;
+    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.215, 0.06, 0.215), mat); lid.position.y = 0.07;
+    const wire = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.29, 0.29, 0.29)), new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: col, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); glow.scale.setScalar(0.95);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.13, 1.5, 20, 1, true), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })); beam.position.y = 0.8;
+    g.add(body, lid, wire, glow, beam); g.userData = { i, body, lid, wire, glow, beam, mat, col, open: -1, hov: 0 }; gachaG.add(g); return g;
+  });
+}
+const clamp01 = (v) => Math.min(1, Math.max(0, v)), easeOutBack = (k) => 1 + 2.70158 * Math.pow(k - 1, 3) + 1.70158 * Math.pow(k - 1, 2);
+const gachaTargets = () => { const y = headY - 0.45, z = -0.72; return [[-0.36, y, z], [0, y + 0.05, z - 0.05], [0.36, y, z]]; };
+function hideGacha() { gachaG.visible = false; if (gcard) gcard.visible = false; gHover = -1; }
+function startGacha() {
+  if (!result?.gacha) return; ensureBoxes(); gachaG.visible = true; result.gacha.t = 0; result.gacha.opened = -1; gHover = -1; if (gcard) gcard.visible = false;
+  for (const b of gboxes) { const u = b.userData; u.open = -1; u.hov = 0; u.mat.uniforms.uA.value = 1; u.beam.material.opacity = 0; u.lid.position.set(0, 0.07, 0); u.lid.rotation.set(0, 0, 0); u.lid.visible = true; u.glow.material.opacity = 0.8; b.visible = true; b.scale.setScalar(0.01); }
+  sfxWhoosh();
+}
+const gachaLive = () => state === 'result' && result?.gacha && gachaG.visible && result.gacha.opened < 0 && result.gacha.t > 1.1;
+function gachaRay(r) { const ms = gboxes.flatMap((b) => [b.userData.body, b.userData.lid]); const h = r.intersectObjects(ms, false)[0]; return h ? gboxes.find((b) => b.userData.body === h.object || b.userData.lid === h.object) : null; }
+function drawCard(bx) {
+  if (!gcardCv) { gcardCv = document.createElement('canvas'); gcardCv.width = 640; gcardCv.height = 380; gcardTex = new THREE.CanvasTexture(gcardCv); gcardTex.colorSpace = THREE.SRGBColorSpace; gcard = new THREE.Mesh(new THREE.PlaneGeometry(0.64, 0.38), new THREE.MeshBasicMaterial({ map: gcardTex, transparent: true, depthWrite: false, toneMapped: false })); gcard.renderOrder = 70; gachaG.add(gcard); }
+  const g = gcardCv.getContext('2d'); g.clearRect(0, 0, 640, 380); rr(g, 6, 6, 628, 368, 28); const gr = g.createLinearGradient(0, 0, 640, 380); gr.addColorStop(0, 'rgba(24,8,60,.96)'); gr.addColorStop(1, 'rgba(6,24,56,.96)'); g.fillStyle = gr; g.fill(); g.lineWidth = 5; g.strokeStyle = '#ffe35a'; g.stroke();
+  txt(g, 'UNLOCKED !', 320, 44, 34, '#ffe35a', 'center', 800);
+  if (bx.model) { const idx = models.indexOf(bx.model); tile(g, idx, bx.song ? 30 : 225, 80, 200, false, true); txt(g, `手办 #${bx.model.n ?? idx + 1}`, (bx.song ? 130 : 325), 310, 26, '#fff', 'center', 800); }
+  if (bx.song) { const cx = bx.model ? 430 : 320; txt(g, '♪', cx, 130, 60, '#9fe8ff', 'center', 800); let t = bx.song.zh; g.font = `800 30px ${FONT}`; while (g.measureText(t).width > 300 && t.length > 3) t = t.slice(0, -1); txt(g, t, cx, 200, 30, '#fff', 'center', 800); txt(g, bx.song.en.slice(0, 26), cx, 240, 19, '#cfd8ff', 'center'); txt(g, `${fmtT(bx.song.duration)} · ${bx.song.bpm | 0} BPM`, cx, 276, 20, '#9fb4ff', 'center'); }
+  gcardTex.needsUpdate = true;
+}
+function openBox(i) {
+  const G = result?.gacha; if (!G || G.opened >= 0) return; G.opened = i; G.openT = G.t; const bx = G.boxes[i], u = gboxes[i].userData; u.open = 0;
+  if (bx.model && !isUnlocked(bx.model.id)) { save.unlocked.push(bx.model.id); result.newly.push(bx.model); }
+  if (bx.song && !songOpen(bx.song.id)) { save.songs.push(bx.song.id); result.newSongs.push(bx.song); }
+  persist(); sfxBoxOpen(); controls.haptic(0, 0.9, 120); controls.haptic(1, 0.9, 120);
+  const p = gboxes[i].position; burst(p.x, p.y + 0.1, p.z, u.col, 70); burst(p.x, p.y + 0.15, p.z, 0xffffff, 40); burst(p.x, p.y + 0.1, p.z, 0xffe35a, 40);
+  drawCard(bx); gcard.visible = true; gcard.userData.k = 0; gcard.userData.i = i; drawPanel();
+}
+const gTip = new THREE.Vector3(), gCam = new THREE.Vector3();
+function updateGacha(dt) {
+  if (!gachaG.visible || !result?.gacha) return; const G = result.gacha; G.t += dt; const tg = gachaTargets();
+  gboxes.forEach((b, i) => {
+    const u = b.userData, k = clamp01((G.t - i * 0.16) / 0.9), e = easeOutBack(k); u.hov += ((gHover === i ? 1 : 0) - u.hov) * Math.min(1, dt * 10);
+    b.position.set(tg[i][0] * e, (headY - 0.08) + (tg[i][1] - (headY - 0.08)) * e + Math.sin(T * 2 + i * 2) * 0.015 * k, -1.55 + (tg[i][2] + 1.55) * e);
+    let s = (0.15 + 0.85 * e) * (1 + u.hov * 0.14), fade = 1;
+    if (G.opened >= 0 && G.opened !== i) { fade = 1 - clamp01((G.t - G.openT - 0.35) / 0.7); s *= fade; }
+    b.scale.setScalar(Math.max(0.001, s)); b.rotation.y = T * (k < 1 ? 3 : 0.7) + i; u.wire.rotation.set(T * 0.6, -T * 0.9, 0); u.mat.uniforms.uT.value = T; u.mat.uniforms.uA.value = fade;
+    u.glow.material.opacity = (0.55 + 0.25 * Math.sin(T * 3 + i)) * fade * (u.open >= 0 ? 1.6 : 1); u.wire.material.opacity = 0.8 * fade;
+    if (u.open >= 0) { u.open += dt; const o = clamp01(u.open / 0.8), q = 1 - Math.pow(1 - o, 3); u.lid.position.y = 0.07 + q * 0.7; u.lid.rotation.set(q * 3, 0, q * 2.2); u.lid.visible = u.open < 1.2; u.beam.material.opacity = Math.min(0.55, u.open * 1.5) * (0.75 + 0.25 * Math.sin(T * 14)) * (u.open > 3 ? Math.max(0, 1 - (u.open - 3)) : 1); }
+  });
+  if (gcard?.visible && G.opened >= 0) {
+    const bp = gboxes[G.opened].position; gcard.userData.k = Math.min(1, gcard.userData.k + dt / 0.6); const e = easeOutBack(Math.min(1, Math.max(0, (G.t - G.openT - 0.25) / 0.6)));
+    gcard.position.set(bp.x * 0.6, bp.y + 0.45 + 0.04 * Math.sin(T * 2), bp.z + 0.05); const fo = 1 - clamp01((G.t - G.openT - 5.5) / 0.5); gcard.scale.setScalar(Math.max(0.001, e * 1.25 * fo)); if (fo <= 0) gcard.visible = false; camera.getWorldPosition(gCam); gcard.lookAt(gCam);
+  }
+  if (VRlive() && gachaLive()) {
+    for (const rec of ctrls) { if (!rec.src) continue; rec.c.updateMatrixWorld(true); gTip.set(0, 0, -0.06).applyMatrix4(rec.c.matrixWorld); gachaG.worldToLocal(gTip);
+      for (let i = 0; i < 3; i++) if (gboxes[i].position.distanceTo(gTip) < 0.15) { openBox(i); return; } }
+    let hv = -1; for (const rec of ctrls) { if (!rec.src) continue; ray.ray.origin.setFromMatrixPosition(rec.c.matrixWorld); ray.ray.direction.set(0, 0, -1).transformDirection(rec.c.matrixWorld); const b = gachaRay(ray); if (b) hv = b.userData.i; } gHover = hv;
+  }
+}
+const VRlive = () => renderer.xr.isPresenting;
 function hudBox(g, w, h) { g.clearRect(0, 0, w, h); rr(g, 6, 6, w - 12, h - 12, 26); g.fillStyle = 'rgba(8,4,28,.5)'; g.fill(); g.lineWidth = 2.5; g.strokeStyle = 'rgba(255,255,255,.35)'; g.stroke(); }
 function drawHud() {
   if (!stats) return; const now = songTime(), mult = 1 + Math.min(stats.combo, 50) / 50;
@@ -467,19 +614,27 @@ function drawHud() {
     txt(g, 'SCORE', 192, 36, 22, '#9fb4ff', 'center'); txt(g, String(stats.score).padStart(7, '0'), 192, 82, 52, '#fff', 'center', 800);
     neon(g, '×' + mult.toFixed(1), 192, 160, 74, P.a); txt(g, `ACC ${(acc * 100).toFixed(1)}%`, 192, 222, 28, '#cfd8ff', 'center', 700);
     hudR.tex.needsUpdate = true; }
-  { const g = hudB.g; hudBox(g, 768, 192);          // 下：歌名 + 歌曲进度 + 解锁进度
+  { const g = hudB.g; hudBox(g, 768, 192);          // 下：歌名 + 歌曲进度 + 解锁进度 + 能量条
     const p = Math.min(1, Math.max(0, now / cur.len)), ur = Math.min(1, stats.hits / Math.max(1, cfg.need * stats.total));
-    txt(g, `♪ ${cur ? cur.song.zh : ''}`, 36, 38, 26, '#fff', 'left', 700); txt(g, now < WARM ? '热身中 …' : fmtT(Math.max(0, Math.ceil(cur.len - now))), 732, 38, 24, now < WARM ? '#ffe35a' : '#9fb4ff', 'right', 700);
-    g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(36, 66, 696, 14); g.fillStyle = P.b; g.fillRect(36, 66, 696 * p, 14);
-    txt(g, '解锁进度', 36, 124, 22, '#ffd0f4'); g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(150, 116, 582, 16);
-    const gr = g.createLinearGradient(150, 0, 732, 0); gr.addColorStop(0, P.a); gr.addColorStop(1, '#ffe35a'); g.fillStyle = gr; g.fillRect(150, 116, 582 * ur, 16);
-    txt(g, `${Math.round(ur * 100)}%`, 36, 160, 20, '#9fb4ff');
+    txt(g, `♪ ${cur ? cur.song.zh : ''}`, 36, 34, 26, '#fff', 'left', 700); txt(g, now < WARM ? '热身中 …' : fmtT(Math.max(0, Math.ceil(cur.len - now))), 732, 34, 24, now < WARM ? '#ffe35a' : '#9fb4ff', 'right', 700);
+    g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(36, 56, 696, 12); g.fillStyle = P.b; g.fillRect(36, 56, 696 * p, 12);
+    txt(g, '解锁', 36, 100, 21, '#ffd0f4'); g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(100, 92, 560, 16);
+    const gr = g.createLinearGradient(100, 0, 660, 0); gr.addColorStop(0, P.a); gr.addColorStop(1, '#ffe35a'); g.fillStyle = gr; g.fillRect(100, 92, 560 * ur, 16);
+    txt(g, `${Math.round(ur * 100)}%`, 732, 100, 20, '#9fb4ff', 'right');
+    const low = hp < 25, hc = hp > 50 ? '#6dffb0' : hp > 25 ? '#ffe35a' : '#ff4466', fl = low ? 0.55 + 0.45 * Math.sin(T * 12) : 1, sh = hurtT > 0 ? Math.sin(T * 90) * 4 * hurtT : 0;
+    txt(g, '能量', 36, 148, 21, low ? '#ff9ab0' : '#cfe8ff'); g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(100 + sh, 136, 560, 24);
+    g.globalAlpha = fl; g.fillStyle = hc; g.fillRect(100 + sh, 136, 560 * hp / 100, 24); g.globalAlpha = 1;
+    if (hurtT > 0) { g.fillStyle = `rgba(255,60,90,${hurtT})`; g.fillRect(100 + sh, 136, 560, 24); }
+    g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 2; g.strokeRect(100 + sh, 136, 560, 24);
+    txt(g, `${Math.round(hp)}%`, 732, 148, 20, low ? '#ff9ab0' : '#9fb4ff', 'right');
     hudB.tex.needsUpdate = true; }
 }
 
 // ---------- 面板交互 ----------
 function click(id) {
   if (!id) return;
+  if (id === 'skip') { if (resT < RES_END) resT = RES_END; drawPanel(); return; }
+  if (state === 'result' && (id === 'again' || id === 'menu' || id === 'gallery') && !btnsReady()) return;
   if (id.startsWith('d:')) { save.diff = id.slice(2); cfg = DIFFS[save.diff]; persist(); }
   else if (id.startsWith('m:')) { save.sel = +id.slice(2); persist(); showFigure(save.sel); }
   else if (id.startsWith('pg:')) { const pages = Math.max(1, Math.ceil(models.length / 18)); page = (page + +id.slice(3) + pages) % pages; }
@@ -503,10 +658,12 @@ function padHit(uv) { const px = uv.x * 1024, py = (1 - uv.y) * 768; return rect
 function setHover(id) { if (id !== hoverId) { hoverId = id; drawPanel(); } }
 renderer.domElement.addEventListener('pointermove', (e) => {
   if (!active || renderer.xr.isPresenting || !panel.mesh.visible) return; mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mouse, camera);
+  if (gachaLive()) { const b = gachaRay(ray); gHover = b ? b.userData.i : -1; renderer.domElement.style.cursor = b ? 'pointer' : 'default'; if (b) return; }
   const h = ray.intersectObject(panel.mesh)[0]; const r = h ? padHit(h.uv) : null; setHover(r?.id || null); renderer.domElement.style.cursor = r ? 'pointer' : 'default';
 });
 renderer.domElement.addEventListener('pointerdown', (e) => {
   if (!active || renderer.xr.isPresenting || !panel.mesh.visible) return; if (actx) actx.resume(); mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mouse, camera);
+  if (gachaLive()) { const b = gachaRay(ray); if (b) { openBox(b.userData.i); return; } }
   const h = ray.intersectObject(panel.mesh)[0]; const r = h ? padHit(h.uv) : null; if (r) click(r.id);
 });
 const KEYMAP = { KeyS: 0, KeyD: 1, KeyK: 2, KeyL: 3, ArrowLeft: 0, ArrowDown: 1, ArrowUp: 2, ArrowRight: 3 };   // 避开展厅的 F/G/M/P/Q/E/R 快捷键
@@ -561,7 +718,8 @@ function frame(dtIn) {
   const dt = Math.min(dtIn, 0.1); T += dt;
   checkRecenter();
   if (renderer.xr.isPresenting) { syncMainControllers(); updateXRPanelRay(); }
-  if (state === 'playing') updatePlay(dt);
+  if (state === 'playing') updatePlay(dt); else if (state === 'result') updateResult(dt);
+  updateGacha(dt);
   // 视觉
   pulse *= Math.exp(-dt * 6); const sp = state === 'playing' ? songTime() : T * 0.5;
   camera.getWorldPosition(tmpV3); const au = Math.min(1, 0.2 + pulse * 0.9) * (app.st?.react ?? 1);
@@ -573,7 +731,7 @@ function frame(dtIn) {
   tickLife(T);                                          // 呼吸 / 发丝：和展示模式同一套（不旋转）
   lA.intensity = lB.intensity = 4500 + 5000 * pulse;
   for (const f of frames) { f.visible = !!save.frames; const u = f.userData; u.flash = Math.max(0, u.flash - dt * 3.5); f.material.opacity = 0.22 + u.flash * 0.8; f.scale.setScalar(1 + u.flash * 0.25); }
-  if (judgeT > 0) { judgeT -= dt; hudDirty = true; }
+  if (judgeT > 0) { judgeT -= dt; hudDirty = true; } if (hurtT > 0) { hurtT -= dt; hudDirty = true; }
   hudT += dt; if (state === 'playing' && hud.mesh.visible && (hudDirty || hudT > 0.12) && hudT > 0.05) { drawHud(); hudT = 0; hudDirty = false; }
   updateParticles(dt);
   renderer.render(scene, camera); if (++frames_ === 8) window.__ready = true;
@@ -586,7 +744,7 @@ function boot() {
   return booting;
 }
 async function activate() {
-  active = true; state = 'menu'; stopSong(); hud.mesh.visible = false; panel.mesh.visible = true;
+  active = true; state = 'menu'; stopSong(); hideGacha(); hud.mesh.visible = false; panel.mesh.visible = true;
   app.music?.stop();                                    // 展厅的背景音乐让位给游戏里的歌
   if (app.ui?.dom) app.ui.dom.style.display = 'none'; if (app.ui?.mesh) app.ui.mesh.visible = false;
   app.controls?.ctrls?.forEach((m) => { m.laser.visible = false; m.dot.visible = false; });
@@ -599,7 +757,7 @@ async function activate() {
   recenter(); layoutFrames(); showPending(); showFigure(save.sel);
 }
 function deactivate() {
-  if (!active) return; active = false; stopSong(); state = 'menu'; hud.mesh.visible = false; noteCore.count = noteWire.count = 0;
+  if (!active) return; active = false; stopSong(); state = 'menu'; hideGacha(); hud.mesh.visible = false; noteCore.count = noteWire.count = 0;
   for (let i = 0; i < 2; i++) { app.rig.add(renderer.xr.getController(i), renderer.xr.getControllerGrip(i)); ctrls[i].laser.visible = ctrls[i].tip.visible = ctrls[i].halo.visible = false; }
   if (app.envs && app.envs.cur >= 0) app.envs.set(app.envs.cur);        // 把展厅的调色板还回去
   if (app.st?.music) app.music?.start();
@@ -611,6 +769,7 @@ function exitToShowcase(idx) {                           // 回到展厅（VR �
 const api = {
   get active() { return active; }, frame, activate, deactivate,
   debug: { round: () => cur, pending: () => pending, notes: () => notes, now: songTime, toWorld: (x, y, z) => play.localToWorld(new THREE.Vector3(x, y, z)), COLX, rowY, HIT_Z, SPEED, panelPos: () => panel.mesh.getWorldPosition(new THREE.Vector3()), hover: () => hoverId },
+  res: (t) => { if (t != null) resT = t; return resT; }, hp: () => hp, setHp: (v) => { hp = v; }, gacha: () => result?.gacha, openBox: (i) => openBox(i), gachaLive,
   skip: (sec) => { fallbackT0 -= (sec * 1000) / RATE; startAt -= sec; }, state: () => state, save, click, get stats() { return stats; }, get result() { return result; },
 };
 window.GM = api;
