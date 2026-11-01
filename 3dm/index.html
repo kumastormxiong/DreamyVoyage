@@ -44,7 +44,8 @@
     <button class="primary go" id="bvr" disabled>进入 VR（Quest 浏览器）</button>
     <button class="go" id="bmr" disabled>进入 MR 透视（Quest，模型叠在真实房间里）</button>
     <button class="go" id="bdesk">桌面预览（鼠标 + 键盘）</button>
-    <button id="bgame" onclick="location.href='./game.html'">♪ 音乐游戏 · 通关解锁手办</button>
+    <button class="go" id="bgvr" disabled>♪ 音乐游戏 · VR（通关解锁手办）</button>
+    <button class="go" id="bgdesk">♪ 音乐游戏 · 桌面试玩</button>
     <div id="status">正在加载 …</div>
     <div class="help">
       <div><b>左摇杆</b>沿视线方向飞行　<b>右摇杆</b>↔ 转向　↕ 升降</div>
@@ -62,11 +63,13 @@
   const wait = () => new Promise((r) => { const t = setInterval(() => { if (window.DM && window.DM.startVR) { clearInterval(t); r(); } }, 60); });
   await wait();
   desk.onclick = () => window.DM.startDesktop();
+  const gvr = document.getElementById('bgvr'), gdesk = document.getElementById('bgdesk');
+  gdesk.onclick = async () => { window.DM.startDesktop(); await window.DM.openGame(); };
   const mr = document.getElementById('bmr');
   let want = false; try { want = localStorage.getItem('dm_want_mr') === '1'; } catch (e) {}
   if (navigator.xr) {
     try { const okAR = await navigator.xr.isSessionSupported('immersive-ar'); if (okAR) { mr.disabled = false; mr.onclick = () => window.DM.startMR(); if (want) { mr.classList.add('primary'); mr.textContent = '▶ 点这里进入 MR 透视'; } } else mr.textContent = '此设备不支持 MR 透视（需 Quest 浏览器）'; } catch (e) { mr.textContent = '无法检测 MR'; }
-    try { const ok = await navigator.xr.isSessionSupported('immersive-vr'); if (ok) { vr.disabled = false; vr.onclick = () => window.DM.startVR(); } else vr.textContent = '此设备未检测到 VR（用 Quest 浏览器打开）'; }
+    try { const ok = await navigator.xr.isSessionSupported('immersive-vr'); if (ok) { vr.disabled = false; vr.onclick = () => window.DM.startVR(); gvr.disabled = false; gvr.onclick = async () => { await window.DM.startVR(); if (window.DM.app.sessionMode) await window.DM.openGame(); }; } else vr.textContent = '此设备未检测到 VR（用 Quest 浏览器打开）'; }
     catch (e) { vr.textContent = '无法检测 VR'; }
   } else vr.textContent = '此浏览器不支持 WebXR（用 Quest 浏览器打开）';
 </script>
