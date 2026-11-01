@@ -1,20 +1,18 @@
 // 3DM · 音乐游戏：用手柄触碰沿节奏飞来的音符，通关解锁手办。
-// 独立于展厅（src/）：只读取 models.json / thumbs.webp / models_lod，解锁进度存在 localStorage。
+// 与展厅共用同一个渲染器和 XR 会话（由 src/main.js 的 DM.openGame() 加载），所以可以在 VR 里直接来回切换，不会退出到浏览器。
+// 只读取 models.json / thumbs.webp / models_lod，解锁进度存在 localStorage。
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { LIFE, setLife, tickLife, lifeify } from '../src/life.js';   // 呼吸 + 发丝摆动（与展厅共用，可在选歌界面关闭）
 
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test'), BOT = Q.has('bot'), RATE = Number(Q.get('rate') || 1), SILENT = Q.has('silent');   // rate/silent/bot 仅用于自动化测试
-const quest3 = /Quest 3/i.test(navigator.userAgent);
-const FB = { low: 0.8, mid: 1.0, high: 1.25 }[Q.get('q') || (quest3 ? 'high' : 'mid')] ?? 1.0;
 
 // ---------- 常量 ----------
 const COL = [0x30f0ff, 0xff2fd0];                    // 左手青 / 右手粉
 const COLX = [-0.5, -0.17, 0.17, 0.5];               // 四列的 x（米，相对玩家）
 const HIT_Z = -0.55, SPEED = 8, TIP_R = 0.17, LEAD = 3.0;
-const FIG_H = 7, FIG_Z = -22;
+const FIG_H = 16, FIG_Z = -9;                         // 巨像：16 米高、离玩家 9 米，要仰头才看得到脸
 const DIFFS = {
   easy:   { zh: '简单', appr: 2.0, need: 0.60, win: [0.06, 0.12, 0.2],    any: true,  desc: '约 1 个/秒 · 任意手触碰' },
   normal: { zh: '普通', appr: 1.7, need: 0.75, win: [0.055, 0.105, 0.17], any: true,  desc: '约 2 个/秒 · 任意手触碰' },
@@ -31,19 +29,17 @@ const persist = () => { try { localStorage.setItem(SKEY, JSON.stringify(save)); 
 if (Q.get('diff') && DIFFS[Q.get('diff')]) save.diff = Q.get('diff');
 if (Q.get('model')) save.sel = Math.max(0, Number(Q.get('model')) | 0);
 
-// ---------- 渲染器 / 场景 ----------
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: TEST });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight);
-renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.localClippingEnabled = true;
-renderer.xr.enabled = true; renderer.xr.setReferenceSpaceType('local-floor'); renderer.xr.setFoveation(0); renderer.xr.setFramebufferScaleFactor(FB);
-document.getElementById('app').appendChild(renderer.domElement);
+export function createGame(app) {
+// ---------- 场景（渲染器由展厅提供）----------
+const renderer = app.renderer; renderer.localClippingEnabled = true;
+let active = false;
 const scene = new THREE.Scene(); scene.fog = new THREE.Fog(0x08031c, 10, 46);
 const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 220);
 const rig = new THREE.Group(); rig.add(camera); scene.add(rig);
 const DESK_CAM = new THREE.Vector3(0, 1.5, 1.0);
 function deskCamera() { camera.position.copy(DESK_CAM); camera.lookAt(0, 1.05, -2.5); }
 deskCamera();
-addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
 
 const play = new THREE.Group(); scene.add(play);       // 所有玩法内容：原点 = 玩家脚下，-z = 面朝方向
 let base = 0.95;                                      // 最低一排的离地高度
@@ -126,8 +122,8 @@ function updateParticles(dt) {
 
 // 手办（背景巨像）：未解锁时是暗色剪影，随命中数从下往上被"点亮"
 scene.add(new THREE.HemisphereLight(0xa8b8ff, 0x3a1060, 1.4));
-const lA = new THREE.PointLight(0xff2fd0, 900, 60, 2); lA.position.set(-6, 5, FIG_Z + 9); play.add(lA);
-const lB = new THREE.PointLight(0x30f0ff, 900, 60, 2); lB.position.set(6, 5, FIG_Z + 9); play.add(lB);
+const lA = new THREE.PointLight(0xff2fd0, 900, 60, 2); lA.position.set(-9, 10, FIG_Z + 6); play.add(lA);
+const lB = new THREE.PointLight(0x30f0ff, 900, 60, 2); lB.position.set(9, 10, FIG_Z + 6); play.add(lB);
 const lC = new THREE.DirectionalLight(0xffffff, 1.2); lC.position.set(0, 6, 4); play.add(lC);
 const revealPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 0), ghostPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const figure = new THREE.Group(); figure.position.set(0, 0, FIG_Z); figure.scale.setScalar(FIG_H); play.add(figure);
@@ -148,8 +144,8 @@ async function showFigure(i) {
   if (!holder) { try { holder = normalize(await loader.loadAsync(m.lod || m.file)); gltfCache.set(m.id, holder); } catch (e) { console.warn('model', e); return; } }
   if (tok !== figToken) return;
   const real = holder.clone(true), ghost = holder.clone(true);
-  real.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.clippingPlanes = [revealPlane]; lifeify(o.material, o); } });
-  ghost.traverse((o) => { if (o.isMesh) { o.material = new THREE.MeshBasicMaterial({ color: 0x3b1f78, transparent: true, opacity: 0.62, clippingPlanes: [ghostPlane], side: THREE.DoubleSide, depthWrite: false, toneMapped: false }); lifeify(o.material, o); } });
+  real.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.clippingPlanes = [revealPlane]; } });
+  ghost.traverse((o) => { if (o.isMesh) { o.material = new THREE.MeshBasicMaterial({ color: 0x3b1f78, transparent: true, opacity: 0.62, clippingPlanes: [ghostPlane], side: THREE.DoubleSide, depthWrite: false, toneMapped: false }); } });
   figure.add(ghost, real); figReveal = 0; figTarget = isUnlocked(m.id) && state !== 'playing' ? 1 : 0;
 }
 
@@ -273,8 +269,15 @@ for (let i = 0; i < 2; i++) {
     const col = COL[rec.side]; tip.material.color.setHex(col); halo.material.color.setHex(col); laser.material.color.setHex(col);
   });
   c.addEventListener('disconnected', () => { if (controls.hands[rec.side] === rec) controls.hands[rec.side] = null; });
-  c.addEventListener('selectstart', () => { if (panel.mesh.visible) { const h = controls.hover[i]; if (h) click(h.id); } });
+  c.addEventListener('selectstart', () => { if (active && panel.mesh.visible) { const h = controls.hover[i]; if (h) click(h.id); } });
   ctrls.push(rec);
+}
+function syncMainControllers() {       // 展厅先建立的手柄信息（会话开始时已触发过 connected）
+  for (let i = 0; i < 2; i++) {
+    const m = app.controls?.ctrls?.[i], rec = ctrls[i]; if (!m?.src || rec.src === m.src) continue;
+    rec.src = m.src; rec.side = m.side === 'left' ? 0 : m.side === 'right' ? 1 : i; controls.hands[rec.side] = rec;
+    const col = COL[rec.side]; rec.tip.material.color.setHex(col); rec.halo.material.color.setHex(col); rec.laser.material.color.setHex(col);
+  }
 }
 function vrHits(now, W) {
   const cand = [null, null];
@@ -339,7 +342,6 @@ function drawPanel() {
     if (hoverId === 'm:' + idx) { g.lineWidth = 3; g.strokeStyle = '#fff'; g.strokeRect(x, y, 100, 100); }
     if (isUnlocked(models[idx].id)) txt(g, '✓', x + 90, y + 12, 18, '#6dffb0', 'right', 800);
   }
-  btn(g, 'life', 290, 538, 250, 36, LIFE.on ? '✨ 呼吸·发丝动态：开' : '呼吸·发丝动态：关', { fs: 18, sel: LIFE.on });
   if (pages > 1) { btn(g, 'pg:-1', 40, 538, 70, 36, '◀', { fs: 20 }); btn(g, 'pg:1', 120, 538, 70, 36, '▶', { fs: 20 }); txt(g, `${page + 1}/${pages}`, 205, 556, 20); }
   const m = models[save.sel];
   if (m) {
@@ -394,28 +396,27 @@ function click(id) {
   if (id.startsWith('d:')) { save.diff = id.slice(2); cfg = DIFFS[save.diff]; persist(); }
   else if (id.startsWith('m:')) { save.sel = +id.slice(2); persist(); showFigure(save.sel); }
   else if (id.startsWith('pg:')) { const pages = Math.max(1, Math.ceil(models.length / 18)); page = (page + +id.slice(3) + pages) % pages; }
-  else if (id === 'life') { setLife({ on: !LIFE.on }); }
   else if (id.startsWith('off:')) { save.offset = Math.max(-300, Math.min(300, save.offset + +id.slice(4))); persist(); }
   else if (id === 'start' || id === 'again') { if (beatmap && audioState !== 'loading') { if (actx) actx.resume(); startSong(); } }
   else if (id === 'menu') { quitToMenu(); return; }
-  else if (id === 'back') { if (renderer.xr.isPresenting) renderer.xr.getSession()?.end(); location.href = './index.html'; return; }
-  else if (id === 'gallery') { if (renderer.xr.isPresenting) renderer.xr.getSession()?.end(); location.href = './index.html?model=' + (result?.m ? models.indexOf(result.m) : save.sel); return; }
+  else if (id === 'back') { exitToShowcase(null); return; }
+  else if (id === 'gallery') { exitToShowcase(result?.m ? models.indexOf(result.m) : save.sel); return; }
   drawPanel();
 }
 const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
 function padHit(uv) { const px = uv.x * 1024, py = (1 - uv.y) * 768; return rects.find((r) => px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) || null; }
 function setHover(id) { if (id !== hoverId) { hoverId = id; drawPanel(); } }
 renderer.domElement.addEventListener('pointermove', (e) => {
-  if (renderer.xr.isPresenting || !panel.mesh.visible) return; mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mouse, camera);
+  if (!active || renderer.xr.isPresenting || !panel.mesh.visible) return; mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mouse, camera);
   const h = ray.intersectObject(panel.mesh)[0]; const r = h ? padHit(h.uv) : null; setHover(r?.id || null); renderer.domElement.style.cursor = r ? 'pointer' : 'default';
 });
 renderer.domElement.addEventListener('pointerdown', (e) => {
-  if (renderer.xr.isPresenting || !panel.mesh.visible) return; if (actx) actx.resume(); mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mouse, camera);
+  if (!active || renderer.xr.isPresenting || !panel.mesh.visible) return; if (actx) actx.resume(); mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mouse, camera);
   const h = ray.intersectObject(panel.mesh)[0]; const r = h ? padHit(h.uv) : null; if (r) click(r.id);
 });
-const KEYMAP = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3, ArrowLeft: 0, ArrowDown: 1, ArrowUp: 2, ArrowRight: 3 };
+const KEYMAP = { KeyS: 0, KeyD: 1, KeyK: 2, KeyL: 3, ArrowLeft: 0, ArrowDown: 1, ArrowUp: 2, ArrowRight: 3 };   // 避开展厅的 F/G/M/P/Q/E/R 快捷键
 addEventListener('keydown', (e) => {
-  if (e.repeat) return; if (actx) actx.resume();
+  if (!active || e.repeat) return; if (actx) actx.resume();
   if (e.code === 'Escape' && state === 'playing') { quitToMenu(); return; }
   if (e.code === 'Space' || e.code === 'Enter') { if (state === 'menu') click('start'); else if (state === 'result') click('again'); e.preventDefault(); return; }
   if (state === 'playing' && e.code in KEYMAP && !renderer.xr.isPresenting) {
@@ -438,15 +439,11 @@ function recenter() {
 }
 function checkRecenter() { if (needRecenter > 0 && renderer.xr.isPresenting && ++needRecenter > 8) { needRecenter = 0; recenter(); drawPanel(); } }
 let needRecenter = 0;
-renderer.xr.addEventListener('sessionstart', () => {
-  camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0); document.getElementById('launcher')?.classList.add('hide'); needRecenter = 1; if (actx) actx.resume();
-});
-renderer.xr.addEventListener('sessionend', () => {
-  needRecenter = 0; deskCamera(); document.getElementById('launcher')?.classList.remove('hide'); if (state === 'playing') quitToMenu(); recenter(); drawPanel();
-});
+renderer.xr.addEventListener('sessionstart', () => { if (!active) return; camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0); needRecenter = 1; if (actx) actx.resume(); });
+renderer.xr.addEventListener('sessionend', () => { needRecenter = 0; deskCamera(); if (active) deactivate(); });
 
 // ---------- 主循环 ----------
-let T = 0, last = performance.now(), frames_ = 0;
+let T = 0, frames_ = 0;
 function updateXRPanelRay() {
   for (let i = 0; i < 2; i++) {
     const rec = ctrls[i]; if (!rec.src) { rec.laser.visible = false; continue; }
@@ -460,10 +457,10 @@ function updateXRPanelRay() {
   // 左手 X：演奏中途退出
   const gp = ctrls.find((c) => c.side === 0)?.src?.gamepad; if (gp && state === 'playing' && gp.buttons[4]?.pressed && !controls.xDown) { controls.xDown = true; quitToMenu(); } else if (gp && !gp.buttons[4]?.pressed) controls.xDown = false;
 }
-function frame() {
-  const now = performance.now(), dt = Math.min((now - last) / 1000, 0.1); last = now; T += dt;
+function frame(dtIn) {
+  const dt = Math.min(dtIn, 0.1); T += dt;
   checkRecenter();
-  if (renderer.xr.isPresenting) updateXRPanelRay();
+  if (renderer.xr.isPresenting) { syncMainControllers(); updateXRPanelRay(); }
   if (state === 'playing') updatePlay(dt);
   // 视觉
   pulse *= Math.exp(-dt * 6); const sp = state === 'playing' ? songTime() : T * 0.5;
@@ -472,8 +469,7 @@ function frame() {
   figReveal += (figTarget - figReveal) * Math.min(1, dt * (state === 'playing' ? 4 : 1.5));
   const cy = FIG_H * 1.03 * figReveal; revealPlane.constant = cy; ghostPlane.constant = -cy;
   scanPlane.visible = figReveal > 0.01 && figReveal < 0.985; scanPlane.position.y = figReveal * 1.03;
-  figure.rotation.y = Math.sin(T * 0.35) * 0.3; figure.position.y = Math.sin(T * 0.9) * 0.08;
-  tickLife(T, 1 + 1.6 * Math.sin(Math.PI * Math.min(1, Math.max(0, figReveal))) + 0.7 * pulse);   // 解锁点亮过程中动得更明显，随鼓点轻轻带动
+  figure.rotation.y = Math.sin(T * 0.35) * 0.3; figure.position.y = Math.sin(T * 0.9) * 0.12;
   lA.intensity = 700 + 900 * pulse; lB.intensity = 700 + 900 * pulse;
   for (const f of frames) { const u = f.userData; u.flash = Math.max(0, u.flash - dt * 3.5); f.material.opacity = 0.22 + u.flash * 0.8; f.scale.setScalar(1 + u.flash * 0.25); }
   if (judgeT > 0) { judgeT -= dt; hudDirty = true; }
@@ -482,21 +478,40 @@ function frame() {
   if (state === 'result') { figure.rotation.y += dt * 0.6; }
   renderer.render(scene, camera); if (++frames_ === 8) window.__ready = true;
 }
-renderer.setAnimationLoop(frame);
 
-// ---------- 启动 ----------
-async function boot() {
-  const st = document.getElementById('status'); if (st) st.textContent = '正在加载 …';
-  await loadData(); if (actx) loadAudio().then(() => { drawPanel(); }); else audioState = 'fail';
+// ---------- 进入 / 退出游戏（与展厅共用同一个页面和 XR 会话）----------
+let booting = null;
+function boot() {
+  if (!booting) booting = (async () => { await loadData(); if (actx) loadAudio().then(() => drawPanel()); else audioState = 'fail'; })();
+  return booting;
+}
+async function activate() {
+  active = true; state = 'menu'; stopSong(); hud.mesh.visible = false; panel.mesh.visible = true;
+  app.music?.stop();                                    // 展厅的背景音乐让位给游戏里的歌
+  if (app.ui?.dom) app.ui.dom.style.display = 'none'; if (app.ui?.mesh) app.ui.mesh.visible = false;
+  app.controls?.ctrls?.forEach((m) => { m.laser.visible = false; m.dot.visible = false; });
+  for (let i = 0; i < 2; i++) { rig.add(renderer.xr.getController(i), renderer.xr.getControllerGrip(i)); ctrls[i].tip.visible = true; }
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  if (renderer.xr.isPresenting) { camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0); needRecenter = 1; } else deskCamera();
+  if (actx) actx.resume();
+  recenter(); layoutFrames(); drawPanel();
+  await boot(); if (!active) return;
   recenter(); layoutFrames(); drawPanel(); showFigure(save.sel);
-  document.body.classList.add('ready'); window.__booted = true; if (st) st.textContent = `已解锁 ${save.unlocked.length} / ${models.length} · 歌曲 ChainedGhost`;
-  if (TEST) startDesktop();
 }
-function startDesktop() { document.getElementById('launcher')?.classList.add('hide'); if (actx) actx.resume(); }
-async function startVR() {
-  if (!navigator.xr) { alert('此浏览器不支持 WebXR（用 Quest 浏览器打开）'); return; }
-  try { if (actx) actx.resume(); const s = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor'] }); await renderer.xr.setSession(s); }
-  catch (e) { console.error(e); alert('无法进入 VR：' + e.message); }
+function deactivate() {
+  if (!active) return; active = false; stopSong(); state = 'menu'; hud.mesh.visible = false; noteCore.count = noteWire.count = 0;
+  for (let i = 0; i < 2; i++) { app.rig.add(renderer.xr.getController(i), renderer.xr.getControllerGrip(i)); ctrls[i].laser.visible = ctrls[i].tip.visible = ctrls[i].halo.visible = false; }
+  if (app.st?.music) app.music?.start();
+  app.toggleUI?.(app.st.uiOpen); app.ui?.invalidate();
 }
-window.GM = { debug: { notes: () => notes, now: songTime, toWorld: (x, y, z) => play.localToWorld(new THREE.Vector3(x, y, z)), COLX, rowY, HIT_Z, SPEED, panelPos: () => panel.mesh.getWorldPosition(new THREE.Vector3()), hover: () => hoverId }, startVR, startDesktop, skip: (sec) => { fallbackT0 -= (sec * 1000) / RATE; startAt -= sec; }, state: () => state, save, click, get stats() { return stats; }, get result() { return result; } };
-boot().catch((e) => { console.error(e); const st = document.getElementById('status'); if (st) st.textContent = '加载失败：' + e.message; });
+function exitToShowcase(idx) {                           // 回到展厅（VR 里不会退出会话）
+  deactivate(); if (idx != null && idx >= 0) app.selectModel?.(idx);
+}
+const api = {
+  get active() { return active; }, frame, activate, deactivate,
+  debug: { notes: () => notes, now: songTime, toWorld: (x, y, z) => play.localToWorld(new THREE.Vector3(x, y, z)), COLX, rowY, HIT_Z, SPEED, panelPos: () => panel.mesh.getWorldPosition(new THREE.Vector3()), hover: () => hoverId },
+  skip: (sec) => { fallbackT0 -= (sec * 1000) / RATE; startAt -= sec; }, state: () => state, save, click, get stats() { return stats; }, get result() { return result; },
+};
+window.GM = api;
+return api;
+}
