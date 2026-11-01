@@ -4,7 +4,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { Envs, ENV_DEFS, PAL } from '../src/envs.js';     // 复用展厅的 8 个场景
+import { Envs, ENV_DEFS, PAL } from '../src/envs.js';
+import { lifeify, tickLife } from '../src/life.js';       // 呼吸方案与展示模式完全一致（同一套着色器 / 同一份设置）     // 复用展厅的 8 个场景
 
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test'), BOT = Q.has('bot'), RATE = Number(Q.get('rate') || 1), SILENT = Q.has('silent');   // rate/silent/bot 仅用于自动化测试
@@ -122,8 +123,8 @@ async function showFigure(i) {
   if (!holder) { try { holder = normalize(await loader.loadAsync(m.file)); gltfCache.set(m.id, holder); while (gltfCache.size > CACHE_MAX) gltfCache.delete(gltfCache.keys().next().value); } catch (e) { console.warn('model', e); return; } }
   if (tok !== figToken) return;
   const real = holder.clone(true), ghost = holder.clone(true);
-  real.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.clippingPlanes = [revealPlane]; } });
-  ghost.traverse((o) => { if (o.isMesh) { o.material = new THREE.MeshBasicMaterial({ color: 0x3b1f78, transparent: true, opacity: 0.62, clippingPlanes: [ghostPlane], side: THREE.DoubleSide, depthWrite: false, toneMapped: false }); } });
+  real.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.userData = {}; o.material.clippingPlanes = [revealPlane]; lifeify(o.material, o); } });
+  ghost.traverse((o) => { if (o.isMesh) { o.material = new THREE.MeshBasicMaterial({ color: 0x3b1f78, transparent: true, opacity: 0.62, clippingPlanes: [ghostPlane], side: THREE.DoubleSide, depthWrite: false, toneMapped: false }); lifeify(o.material, o); } });
   figure.add(ghost, real); figReveal = 0; figTarget = isUnlocked(m.id) && state !== 'playing' ? 1 : 0;
 }
 
@@ -476,7 +477,7 @@ function frame(dtIn) {
   figReveal += (figTarget - figReveal) * Math.min(1, dt * (state === 'playing' ? 4 : 1.5));
   const cy = FIG_H * 1.03 * figReveal; revealPlane.constant = cy; ghostPlane.constant = -cy;
   scanPlane.visible = figReveal > 0.01 && figReveal < 0.985; scanPlane.position.y = figReveal * 1.03;
-  const br = Math.sin(T * 1.3); figure.scale.set(FIG_H * (1 + 0.006 * br), FIG_H * (1 + 0.014 * br), FIG_H * (1 + 0.006 * br)); figure.position.y = 0;   // 只呼吸，不旋转
+  tickLife(T);                                          // 呼吸 / 发丝：和展示模式同一套（不旋转）
   lA.intensity = lB.intensity = 4500 + 5000 * pulse;
   for (const f of frames) { const u = f.userData; u.flash = Math.max(0, u.flash - dt * 3.5); f.material.opacity = 0.22 + u.flash * 0.8; f.scale.setScalar(1 + u.flash * 0.25); }
   if (judgeT > 0) { judgeT -= dt; hudDirty = true; }

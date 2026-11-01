@@ -32,9 +32,9 @@ const BODY = `#include <begin_vertex>
   float br = sin(uLT * 1.75);
   // 胸口为主：窗口集中在 h≈0.30–0.80（头部在顶端，不参与缩放），远离躯干中轴的手臂/翅膀少缩放
   float chest = smoothstep(0.30, 0.46, h) * (1.0 - smoothstep(0.66, 0.80, h)) * (1.0 - smoothstep(0.35, 0.80, rr));
-  transformed.xz = uLB.zw + rv * (1.0 + 0.020 * uLA.x * br * chest);
+  transformed.xz = uLB.zw + rv * (1.0 + 0.012 * uLA.x * br * chest);
   float lift = smoothstep(0.08, 0.5, h) * (1.0 - 0.65 * smoothstep(0.78, 0.95, h));   // 头部只随身体微微起伏，幅度约为胸口的 1/3
-  transformed.y += H * 0.0045 * uLA.x * sin(uLT * 1.75 - 0.6) * lift;
+  transformed.y += H * 0.004 * uLA.x * sin(uLT * 1.75 - 0.6) * lift;
   float m = smoothstep(0.30, 0.85, rr) * smoothstep(0.08, 0.32, h) * (0.45 + 0.55 * (1.0 - h));
   float A = H * 0.012 * uLA.y * m;
   float q = p0.y / H;

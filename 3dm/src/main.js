@@ -94,7 +94,7 @@ app.next = () => { if (st.mode === 'gallery') app.galPage(1); else stage.next(1)
 app.prev = () => { if (st.mode === 'gallery') app.galPage(-1); else stage.next(-1); };
 app.galPage = (d) => { stage.galleryPage(d); ui.say(`画廊 第 ${stage.galPage + 1}/${stage.galPages} 页`); ui.invalidate(); };
 app.setGalCount = (n) => { st.galCount = n; stage.setGallery(n, Math.floor(stage.index / n)); ui.say(`画廊每页 ${n} 个`); ui.invalidate(); };
-app.resetStage = () => { stage.resetTransform(); ui.say('模型已重置'); ui.invalidate(); };
+app.resetStage = () => { stage.resetTransform(); controls.returnAll(); ui.say('模型已重置'); ui.invalidate(); };
 app.resetRig = () => {
   rig.position.set(0, 0, st.mode === 'gallery' ? 0 : 2.5); rig.rotation.set(0, 0, 0); controls.yaw = 0; controls.pitch = 0;
 };
