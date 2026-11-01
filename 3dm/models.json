@@ -106,5 +106,41 @@
   "n": 18,
   "file": "models/girl-18.glb",
   "lod": "models_lod/girl-18.glb"
+ },
+ {
+  "id": "girl-19",
+  "n": 19,
+  "file": "models/girl-19.glb",
+  "lod": "models_lod/girl-19.glb"
+ },
+ {
+  "id": "girl-20",
+  "n": 20,
+  "file": "models/girl-20.glb",
+  "lod": "models_lod/girl-20.glb"
+ },
+ {
+  "id": "girl-21",
+  "n": 21,
+  "file": "models/girl-21.glb",
+  "lod": "models_lod/girl-21.glb"
+ },
+ {
+  "id": "girl-22",
+  "n": 22,
+  "file": "models/girl-22.glb",
+  "lod": "models_lod/girl-22.glb"
+ },
+ {
+  "id": "girl-23",
+  "n": 23,
+  "file": "models/girl-23.glb",
+  "lod": "models_lod/girl-23.glb"
+ },
+ {
+  "id": "girl-24",
+  "n": 24,
+  "file": "models/girl-24.glb",
+  "lod": "models_lod/girl-24.glb"
  }
 ]
