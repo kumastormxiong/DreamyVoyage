@@ -94,7 +94,7 @@ export class UI {
       btn(656, y, 300, 58, S.mainVisible ? '主展台：显示' : '主展台：隐藏', () => A.setMainVisible(!S.mainVisible), { active: S.mainVisible, size: 25 });
       btn(968, y, 280, 58, '场景自转 SPIN', () => { S.spinPlaced = !S.spinPlaced; st.spinPlaced = S.spinPlaced; }, { active: S.spinPlaced, size: 25 });
       y += 68;
-      lb(32, y, 1216, 36, '当前选中：' + (sel < 0 ? '主展台模型（#' + (st.curIdx + 1) + '）' : `第 ${sel + 1} 个摆放模型（#${st.placed[sel].idx + 1}）`) + '　— 握把移动 / A·B 缩放 / 滚轮缩放', { size: 24, color: '#e8ecff' }); y += 44;
+      lb(32, y, 1216, 36, '当前选中：' + (sel < 0 ? (st.curIdx >= 0 ? '主展台模型（#' + (st.curIdx + 1) + '）' : '主展台（空）') : `第 ${sel + 1} 个摆放模型（#${st.placed[sel].idx + 1}）`) + '　— 握把移动 / A·B 缩放 / 滚轮缩放', { size: 24, color: '#e8ecff' }); y += 44;
       slider(y, '放置大小 DROP', () => S.dropScale, (v) => { S.dropScale = v; }, 0.05, 3, (v) => '×' + v.toFixed(2), { log: true }); y += 56;
       slider(y, '所选大小 SCALE', () => st.tgtScale, (v) => st.setScale(v), 0.02, 80, (v) => '×' + (v < 1 ? v.toFixed(2) : v.toFixed(1)), { log: true }); y += 66;
       lb(32, y, 1216, 36, 'MR 透视 PASSTHROUGH', { size: 26, color: css(PAL.a, 1.5), weight: 800 }); y += 42;

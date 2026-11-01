@@ -1,5 +1,428 @@
 [
  {
+  "id": "s1",
+  "n": 1,
+  "zh": "幻梦之旅",
+  "en": "Dreamy Voyage",
+  "file": "01-幻梦之旅-Dreamy Voyage.mp3",
+  "duration": 249.7,
+  "bpm": 99.4
+ },
+ {
+  "id": "s2",
+  "n": 2,
+  "zh": "某日",
+  "en": "Another Day",
+  "file": "02-某日-Another Day.mp3",
+  "duration": 294.0,
+  "bpm": 107.7
+ },
+ {
+  "id": "s3",
+  "n": 3,
+  "zh": "前夜",
+  "en": "The Eve",
+  "file": "03-前夜-The Eve.mp3",
+  "duration": 218.6,
+  "bpm": 99.4
+ },
+ {
+  "id": "s4",
+  "n": 4,
+  "zh": "步步",
+  "en": "Step By",
+  "file": "04-步步-Step By.mp3",
+  "duration": 188.4,
+  "bpm": 105.5
+ },
+ {
+  "id": "s5",
+  "n": 5,
+  "zh": "远遥",
+  "en": "Far Away",
+  "file": "05-远遥-Far Away.mp3",
+  "duration": 190.2,
+  "bpm": 82.0
+ },
+ {
+  "id": "s6",
+  "n": 6,
+  "zh": "幻梦 Disco",
+  "en": "Dreamy Disco",
+  "file": "06-幻梦 Disco-Dreamy Disco.mp3",
+  "duration": 162.0,
+  "bpm": 120.2
+ },
+ {
+  "id": "s7",
+  "n": 7,
+  "zh": "林中行",
+  "en": "Jungle Proceeding",
+  "file": "07-林中行-Jungle Proceeding .mp3",
+  "duration": 288.9,
+  "bpm": 120.2
+ },
+ {
+  "id": "s8",
+  "n": 8,
+  "zh": "攀登",
+  "en": "Climbing",
+  "file": "08-攀登-Climbing.mp3",
+  "duration": 221.0,
+  "bpm": 99.4
+ },
+ {
+  "id": "s9",
+  "n": 9,
+  "zh": "闪耀",
+  "en": "Shining Move",
+  "file": "09-闪耀-Shining Move.mp3",
+  "duration": 187.4,
+  "bpm": 126.0
+ },
+ {
+  "id": "s10",
+  "n": 10,
+  "zh": "无尽",
+  "en": "Endless",
+  "file": "10-无尽-Endless .mp3",
+  "duration": 218.5,
+  "bpm": 99.4
+ },
+ {
+  "id": "s11",
+  "n": 11,
+  "zh": "求索",
+  "en": "Uncharted Odyssey",
+  "file": "11-求索-Uncharted Odyssey.mp3",
+  "duration": 342.4,
+  "bpm": 126.0
+ },
+ {
+  "id": "s12",
+  "n": 12,
+  "zh": "意识迷走",
+  "en": "Consciousness Drift",
+  "file": "12-意识迷走-Consciousness Drift.mp3",
+  "duration": 183.8,
+  "bpm": 161.5
+ },
+ {
+  "id": "s13",
+  "n": 13,
+  "zh": "抽搐无限",
+  "en": "Convulsion Infinity",
+  "file": "13-抽搐无限-Convulsion Infinity.mp3",
+  "duration": 346.0,
+  "bpm": 120.2
+ },
+ {
+  "id": "s14",
+  "n": 14,
+  "zh": "谎言逃脱",
+  "en": "Lie Escape",
+  "file": "14-谎言逃脱-Lie Escape.mp3",
+  "duration": 308.4,
+  "bpm": 161.5
+ },
+ {
+  "id": "s15",
+  "n": 15,
+  "zh": "幻影囚禁",
+  "en": "Phantom Imprisonment",
+  "file": "15-幻影囚禁-Phantom Imprisonment.mp3",
+  "duration": 480.0,
+  "bpm": 126.0
+ },
+ {
+  "id": "s16",
+  "n": 16,
+  "zh": "加密频谱",
+  "en": "Encrypt Spectrum",
+  "file": "16-加密频谱-Encrypt Spectrum.mp3",
+  "duration": 293.3,
+  "bpm": 161.5
+ },
+ {
+  "id": "s17",
+  "n": 17,
+  "zh": "恍惚眩晕",
+  "en": "Trance Vertigo",
+  "file": "17-恍惚眩晕-Trance Vertigo.mp3",
+  "duration": 480.0,
+  "bpm": 110.0
+ },
+ {
+  "id": "s18",
+  "n": 18,
+  "zh": "饱和残影",
+  "en": "Saturation Afterglow",
+  "file": "18-饱和残影-Saturation Afterglow.mp3",
+  "duration": 434.8,
+  "bpm": 84.7
+ },
+ {
+  "id": "s19",
+  "n": 19,
+  "zh": "潜意识嘶吼",
+  "en": "Subconscious Howling",
+  "file": "19-潜意识嘶吼-Subconscious Howling.mp3",
+  "duration": 423.8,
+  "bpm": 139.7
+ },
+ {
+  "id": "s20",
+  "n": 20,
+  "zh": "毁灭宿命",
+  "en": "Destruction Fate",
+  "file": "20-毁灭宿命-Destruction Fate.mp3",
+  "duration": 418.0,
+  "bpm": 90.7
+ },
+ {
+  "id": "s21",
+  "n": 21,
+  "zh": "蒸发熵增",
+  "en": "Evaporation Entropy",
+  "file": "21-蒸发熵增-Evaporation Entropy.mp3",
+  "duration": 298.8,
+  "bpm": 97.5
+ },
+ {
+  "id": "s22",
+  "n": 22,
+  "zh": "窒息催眠",
+  "en": "Suffocation Hypnosis",
+  "file": "22-窒息催眠-Suffocation Hypnosis.mp3",
+  "duration": 214.2,
+  "bpm": 129.2
+ },
+ {
+  "id": "s23",
+  "n": 23,
+  "zh": "和谐恨",
+  "en": "Harmony Hate",
+  "file": "23-和谐恨-Harmony Hate.mp3",
+  "duration": 216.9,
+  "bpm": 136.0
+ },
+ {
+  "id": "s24",
+  "n": 24,
+  "zh": "矛盾波形",
+  "en": "Contradiction Waveform",
+  "file": "24-矛盾波形-Contradiction Waveform.mp3",
+  "duration": 480.0,
+  "bpm": 120.2
+ },
+ {
+  "id": "s25",
+  "n": 25,
+  "zh": "发狂他者",
+  "en": "Madness Other",
+  "file": "25-发狂他者-Madness Other.mp3",
+  "duration": 398.1,
+  "bpm": 84.7
+ },
+ {
+  "id": "s26",
+  "n": 26,
+  "zh": "狂怒无限",
+  "en": "Fury Infinity",
+  "file": "26-狂怒无限-Fury Infinity.mp3",
+  "duration": 119.4,
+  "bpm": 126.0
+ },
+ {
+  "id": "s27",
+  "n": 27,
+  "zh": "毁灭权力",
+  "en": "Destruction Power",
+  "file": "27-毁灭权力-Destruction Power.mp3",
+  "duration": 345.2,
+  "bpm": 89.1
+ },
+ {
+  "id": "s28",
+  "n": 28,
+  "zh": "幻影集体",
+  "en": "Phantom Collective",
+  "file": "28-幻影集体-Phantom Collective.mp3",
+  "duration": 288.4,
+  "bpm": 132.5
+ },
+ {
+  "id": "s29",
+  "n": 29,
+  "zh": "语言空间",
+  "en": "Language Spatial",
+  "file": "29-语言空间-Language Spatial.mp3",
+  "duration": 404.0,
+  "bpm": 178.2
+ },
+ {
+  "id": "s30",
+  "n": 30,
+  "zh": "陷阱逃脱",
+  "en": "Trap Escape",
+  "file": "30-陷阱逃脱-Trap Escape.mp3",
+  "duration": 174.0,
+  "bpm": 126.0
+ },
+ {
+  "id": "s31",
+  "n": 31,
+  "zh": "数据孤独",
+  "en": "Dataflow Loneliness",
+  "file": "31-数据孤独-Dataflow Loneliness.mp3",
+  "duration": 315.7,
+  "bpm": 92.3
+ },
+ {
+  "id": "s32",
+  "n": 32,
+  "zh": "幻象痴迷",
+  "en": "Mirage Obsession",
+  "file": "32-幻象痴迷-Mirage Obsession.mp3",
+  "duration": 414.0,
+  "bpm": 117.5
+ },
+ {
+  "id": "s33",
+  "n": 33,
+  "zh": "迭代震动",
+  "en": "Iteration Vibration",
+  "file": "33-迭代震动-Iteration Vibration.mp3",
+  "duration": 256.0,
+  "bpm": 90.7
+ },
+ {
+  "id": "s34",
+  "n": 34,
+  "zh": "平衡递归",
+  "en": "Balance Recursion",
+  "file": "34-平衡递归-Balance Recursion.mp3",
+  "duration": 301.0,
+  "bpm": 172.3
+ },
+ {
+  "id": "s35",
+  "n": 35,
+  "zh": "极悲自我",
+  "en": "Despair Self",
+  "file": "35-极悲自我-Despair Self.mp3",
+  "duration": 356.4,
+  "bpm": 112.3
+ },
+ {
+  "id": "s36",
+  "n": 36,
+  "zh": "痉挛崩溃",
+  "en": "Spasm Breakdown",
+  "file": "36-痉挛崩溃-Spasm Breakdown.mp3",
+  "duration": 321.9,
+  "bpm": 117.5
+ },
+ {
+  "id": "s37",
+  "n": 37,
+  "zh": "憎恨符号",
+  "en": "Hatred Symbol",
+  "file": "37-憎恨符号-Hatred Symbol.mp3",
+  "duration": 256.6,
+  "bpm": 105.5
+ },
+ {
+  "id": "s38",
+  "n": 38,
+  "zh": "延迟战栗",
+  "en": "Delay Trembling",
+  "file": "38-延迟战栗-Delay Trembling.mp3",
+  "duration": 351.3,
+  "bpm": 107.7
+ },
+ {
+  "id": "s39",
+  "n": 39,
+  "zh": "偏执狂怒",
+  "en": "Paranoia Fury",
+  "file": "39-偏执狂怒-Paranoia Fury.mp3",
+  "duration": 293.7,
+  "bpm": 172.3
+ },
+ {
+  "id": "s40",
+  "n": 40,
+  "zh": "同步集体",
+  "en": "Sync Collective",
+  "file": "40-同步集体-Sync Collective.mp3",
+  "duration": 346.6,
+  "bpm": 120.2
+ },
+ {
+  "id": "s41",
+  "n": 41,
+  "zh": "抵抗重生",
+  "en": "Resistance Rebirth",
+  "file": "41-抵抗重生-Resistance Rebirth.mp3",
+  "duration": 240.0,
+  "bpm": 120.2
+ },
+ {
+  "id": "s42",
+  "n": 42,
+  "zh": "粒子乌托邦",
+  "en": "Particle Utopia",
+  "file": "42-粒子乌托邦-Particle Utopia.mp3",
+  "duration": 359.6,
+  "bpm": 107.7
+ },
+ {
+  "id": "s43",
+  "n": 43,
+  "zh": "沉默同步",
+  "en": "Silence Sync",
+  "file": "43-沉默同步-Silence Sync.mp3",
+  "duration": 298.8,
+  "bpm": 97.5
+ },
+ {
+  "id": "s44",
+  "n": 44,
+  "zh": "迷雾反乌托邦",
+  "en": "Mist Dystopia",
+  "file": "44-迷雾反乌托邦-Mist Dystopia.mp3",
+  "duration": 480.0,
+  "bpm": 112.3
+ },
+ {
+  "id": "s45",
+  "n": 45,
+  "zh": "循环坠落",
+  "en": "Loop Falling",
+  "file": "45-循环坠落-Loop Falling.mp3",
+  "duration": 473.4,
+  "bpm": 101.3
+ },
+ {
+  "id": "s46",
+  "n": 46,
+  "zh": "逃脱光影",
+  "en": "Escape Luminescence",
+  "file": "46-逃脱光影-Escape Luminescence.mp3",
+  "duration": 270.0,
+  "bpm": 166.7
+ },
+ {
+  "id": "s47",
+  "n": 47,
+  "zh": "超维退化",
+  "en": "Hyperdimension Degeneration",
+  "file": "47-超维退化-Hyperdimension Degeneration.mp3",
+  "duration": 480.0,
+  "bpm": 99.4
+ },
+ {
   "id": "s48",
   "n": 48,
   "zh": "凝固痉挛",
@@ -7,6 +430,15 @@
   "file": "48-凝固痉挛-Solidification Spasm.mp3",
   "duration": 480.0,
   "bpm": 114.8
+ },
+ {
+  "id": "s49",
+  "n": 49,
+  "zh": "正义焦虑",
+  "en": "Justice Anxiety",
+  "file": "49-正义焦虑-Justice Anxiety.mp3",
+  "duration": 364.6,
+  "bpm": 90.7
  },
  {
   "id": "s50",
@@ -27,6 +459,60 @@
   "bpm": 123.0
  },
  {
+  "id": "s52",
+  "n": 52,
+  "zh": "遐想本体",
+  "en": "Daydreaming Noumenon",
+  "file": "52-遐想本体-Daydreaming Noumenon.mp3",
+  "duration": 219.6,
+  "bpm": 117.5
+ },
+ {
+  "id": "s53",
+  "n": 53,
+  "zh": "实相界迷惘",
+  "en": "Actualism Bewilderment",
+  "file": "53-实相界迷惘-Actualism Bewilderment.mp3",
+  "duration": 214.8,
+  "bpm": 95.7
+ },
+ {
+  "id": "s54",
+  "n": 54,
+  "zh": "恍惚空相",
+  "en": "Daze Voidness",
+  "file": "54-恍惚空相-Daze Voidness.mp3",
+  "duration": 221.3,
+  "bpm": 120.2
+ },
+ {
+  "id": "s55",
+  "n": 55,
+  "zh": "实证论荒诞",
+  "en": "Positivism Absurdity",
+  "file": "55-实证论荒诞-Positivism Absurdity.mp3",
+  "duration": 296.3,
+  "bpm": 178.2
+ },
+ {
+  "id": "s56",
+  "n": 56,
+  "zh": "沉潜癔病",
+  "en": "Dive Hysteria",
+  "file": "56-沉潜癔病-Dive Hysteria.mp3",
+  "duration": 240.0,
+  "bpm": 129.2
+ },
+ {
+  "id": "s57",
+  "n": 57,
+  "zh": "眩晕星云",
+  "en": "Vertigo Nebula",
+  "file": "57-眩晕星云-Vertigo Nebula.mp3",
+  "duration": 225.0,
+  "bpm": 172.3
+ },
+ {
   "id": "s58",
   "n": 58,
   "zh": "自省",
@@ -36,6 +522,141 @@
   "bpm": 126.0
  },
  {
+  "id": "s59",
+  "n": 59,
+  "zh": "光尘希望",
+  "en": "Lightdust Hope",
+  "file": "59-光尘希望-Lightdust Hope.mp3",
+  "duration": 279.8,
+  "bpm": 139.7
+ },
+ {
+  "id": "s60",
+  "n": 60,
+  "zh": "参透溯光",
+  "en": "Penetrate Retrolight",
+  "file": "60-参透溯光-Penetrate Retrolight.mp3",
+  "duration": 289.8,
+  "bpm": 77.1
+ },
+ {
+  "id": "s61",
+  "n": 61,
+  "zh": "空虚位图",
+  "en": "Emptiness Bitmap",
+  "file": "61-空虚位图-Emptiness Bitmap.mp3",
+  "duration": 368.8,
+  "bpm": 63.8
+ },
+ {
+  "id": "s62",
+  "n": 62,
+  "zh": "始源愉悦",
+  "en": "Primordiality Pleasure",
+  "file": "62-始源愉悦-Primordiality Pleasure.mp3",
+  "duration": 194.7,
+  "bpm": 90.7
+ },
+ {
+  "id": "s63",
+  "n": 63,
+  "zh": "深度欣慰",
+  "en": "Depth Gratification",
+  "file": "63-深度欣慰-Depth Gratification.mp3",
+  "duration": 152.9,
+  "bpm": 101.3
+ },
+ {
+  "id": "s64",
+  "n": 64,
+  "zh": "释然频谱",
+  "en": "Equanimity Spectral",
+  "file": "64-释然频谱-Equanimity Spectral.mp3",
+  "duration": 177.4,
+  "bpm": 94.0
+ },
+ {
+  "id": "s65",
+  "n": 65,
+  "zh": "天机通道",
+  "en": "Heavenliness Channel",
+  "file": "65-天机通道-Heavenliness Channel.mp3",
+  "duration": 234.8,
+  "bpm": 95.7
+ },
+ {
+  "id": "s66",
+  "n": 66,
+  "zh": "宿命光纹",
+  "en": "Fatalism Striation",
+  "file": "66-宿命光纹-Fatalism Striation.mp3",
+  "duration": 284.8,
+  "bpm": 112.3
+ },
+ {
+  "id": "s67",
+  "n": 67,
+  "zh": "自豪朦霞",
+  "en": "Pride Mistveil",
+  "file": "67-自豪朦霞-Pride Mistveil.mp3",
+  "duration": 316.0,
+  "bpm": 90.7
+ },
+ {
+  "id": "s68",
+  "n": 68,
+  "zh": "交织玄思",
+  "en": "Interweave Cogitation",
+  "file": "68-交织玄思-Interweave Cogitation.mp3",
+  "duration": 334.5,
+  "bpm": 84.7
+ },
+ {
+  "id": "s69",
+  "n": 69,
+  "zh": "遐想绮丽",
+  "en": "Daydreaming Gorgeous",
+  "file": "69-遐想绮丽-Daydreaming Gorgeous-Mastered.mp3",
+  "duration": 267.8,
+  "bpm": 94.0
+ },
+ {
+  "id": "s70",
+  "n": 70,
+  "zh": "层次灵感",
+  "en": "Level Inspiration",
+  "file": "70-层次灵感-Level Inspiration-Mastered.mp3",
+  "duration": 256.9,
+  "bpm": 84.7
+ },
+ {
+  "id": "s71",
+  "n": 71,
+  "zh": "因果谬论",
+  "en": "Causal Absurdity",
+  "file": "71-因果谬论-Causal Absurdity-Mastered.mp3",
+  "duration": 222.2,
+  "bpm": 114.8
+ },
+ {
+  "id": "s72",
+  "n": 72,
+  "zh": "漩涡窒息感",
+  "en": "Vortex Asphyxiation",
+  "file": "72-漩涡窒息感-Vortex Asphyxiation-Mastered.mp3",
+  "duration": 201.8,
+  "bpm": 87.6
+ },
+ {
+  "id": "s73",
+  "n": 73,
+  "zh": "妄想独奏",
+  "en": "Delusion Solo",
+  "file": "73-妄想独奏-Delusion Solo-Mastered.mp3",
+  "duration": 313.1,
+  "bpm": 86.1
+ },
+ {
   "id": "s74",
   "n": 74,
   "zh": "噪点彷徨",
@@ -43,6 +664,42 @@
   "file": "74-噪点彷徨-Noise Wandering-Mastered.mp3",
   "duration": 243.7,
   "bpm": 126.0
+ },
+ {
+  "id": "s75",
+  "n": 75,
+  "zh": "自如升华",
+  "en": "Fluidity Sublime",
+  "file": "75-自如升华-Fluidity Sublime-Mastered.mp3",
+  "duration": 151.3,
+  "bpm": 129.2
+ },
+ {
+  "id": "s76",
+  "n": 76,
+  "zh": "迷失进化",
+  "en": "Lostness Evolution",
+  "file": "76-迷失进化-Lostness Evolution-Mastered.mp3",
+  "duration": 96.2,
+  "bpm": 101.3
+ },
+ {
+  "id": "s77",
+  "n": 77,
+  "zh": "陶醉玄境",
+  "en": "Enchantment Mystical",
+  "file": "77-陶醉玄境-Enchantment Mystical-Mastered.mp3",
+  "duration": 368.2,
+  "bpm": 120.2
+ },
+ {
+  "id": "s78",
+  "n": 78,
+  "zh": "满足混沌",
+  "en": "Contentment Chaos",
+  "file": "78-满足混沌-Contentment Chaos-Mastered.mp3",
+  "duration": 189.8,
+  "bpm": 161.5
  },
  {
   "id": "s79",

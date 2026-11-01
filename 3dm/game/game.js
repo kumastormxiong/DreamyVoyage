@@ -29,7 +29,8 @@ const JPTS = [1000, 700, 400, 0];
 
 // ---------- 存档 ----------
 const SKEY = 'dm_game_v1';
-const save = { unlocked: [], best: {}, offset: 0, sel: 0, diff: 'normal', frames: false };
+const BASE_SONGS = ['s48', 's50', 's51', 's58', 's74', 's79'];       // 默认可玩的歌，其余歌曲通关解锁
+const save = { unlocked: [], songs: [], best: {}, offset: 0, sel: 0, diff: 'normal', frames: false };
 try { const s = JSON.parse(localStorage.getItem(SKEY) || 'null'); if (s) Object.assign(save, s); } catch (e) { /* 无痕模式 */ }
 const persist = () => { try { localStorage.setItem(SKEY, JSON.stringify(save)); } catch (e) { /* ignore */ } };
 if (Q.get('diff') && DIFFS[Q.get('diff')]) save.diff = Q.get('diff');
@@ -142,10 +143,11 @@ const songTime = () => (cur && cur.state === 'ok' && cur.buf && actx && !SILENT 
 // ---------- 数据 ----------
 let songs = [], models = [], sheet = null, state = 'menu', cfg = DIFFS[save.diff] || DIFFS.normal;
 // ---------- 回合：随机歌曲 + 随机场景 + 随机 90 秒片段 ----------
+const songOpen = (id) => BASE_SONGS.includes(id) || save.songs.includes(id);
 const chartCache = new Map(); let cur = null, pending = null, lastSong = null;
 async function getChart(id) { if (!chartCache.has(id)) chartCache.set(id, fetch(`./game/charts/${id}.json`).then((r) => r.json())); return chartCache.get(id); }
 function makeRound() {
-  const song = (Q.get('gsong') && songs.find((x) => x.id === Q.get('gsong'))) || pick(songs.length > 1 ? songs.filter((x) => x.id !== lastSong) : songs); lastSong = song.id;
+  const song = (Q.get('gsong') && songs.find((x) => x.id === Q.get('gsong'))) || (() => { const pool = songs.filter((x) => songOpen(x.id)), p2 = pool.filter((x) => x.id !== lastSong); return pick(p2.length ? p2 : pool.length ? pool : songs); })(); lastSong = song.id;
   const env = Q.has('genv') ? (Number(Q.get('genv')) | 0) % ENV_DEFS.length : (Math.random() * ENV_DEFS.length) | 0;
   const r = { song, env, state: 'loading', start: 0, buf: null, beats: [], charts: null };
   r.promise = (async () => {
@@ -246,7 +248,9 @@ function finish() {
   if (pass && m && !isUnlocked(m.id)) { save.unlocked.push(m.id); newly.push(m); }
   if (pass && gr === 'S') { const b = models.find((x) => !isUnlocked(x.id)); if (b) { save.unlocked.push(b.id); newly.push(b); } }
   if (m) { const old = save.best[m.id]; if (!old || stats.score > old.score) save.best[m.id] = { score: stats.score, grade: gr, diff: save.diff }; }
-  persist(); result = { acc, pass, gr, newly, s: stats, diff: save.diff, m };
+  const newSongs = [];      // 通关解锁 1 首歌，S 评级解锁 2 首
+  if (pass) { const locked = songs.filter((x) => !songOpen(x.id)); for (let i = 0; i < (gr === 'S' ? 2 : 1) && locked.length; i++) { const k = (Math.random() * locked.length) | 0, sg = locked.splice(k, 1)[0]; save.songs.push(sg.id); newSongs.push(sg); } }
+  persist(); result = { acc, pass, gr, newly, newSongs, s: stats, diff: save.diff, m };
   hud.mesh.visible = false; panel.mesh.visible = true; recenter(); noteCore.count = noteWire.count = 0; figTarget = pass ? 1 : figTarget; drawPanel();
   if (pass) { burst(0, 1.4, -1.5, 0xffffff, 120); burst(0, 1.8, -1.5, COL[0], 80); burst(0, 1.8, -1.5, COL[1], 80); }
 }
@@ -353,7 +357,7 @@ function drawPanel() {
     txt(g, lk ? '🔒 未解锁 · 通关后点亮' : '✓ 已解锁', 730, 506, 20, lk ? '#ffb0e8' : '#6dffb0');
     txt(g, b ? `最佳 ${b.score}  ${b.grade}（${DIFFS[b.diff].zh}）` : '尚无记录', 730, 536, 20, '#9fb4ff');
   }
-  txt(g, `已解锁 ${save.unlocked.length} / ${models.length}`, 40, 604, 22, '#cfd8ff', 'left', 700);
+  txt(g, `手办 ${save.unlocked.length} / ${models.length}`, 40, 598, 20, '#cfd8ff', 'left', 700); txt(g, `音乐 ${songs.filter((x) => songOpen(x.id)).length} / ${songs.length}`, 40, 624, 20, '#9fe8ff', 'left', 700);
   const ready = pReady();
   btn(g, 'start', 300, 630, 424, 84, ready ? '▶  开始演奏' : '加载中 …', { fs: 34, sel: ready, dim: !ready });
   btn(g, 'back', 40, 650, 190, 52, '← 返回展厅', { fs: 22 });
@@ -361,8 +365,8 @@ function drawPanel() {
   btn(g, 'frames', 730, 556, 254, 40, save.frames ? '判定框线：开' : '判定框线：关', { fs: 19, sel: save.frames }); btn(g, 'off:-10', 756, 628, 66, 44, '−10', { fs: 20 }); btn(g, 'off:10', 890, 628, 66, 44, '+10', { fs: 20 });
   if (pending) {
     const sg = pending.song, ev = ENV_DEFS[pending.env];
-    txt(g, `♪ ${sg.zh}  ${sg.en}`, 262, 556, 21, '#fff', 'left', 700); txt(g, `◈ 场景：${ev.zh} · ${sg.bpm | 0} BPM · 5 秒热身 + ${ROUND - WARM} 秒`, 262, 588, 19, '#9fb4ff');
-    btn(g, 'reroll', 590, 536, 126, 40, '🎲 换一局', { fs: 18 });
+    { let t = `♪ ${sg.zh}  ${sg.en}`; g.font = `700 20px ${FONT}`; while (g.measureText(t).width > 310 && t.length > 6) t = t.slice(0, -2); if (t.length < `♪ ${sg.zh}  ${sg.en}`.length) t += '…'; txt(g, t, 262, 556, 20, '#fff', 'left', 700); } txt(g, `◈ 场景：${ev.zh} · ${sg.bpm | 0} BPM · 5 秒热身 + ${ROUND - WARM} 秒`, 262, 588, 19, '#9fb4ff');
+    btn(g, 'reroll', 584, 538, 130, 38, '🎲 换一局', { fs: 18 });
     if (pending.state === 'fail') txt(g, '⚠ 谱面加载失败，请点「换一局」重试', 512, 738, 18, '#ffb0b0', 'center');
     else if (pending.silent) txt(g, '⚠ 歌曲音频加载失败，将静音游玩', 512, 738, 18, '#ffb0b0', 'center');
   }
@@ -381,6 +385,7 @@ function drawResult(g) {
     r.newly.forEach((m, k) => { const idx = models.indexOf(m), x = 512 - r.newly.length * 90 + k * 180 + 10; tile(g, idx, x, 390, 160, false, true); txt(g, `#${m.n ?? idx + 1}`, x + 80, 570, 22, '#fff', 'center', 800); });
   } else if (r.pass) txt(g, '已解锁过的手办 · 刷新了你的最高分', 512, 420, 26, '#9fb4ff', 'center');
   else txt(g, `再多命中 ${Math.max(0, Math.ceil(DIFFS[r.diff].need * r.s.total) - r.s.hits)} 个音符就能解锁`, 512, 420, 28, '#ffb0e8', 'center');
+  if (r.pass) txt(g, r.newSongs.length ? `♪ 解锁音乐：${r.newSongs.map((x) => x.zh).join('、')}${r.gr === 'S' ? '（S 评级 +2）' : ''}` : '♪ 音乐已全部解锁', 512, 600, 21, '#9fe8ff', 'center', 700);
   btn(g, 'again', 60, 626, 270, 76, pReady() ? '再来一次' : '加载下一局…', { fs: 28, sel: pReady(), dim: !pReady() }); btn(g, 'menu', 370, 626, 270, 76, '返回选择', { fs: 30 });
   btn(g, 'gallery', 680, 626, 284, 76, r.m ? '去展厅看看' : '展厅', { fs: 28 });
   panel.tex.needsUpdate = true;
