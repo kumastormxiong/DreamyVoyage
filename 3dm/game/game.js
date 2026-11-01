@@ -194,6 +194,7 @@ const fmtT = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart
 const modeName = (sg, m) => (m === 'full' ? `完整版 ${fmtT(sg.duration)}` : m === 90 ? '1分30秒版' : '3分30秒版');
 const chartCache = new Map(); let cur = null, pending = null, lastSong = null;
 async function getChart(id) { if (!chartCache.has(id)) chartCache.set(id, fetch(`./game/charts/${id}.json`).then((r) => r.json())); return chartCache.get(id); }
+const lastStart = {};
 function makeRound(fo = null) {
   const pk = save.pick && songs.find((x) => x.id === save.pick.id && songOpen(x.id));
   const song = fo?.song || (Q.get('gsong') && songs.find((x) => x.id === Q.get('gsong'))) || pk || (() => { const pool = songs.filter((x) => songOpen(x.id)), p2 = pool.filter((x) => x.id !== lastSong); return pick(p2.length ? p2 : pool.length ? pool : songs); })(); lastSong = song.id;
@@ -203,9 +204,11 @@ function makeRound(fo = null) {
   r.promise = (async () => {
     const d = await getChart(song.id); r.data = d; const dur = d.duration, full_ = mode === 'full', need = (full_ ? dur : mode) + 2;
     let st = 0;
-    if (!full_) {
-      const ok = (mode === 90 ? d.starts : d.beats.filter((t, i) => i % 8 === 0)).filter((t) => t + need <= dur);
-      st = Q.has('gstart') ? Number(Q.get('gstart')) : fo ? fo.start : ok.length ? pick(ok) : Math.max(0, dur - need);
+    if (!full_) {       // 从整首歌里随机抽一段：起点是任意一拍，要求这一段里有足够的音符；尽量避开上一次的位置
+      const ez = d.charts.easy, cnt = (a, b) => { let l = 0, h = ez.length; while (l < h) { const m = (l + h) >> 1; if (ez[m][0] < a) l = m + 1; else h = m; } const i0 = l; h = ez.length; while (l < h) { const m = (l + h) >> 1; if (ez[m][0] <= b) l = m + 1; else h = m; } return l - i0; };
+      const all = d.beats.filter((t, i) => i % 3 === 0 && t + need <= dur), rich = all.filter((t) => cnt(t + WARM, t + mode) >= 0.45 * (mode - WARM)), pool0 = rich.length >= 4 ? rich : all;
+      const lastS = lastStart[song.id], pool = pool0.filter((t) => lastS == null || Math.abs(t - lastS) > mode * 0.35), pl = pool.length >= 2 ? pool : pool0;
+      st = Q.has('gstart') ? Number(Q.get('gstart')) : fo ? fo.start : pl.length ? pick(pl) : Math.max(0, dur - need); lastStart[song.id] = st;
     }
     const len = full_ ? dur : Math.min(mode, dur - st); r.len = len; r.start = st;
     r.beats = d.beats.filter((t) => t >= st && t <= st + len + 2).map((t) => t - st);
@@ -241,7 +244,7 @@ function resetStats() { return { score: 0, combo: 0, maxCombo: 0, counts: [0, 0,
 const hitRate = () => (stats.total ? stats.hits / stats.total : 0);
 
 function startSong() {
-  if (!pReady()) return; cur = pending; pending = null; prefetched = false; applyEnv(cur.env); cfg = DIFFS[save.diff];
+  if (!pReady()) return; stopPreview(); cur = pending; pending = null; prefetched = false; applyEnv(cur.env); cfg = DIFFS[save.diff];
   const ch = cur.charts[save.diff];
   notes = ch.map((a) => ({ t: a[0], c: a[1], r: a[2], h: a[3], s: 0 })); lo = hi = 0; beatIdx = 0; stats = resetStats(); judgeText = ''; result = null; notified = false;
   recenter(); layoutFrames(); panel.mesh.visible = false; hud.mesh.visible = true; hudDirty = true;
@@ -249,11 +252,11 @@ function startSong() {
     actx.resume(); src = actx.createBufferSource(); src.buffer = cur.buf; roundGain = actx.createGain(); src.connect(roundGain).connect(musicGain); startAt = actx.currentTime + LEAD; src.start(startAt);
     roundGain.gain.setValueAtTime(0, startAt); roundGain.gain.linearRampToValueAtTime(1, startAt + 0.5); roundGain.gain.setValueAtTime(1, startAt + cur.len - 2.5); roundGain.gain.linearRampToValueAtTime(0, startAt + cur.len);
   } else fallbackT0 = performance.now();
-  state = 'playing'; figTarget = 0; figReveal = 0; doneT = 0; hp = HP_START; hurtT = 0; failing = false; failT = 0; hideGacha();
+  state = 'playing'; figTarget = 0; figReveal = 0; doneT = 0; hp = HP_START; hurtT = 0; failing = false; failT = 0; ending = false; endT = 0; hideGacha();
   for (const m of frames) m.userData.flash = 0;
 }
 function stopSong() { try { src?.stop(); } catch (e) { /* 已停止 */ } src = null; }
-function quitToMenu() { stopSong(); state = 'menu'; view = 'main'; failing = false; hideGacha(); showPending(); hud.mesh.visible = false; panel.mesh.visible = true; recenter(); showFigure(save.sel); drawPanel(); }
+function quitToMenu() { stopSong(); stopPreview(); state = 'menu'; view = 'main'; failing = false; hideGacha(); showPending(); hud.mesh.visible = false; panel.mesh.visible = true; recenter(); showFigure(save.sel); drawPanel(); }
 
 function judge(n, dt, hand) {
   const w = cfg.win, a = Math.abs(dt), k = a <= w[0] ? 0 : a <= w[1] ? 1 : 2;
@@ -268,13 +271,14 @@ function judge(n, dt, hand) {
 let notified = false, prefetched = false;
 // 能量条（参考节奏光剑）：一开始 50%，命中 +1%，漏掉大幅下降，降到 0 就失败（音乐变慢 → LEVEL FAILED → 重来）
 const HP_START = 50, HP_HIT = 1, HP_MISS = { easy: 1.0, normal: 1.8, hard: 4.0 };
-let hp = HP_START, hurtT = 0, failing = false, failT = 0;
+let hp = HP_START, hurtT = 0, failing = false, failT = 0, ending = false, endT = 0;
+const RESULT_DELAY = 3;      // 一局结束后，等 3 秒再弹出结算
 const hpAdd = (v) => { hp = Math.max(0, Math.min(100, hp + v)); };
 function miss(n) {
   n.s = 2; stats.counts[3]++; stats.combo = 0; judgeText = 'MISS'; judgeK = 3; judgeT = 0.4; hudDirty = true;
   if (failing) return; hpAdd(-HP_MISS[save.diff]); hurtT = 0.4;
   if (hp <= 0) {            // 能量耗尽：音乐渐慢，稍等一下再进入失败结算
-    failing = true; failT = 1.1; judgeText = 'LEVEL FAILED'; judgeK = 3; judgeT = 2; controls.haptic(0, 1, 250); controls.haptic(1, 1, 250);
+    failing = true; failT = RESULT_DELAY; judgeText = 'LEVEL FAILED'; judgeK = 3; judgeT = 2; controls.haptic(0, 1, 250); controls.haptic(1, 1, 250);
     try { src?.playbackRate.cancelScheduledValues(0); src?.playbackRate.setValueAtTime(1, actx.currentTime); src?.playbackRate.linearRampToValueAtTime(0.12, actx.currentTime + 1.0); roundGain?.gain.linearRampToValueAtTime(0, actx.currentTime + 1.1); } catch (e) { /* ignore */ }
     tone(330, 0, 1.0, 'sawtooth', 0.12, 70);
   }
@@ -307,13 +311,14 @@ function updatePlay(dt) {
   figTarget = Math.min(1, stats.hits / Math.max(1, cfg.need * stats.total));
   if (!prefetched && now > 15) { prefetched = true; if (cur.mode === 90 || !save.pick) newPending(); }   // 长版本不预载，省内存       // 开局后再悄悄预载下一局，避免开场卡顿
   // 结束
-  if (now > cur.len + 1.2 || (notes.length && lo >= notes.length && now > notes[notes.length - 1].t + 1.5)) finish();
+  if (!ending && (now > cur.len || (notes.length && lo >= notes.length && now > notes[notes.length - 1].t + 0.3))) { ending = true; endT = RESULT_DELAY; judgeText = 'COMPLETE'; judgeK = 0; judgeT = RESULT_DELAY; hudDirty = true; burst(0, 1.4, -1.5, 0xffffff, 30); }
+  if (ending) { endT -= dt; if (endT <= 0) finish(); }
   if (now < WARM && now > WARM - 3) { const c = Math.ceil(WARM - now); if (judgeText !== String(c)) { judgeText = String(c); judgeK = 1; judgeT = 0.9; hudDirty = true; } }   // 热身最后 3 秒倒数
 }
 
 function grade(acc) { return acc >= 0.95 ? 'S' : acc >= 0.85 ? 'A' : acc >= 0.7 ? 'B' : acc >= 0.5 ? 'C' : 'D'; }
 function finish(failed = false) {
-  stopSong(); state = 'result'; failing = false; const c = stats.counts, acc = stats.total ? (c[0] + c[1] * 0.8 + c[2] * 0.5) / stats.total : 0, pass = !failed && hitRate() >= cfg.need, m = models[save.sel];
+  stopSong(); state = 'result'; failing = false; ending = false; const c = stats.counts, acc = stats.total ? (c[0] + c[1] * 0.8 + c[2] * 0.5) / stats.total : 0, pass = !failed && hitRate() >= cfg.need, m = models[save.sel];
   const gr = failed ? 'F' : grade(acc), newly = [], newSongs = [];
   if (pass && m && !isUnlocked(m.id)) { save.unlocked.push(m.id); newly.push(m); }
   if (m && !failed) { const old = save.best[m.id]; if (!old || stats.score > old.score) save.best[m.id] = { score: stats.score, grade: gr, diff: save.diff }; }
@@ -409,12 +414,23 @@ function neon(g, s, x, y, fs, c1, al = 'center') { g.save(); g.shadowColor = c1;
 function tile(g, i, x, y, sz, locked, sel) {
   const col = i % 6, row = (i / 6) | 0;
   if (sheet) { g.drawImage(sheet, col * 256, row * 256, 256, 256, x, y, sz, sz); } else { g.fillStyle = '#1a1038'; g.fillRect(x, y, sz, sz); }
-  if (locked) { g.fillStyle = 'rgba(6,2,20,.82)'; g.fillRect(x, y, sz, sz); txt(g, '🔒', x + sz / 2, y + sz / 2 - sz * 0.05, sz * 0.34, '#fff', 'center'); }
+  if (locked) { g.fillStyle = 'rgba(4,1,14,.93)'; g.fillRect(x, y, sz, sz); g.save(); g.globalAlpha = 0.75; txt(g, '🔒', x + sz / 2, y + sz / 2 - sz * 0.05, sz * 0.26, '#fff', 'center'); g.restore(); }
   g.lineWidth = sel ? 4 : 1.5; g.strokeStyle = sel ? '#30f0ff' : 'rgba(255,255,255,.3)'; g.strokeRect(x, y, sz, sz);
 }
 function bg(g, w, h) {
   const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, 'rgba(14,6,40,.94)'); gr.addColorStop(1, 'rgba(6,16,40,.94)');
   rr(g, 4, 4, w - 8, h - 8, 28); g.fillStyle = gr; g.fill(); g.lineWidth = 4; const s = g.createLinearGradient(0, 0, w, 0); s.addColorStop(0, P.a); s.addColorStop(1, P.b); g.strokeStyle = s; g.stroke();
+}
+// 试听：点一首已解锁的歌，随机从中间某处起播 30 秒
+let prevToken = 0, prevSrc = null, prevId = null, prevLoad = null, prevBuf = null;
+function stopPreview() { prevToken++; const s0 = prevSrc; prevSrc = null; prevId = null; prevLoad = null; try { s0?.stop(); } catch (e) { /* 已停止 */ } }
+async function playPreview(sg) {
+  if (!actx || SILENT) return; stopPreview(); const tok = prevToken; prevLoad = sg.id; actx.resume(); drawPanel();
+  let buf = prevBuf && prevBuf.id === sg.id ? prevBuf.buf : null;
+  if (!buf) { try { const ab = await (await fetch(MP3_BASE + encodeURIComponent(sg.file))).arrayBuffer(); buf = await actx.decodeAudioData(ab); } catch (e) { if (tok === prevToken) { prevLoad = null; drawPanel(); } return; } if (tok !== prevToken) return; prevBuf = { id: sg.id, buf }; }
+  const len = Math.min(30, buf.duration), st = Math.random() * Math.max(0, buf.duration - len), sr = actx.createBufferSource(), g = actx.createGain(), t = actx.currentTime + 0.05;
+  sr.buffer = buf; sr.connect(g).connect(musicGain); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + 0.7); g.gain.setValueAtTime(1, t + len - 1.5); g.gain.linearRampToValueAtTime(0, t + len); sr.start(t, st, len);
+  prevSrc = sr; prevLoad = null; prevId = sg.id; sr.onended = () => { if (prevSrc === sr) { prevSrc = null; prevId = null; drawPanel(); } }; drawPanel();
 }
 let spgPages = 1;
 function drawSongs(g) {
@@ -440,6 +456,7 @@ function drawSongs(g) {
     txt(g, op ? `${fmtT(sg.duration)} · ${sg.bpm | 0} BPM` : '🔒 未解锁 · 通关其他歌曲后随机解锁', 760, 570, 19, op ? '#9fb4ff' : '#ffb0e8', 'left');
     const ms = modesFor(sg); ms.forEach((m, k) => btn(g, 'md:' + m, 40 + k * 232, 612, 220, 56, modeName(sg, m), { fs: 24, sel: op && smode === m, dim: !op }));
     btn(g, 'sok', 740, 612, 244, 56, '✓ 选定', { fs: 28, sel: op, dim: !op });
+    if (op) txt(g, prevLoad === sg.id ? '♪ 试听加载中 …' : prevId === sg.id ? '♪ 试听中（随机 30 秒，再点一次换一段）' : '点歌名可试听随机 30 秒', 40, 592, 17, '#ffe9a8');
   } else txt(g, '点选一首歌曲', 512, 640, 24, '#9fb4ff', 'center');
   btn(g, 'srand', 40, 690, 220, 46, '🎲 随机选曲', { fs: 20 }); btn(g, 'sback', 280, 690, 200, 46, '← 返回', { fs: 20 });
   txt(g, '时长：1分30秒（随机片段）· 3分30秒 · 完整版；不足 3分30 的歌没有 3分30 选项', 500, 720, 16, '#7d8fc0', 'left');
@@ -537,32 +554,57 @@ function updateResult(dt) {
 const gachaG = new THREE.Group(); gachaG.visible = false; play.add(gachaG);
 const GBOX = [0xff2fd0, 0x30f0ff, 0xffe35a]; let gboxes = null, gcard = null, gcardCv = null, gcardTex = null, gHover = -1;
 const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), gr = x.createRadialGradient(64, 64, 2, 64, 64, 64); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
-const boxMat = (col) => new THREE.ShaderMaterial({
-  uniforms: { uT: { value: 0 }, uC: { value: new THREE.Color(col) }, uA: { value: 1 } }, transparent: true,
-  vertexShader: 'varying vec2 vUv; varying vec3 vN; void main(){ vUv = uv; vN = normalMatrix * normal; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: 'uniform float uT, uA; uniform vec3 uC; varying vec2 vUv; varying vec3 vN; void main(){ float e = min(min(vUv.x, 1.0 - vUv.x), min(vUv.y, 1.0 - vUv.y)); float edge = smoothstep(0.14, 0.0, e); float sc = 0.5 + 0.5 * sin(vUv.y * 28.0 - uT * 4.0); float fr = pow(1.0 - abs(normalize(vN).z), 2.0); vec3 c = uC * (0.16 + 0.2 * sc + fr * 0.9) + uC * edge * 1.7 + vec3(edge * 0.3); gl_FragColor = vec4(c, uA); }',
-});
+const GLSL_H = 'float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\n';
+const VERT = 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; varying vec3 vP; void main(){ vUv = uv; vP = position; vN = normalMatrix * normal; vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = -mv.xyz; gl_Position = projectionMatrix * mv; }';
+const shMat = (frag, col, extra = {}) => new THREE.ShaderMaterial({ uniforms: { uT: { value: 0 }, uC: { value: new THREE.Color(col) }, uA: { value: 1 }, uH: { value: 0 }, uF: { value: 0 }, uSeed: { value: Math.random() * 50 }, ...extra }, vertexShader: VERT, fragmentShader: GLSL_H + frag, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+// 面板：电路走线 + 流动脉冲 + 故障位移 + 色散 + 扫描带 + 菲涅尔边缘光
+const FRAG_FACE = `uniform float uT, uA, uH, uSeed; uniform vec3 uC; varying vec2 vUv; varying vec3 vN; varying vec3 vV;
+float pat(vec2 uv){ vec2 g = uv * 7.0, id = floor(g), f = fract(g); float h = hash(id + uSeed), hz = step(0.5, h);
+  float tr = mix(smoothstep(0.06, 0.0, abs(f.x - 0.5)), smoothstep(0.06, 0.0, abs(f.y - 0.5)), hz), along = mix(g.y, g.x, hz);
+  float pulse = pow(0.5 + 0.5 * sin(along * 2.2 - uT * (2.0 + h * 3.0) + h * 40.0), 6.0), node = smoothstep(0.17, 0.0, length(f - 0.5)) * step(0.72, h);
+  return tr * (0.22 + pulse * 1.7) + node * 1.5; }
+void main(){ vec2 uv = vUv; float gl = step(0.962, hash(vec2(floor(uT * 7.0), floor(uv.y * 12.0)))); uv.x += gl * 0.14 * (hash(vec2(floor(uT * 7.0), 3.0)) - 0.5) * 2.0;
+  float sp = 0.012 + gl * 0.035, r = pat(uv + vec2(sp, 0.0)), g = pat(uv), b = pat(uv - vec2(sp, 0.0));
+  vec3 col = uC * g + vec3(1.0, 0.1, 0.6) * max(r - g, 0.0) + vec3(0.1, 0.9, 1.0) * max(b - g, 0.0) + uC * 0.07;
+  float e = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y)); float fr = smoothstep(0.07, 0.0, e); col += uC * fr * 1.6 + vec3(fr * 0.4);
+  float band = exp(-pow((fract(vUv.y - uT * 0.4) - 0.5) * 12.0, 2.0)); col += uC * band * 0.55;
+  float rim = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.5); col += uC * rim * 0.7;
+  gl_FragColor = vec4(col * (1.0 + uH * 0.7), uA); }`;
+// 核心：流动的等离子能量球
+const FRAG_CORE = `uniform float uT, uA, uF; uniform vec3 uC; varying vec3 vP; varying vec3 vN; varying vec3 vV;
+void main(){ vec3 p = vP * 70.0; float n = sin(p.x + uT * 3.0) * sin(p.y * 0.9 - uT * 2.3) + sin(p.z * 1.1 + uT * 3.7) * cos(p.x * 0.8 - uT * 1.7) + sin((p.x + p.y + p.z) * 0.6 + uT * 2.0);
+  float pl = 0.5 + 0.5 * sin(n * 2.4 + uT * 4.0), rim = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.0);
+  vec3 col = mix(uC * 0.55, vec3(1.0), pl * pl * 0.9) + uC * rim * 1.2; col *= 1.0 + uF * 3.5; gl_FragColor = vec4(col, uA); }`;
+// 光柱：向上流动的环
+const FRAG_BEAM = `uniform float uT, uA; uniform vec3 uC; varying vec2 vUv;
+void main(){ float v = vUv.y, ring = pow(0.5 + 0.5 * sin(v * 46.0 - uT * 11.0), 5.0), a = (0.18 + 0.82 * ring) * smoothstep(1.0, 0.35, v) * smoothstep(0.0, 0.05, v); gl_FragColor = vec4(mix(uC, vec3(1.0), ring * 0.6), a * uA); }`;
+const FACES = [[[1, 0, 0], [0, 1.5708, 0]], [[-1, 0, 0], [0, -1.5708, 0]], [[0, 1, 0], [-1.5708, 0, 0]], [[0, -1, 0], [1.5708, 0, 0]], [[0, 0, 1], [0, 0, 0]], [[0, 0, -1], [0, 3.14159, 0]]];
 function ensureBoxes() {
   if (gboxes) return; gboxes = GBOX.map((col, i) => {
-    const g = new THREE.Group(), mat = boxMat(col);
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, 0.2), mat); body.position.y = -0.03;
-    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.215, 0.06, 0.215), mat); lid.position.y = 0.07;
-    const wire = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.29, 0.29, 0.29)), new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
-    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: col, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); glow.scale.setScalar(0.95);
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.13, 1.5, 20, 1, true), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })); beam.position.y = 0.8;
-    g.add(body, lid, wire, glow, beam); g.userData = { i, body, lid, wire, glow, beam, mat, col, open: -1, hov: 0 }; gachaG.add(g); return g;
+    const g = new THREE.Group(), fm = shMat(FRAG_FACE, col), cm = shMat(FRAG_CORE, col), bm = shMat(FRAG_BEAM, col), faces = [];
+    for (const [n, r] of FACES) { const f = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.22), fm); f.position.set(n[0] * 0.11, n[1] * 0.11, n[2] * 0.11); f.rotation.set(r[0], r[1], r[2]); f.userData = { n: new THREE.Vector3(...n), q0: f.quaternion.clone() }; faces.push(f); g.add(f); }
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.07, 3), cm);
+    const ringM = () => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+    const ring1 = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.0045, 6, 72), ringM()), ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.0035, 6, 64), ringM());
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: col, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })); glow.scale.setScalar(1.0);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.11, 1.6, 24, 1, true), bm); beam.position.y = 0.85; beam.visible = false;
+    const shock = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.0, 64).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })); shock.visible = false;
+    const pick = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.26, 0.26), new THREE.MeshBasicMaterial({ visible: false }));
+    g.add(core, ring1, ring2, glow, beam, shock, pick);
+    g.traverse((o) => { if (o.material && o !== pick) { o.material.depthTest = false; o.renderOrder = 60; } });
+    g.userData = { i, faces, fm, cm, bm, core, ring1, ring2, glow, beam, shock, pick, col, open: -1, hov: 0 }; gachaG.add(g); return g;
   });
 }
 const clamp01 = (v) => Math.min(1, Math.max(0, v)), easeOutBack = (k) => 1 + 2.70158 * Math.pow(k - 1, 3) + 1.70158 * Math.pow(k - 1, 2);
 const gachaTargets = () => { const y = headY - 0.45, z = -0.72; return [[-0.36, y, z], [0, y + 0.05, z - 0.05], [0.36, y, z]]; };
 function hideGacha() { gachaG.visible = false; if (gcard) gcard.visible = false; gHover = -1; }
-function startGacha() {
+function startGacha() {   // （赛博版）
   if (!result?.gacha) return; ensureBoxes(); gachaG.visible = true; result.gacha.t = 0; result.gacha.opened = -1; gHover = -1; if (gcard) gcard.visible = false;
-  for (const b of gboxes) { const u = b.userData; u.open = -1; u.hov = 0; u.mat.uniforms.uA.value = 1; u.beam.material.opacity = 0; u.lid.position.set(0, 0.07, 0); u.lid.rotation.set(0, 0, 0); u.lid.visible = true; u.glow.material.opacity = 0.8; b.visible = true; b.scale.setScalar(0.01); }
+  for (const b of gboxes) { const u = b.userData; u.open = -1; u.hov = 0; for (const m of [u.fm, u.cm, u.bm]) m.uniforms.uA.value = 1; u.cm.uniforms.uF.value = 0; u.beam.visible = false; u.shock.visible = false; u.core.scale.setScalar(1); u.glow.material.opacity = 0.8; u.ring1.visible = u.ring2.visible = true; u.faces.forEach((f) => { f.position.copy(f.userData.n).multiplyScalar(0.11); f.quaternion.copy(f.userData.q0); f.scale.setScalar(1); }); b.visible = true; b.scale.setScalar(0.01); }
   sfxWhoosh();
 }
 const gachaLive = () => state === 'result' && result?.gacha && gachaG.visible && result.gacha.opened < 0 && result.gacha.t > 1.1;
-function gachaRay(r) { const ms = gboxes.flatMap((b) => [b.userData.body, b.userData.lid]); const h = r.intersectObjects(ms, false)[0]; return h ? gboxes.find((b) => b.userData.body === h.object || b.userData.lid === h.object) : null; }
+function gachaRay(r) { const h = r.intersectObjects(gboxes.map((b) => b.userData.pick), false)[0]; return h ? gboxes.find((b) => b.userData.pick === h.object) : null; }
 function drawCard(bx) {
   if (!gcardCv) { gcardCv = document.createElement('canvas'); gcardCv.width = 640; gcardCv.height = 380; gcardTex = new THREE.CanvasTexture(gcardCv); gcardTex.colorSpace = THREE.SRGBColorSpace; gcard = new THREE.Mesh(new THREE.PlaneGeometry(0.64, 0.38), new THREE.MeshBasicMaterial({ map: gcardTex, transparent: true, depthWrite: false, toneMapped: false })); gcard.renderOrder = 70; gachaG.add(gcard); }
   const g = gcardCv.getContext('2d'); g.clearRect(0, 0, 640, 380); rr(g, 6, 6, 628, 368, 28); const gr = g.createLinearGradient(0, 0, 640, 380); gr.addColorStop(0, 'rgba(24,8,60,.96)'); gr.addColorStop(1, 'rgba(6,24,56,.96)'); g.fillStyle = gr; g.fill(); g.lineWidth = 5; g.strokeStyle = '#ffe35a'; g.stroke();
@@ -579,7 +621,7 @@ function openBox(i) {
   const p = gboxes[i].position; burst(p.x, p.y + 0.1, p.z, u.col, 70); burst(p.x, p.y + 0.15, p.z, 0xffffff, 40); burst(p.x, p.y + 0.1, p.z, 0xffe35a, 40);
   drawCard(bx); gcard.visible = true; gcard.userData.k = 0; gcard.userData.i = i; drawPanel();
 }
-const gTip = new THREE.Vector3(), gCam = new THREE.Vector3();
+const gTip = new THREE.Vector3(), gCam = new THREE.Vector3(), AX_Z = new THREE.Vector3(0, 0, 1);
 function updateGacha(dt) {
   if (!gachaG.visible || !result?.gacha) return; const G = result.gacha; G.t += dt; const tg = gachaTargets();
   gboxes.forEach((b, i) => {
@@ -587,9 +629,17 @@ function updateGacha(dt) {
     b.position.set(tg[i][0] * e, (headY - 0.08) + (tg[i][1] - (headY - 0.08)) * e + Math.sin(T * 2 + i * 2) * 0.015 * k, -1.55 + (tg[i][2] + 1.55) * e);
     let s = (0.15 + 0.85 * e) * (1 + u.hov * 0.14), fade = 1;
     if (G.opened >= 0 && G.opened !== i) { fade = 1 - clamp01((G.t - G.openT - 0.35) / 0.7); s *= fade; }
-    b.scale.setScalar(Math.max(0.001, s)); b.rotation.y = T * (k < 1 ? 3 : 0.7) + i; u.wire.rotation.set(T * 0.6, -T * 0.9, 0); u.mat.uniforms.uT.value = T; u.mat.uniforms.uA.value = fade;
-    u.glow.material.opacity = (0.55 + 0.25 * Math.sin(T * 3 + i)) * fade * (u.open >= 0 ? 1.6 : 1); u.wire.material.opacity = 0.8 * fade;
-    if (u.open >= 0) { u.open += dt; const o = clamp01(u.open / 0.8), q = 1 - Math.pow(1 - o, 3); u.lid.position.y = 0.07 + q * 0.7; u.lid.rotation.set(q * 3, 0, q * 2.2); u.lid.visible = u.open < 1.2; u.beam.material.opacity = Math.min(0.55, u.open * 1.5) * (0.75 + 0.25 * Math.sin(T * 14)) * (u.open > 3 ? Math.max(0, 1 - (u.open - 3)) : 1); }
+    b.scale.setScalar(Math.max(0.001, s)); b.rotation.y = T * (k < 1 ? 3 : 0.5) + i; b.rotation.x = Math.sin(T * 0.7 + i) * 0.12;
+    const op = u.open >= 0, q = op ? 1 - Math.pow(1 - clamp01(u.open / 0.75), 3) : 0;
+    for (const m of [u.fm, u.cm, u.bm]) { m.uniforms.uT.value = T; m.uniforms.uA.value = fade; } u.fm.uniforms.uH.value = u.hov; u.fm.uniforms.uA.value = fade * (1 - q * 0.85);
+    u.cm.uniforms.uF.value = op ? Math.max(0, 1.2 - u.open * 0.8) + u.hov * 0 : u.hov * 0.5 + 0.12 * Math.sin(T * 3 + i); u.core.scale.setScalar(1 + q * 1.6 + 0.06 * Math.sin(T * 6 + i)); u.core.rotation.set(T * 0.9, T * 1.3, 0);
+    u.ring1.rotation.set(T * 1.1 + i, T * 0.7, 0.4); u.ring2.rotation.set(-T * 0.8, T * 1.4 + i, 1.1); u.ring1.material.opacity = u.ring2.material.opacity = 0.85 * fade * (1 - q * 0.6);
+    u.faces.forEach((f, fi) => { f.position.copy(f.userData.n).multiplyScalar(0.11 + q * 0.8); f.quaternion.copy(f.userData.q0).multiply(tmpQ.setFromAxisAngle(AX_Z, q * (2.2 + fi * 0.5) * (fi % 2 ? -1 : 1))); f.scale.setScalar(1 + q * 0.5); });
+    u.glow.material.opacity = (0.5 + 0.2 * Math.sin(T * 3 + i)) * fade * (op ? 1.8 : 1) + u.hov * 0.25; u.glow.scale.setScalar(op ? 1.0 + q * 1.6 : 1.0);
+    if (op) {
+      u.open += dt; u.beam.visible = true; u.bm.uniforms.uA.value = Math.min(0.9, u.open * 2.2) * fade * (u.open > 3 ? Math.max(0, 1 - (u.open - 3)) : 1);
+      const sk = clamp01(u.open / 1.1); u.shock.visible = sk < 1; u.shock.scale.setScalar(0.15 + sk * 3.2); u.shock.material.opacity = (1 - sk) * 0.9;
+    }
   });
   if (gcard?.visible && G.opened >= 0) {
     const bp = gboxes[G.opened].position; gcard.userData.k = Math.min(1, gcard.userData.k + dt / 0.6); const e = easeOutBack(Math.min(1, Math.max(0, (G.t - G.openT - 0.25) / 0.6)));
@@ -633,6 +683,7 @@ function drawHud() {
 // ---------- 面板交互 ----------
 function click(id) {
   if (!id) return;
+  if (['sok', 'sback', 'srand', 'reroll', 'start', 'again', 'menu', 'gallery', 'back'].includes(id)) stopPreview();
   if (id === 'skip') { if (resT < RES_END) resT = RES_END; drawPanel(); return; }
   if (state === 'result' && (id === 'again' || id === 'menu' || id === 'gallery') && !btnsReady()) return;
   if (id.startsWith('d:')) { save.diff = id.slice(2); cfg = DIFFS[save.diff]; persist(); }
@@ -644,7 +695,7 @@ function click(id) {
   else if (id === 'songs') { view = 'songs'; spick = save.pick?.id || pending?.song.id || null; const ix = songs.findIndex((x) => x.id === spick); if (ix >= 0) spage = (ix / 16) | 0; const sg0 = songs[ix]; smode = sg0 ? (save.pick && save.pick.id === spick ? save.pick.mode : pending?.mode ?? modesFor(sg0)[0]) : 90; }
   else if (id === 'sback') { view = 'main'; }
   else if (id.startsWith('spg:')) { spage = (spage + +id.slice(4) + spgPages) % spgPages; }
-  else if (id.startsWith('sg:')) { spick = id.slice(3); const sg = songs.find((x) => x.id === spick), ms = modesFor(sg); smode = save.pick && save.pick.id === spick && ms.includes(save.pick.mode) ? save.pick.mode : ms[0]; }
+  else if (id.startsWith('sg:')) { spick = id.slice(3); const sg = songs.find((x) => x.id === spick), ms = modesFor(sg); smode = save.pick && save.pick.id === spick && ms.includes(save.pick.mode) ? save.pick.mode : ms[0]; if (songOpen(sg.id)) playPreview(sg); else stopPreview(); }
   else if (id.startsWith('md:')) { const sg = songs.find((x) => x.id === spick); if (sg && songOpen(sg.id)) { const m = id.slice(3) === 'full' ? 'full' : +id.slice(3); if (modesFor(sg).includes(m)) smode = m; } }
   else if (id === 'sok') { const sg = songs.find((x) => x.id === spick); if (sg && songOpen(sg.id)) { save.pick = { id: sg.id, mode: smode }; persist(); view = 'main'; newPending(); showPending(); return; } }
   else if (id === 'start' || id === 'again') { if (pReady()) { if (actx) actx.resume(); startSong(); } }
@@ -757,7 +808,7 @@ async function activate() {
   recenter(); layoutFrames(); showPending(); showFigure(save.sel);
 }
 function deactivate() {
-  if (!active) return; active = false; stopSong(); state = 'menu'; hideGacha(); hud.mesh.visible = false; noteCore.count = noteWire.count = 0;
+  if (!active) return; active = false; stopSong(); stopPreview(); state = 'menu'; hideGacha(); hud.mesh.visible = false; noteCore.count = noteWire.count = 0;
   for (let i = 0; i < 2; i++) { app.rig.add(renderer.xr.getController(i), renderer.xr.getControllerGrip(i)); ctrls[i].laser.visible = ctrls[i].tip.visible = ctrls[i].halo.visible = false; }
   if (app.envs && app.envs.cur >= 0) app.envs.set(app.envs.cur);        // 把展厅的调色板还回去
   if (app.st?.music) app.music?.start();

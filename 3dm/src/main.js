@@ -199,6 +199,13 @@ async function startXR(mode) {          // mode: 'vr' | 'ar'（ar = Quest 彩色
 }
 const startVR = () => startXR('vr'), startMR = () => startXR('ar');
 renderer.xr.addEventListener('sessionstart', () => { ui.dom.style.display = 'none'; app.resetRig(); app.toggleUI(true); camera.position.set(0, 0, 0); app.setPassthrough(app.sessionMode === 'ar'); });
+renderer.xr.addEventListener('sessionstart', () => {      // 左手「菜单」键（三横）通常会唤出系统菜单：从系统菜单回来时，顺便把我们的菜单呼出来
+  const ss = renderer.xr.getSession(); if (!ss) return; let blurred = false;
+  ss.addEventListener('visibilitychange', () => {
+    if (ss.visibilityState !== 'visible') blurred = true;
+    else if (blurred) { blurred = false; if (!window.GM?.active && !app.st.uiOpen) app.toggleUI(true); }
+  });
+});
 renderer.xr.addEventListener('sessionend', () => { app.sessionMode = null; app.setPassthrough(false); camera.position.set(0, 1.6, 0); app.toggleUI(st.uiOpen); document.getElementById('launcher')?.classList.remove('hide'); started = false; });
 window.DM.startVR = startVR; window.DM.startMR = startMR; window.DM.startDesktop = startDesktop;
 app.openGame = () => window.DM.openGame();

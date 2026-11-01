@@ -1,4 +1,4 @@
-// 8 个霓虹赛博环境。每个环境 = { root, update(t,dt,cam), onPalette() }，全部由 GPU 着色器驱动，没有贴图。
+// 13 个霓虹赛博环境。每个环境 = { root, update(t,dt,cam), onPalette() }，全部由 GPU 着色器驱动，没有贴图。
 // 调色板 PAL 里的 Color 对象被所有着色器直接引用，色相/亮度滑块改的是同一个对象，立即生效。
 import * as THREE from 'three';
 import { GLSL_NOISE, GLSL_GRID, GLSL_HDR, mulberry32 } from './util.js';
@@ -394,6 +394,137 @@ function envStudio() {
   return { root, update: upd, onPalette: upd };
 }
 
+
+// ======== 9. 激光舞台 LASER STAGE ========
+function envLaser() {
+  const root = new THREE.Group();
+  root.add(sky(`void main(){ vec3 d = normalize(vD); vec3 c = mix(uMid * 0.16, uTop * 0.3, smoothstep(0.0, 0.9, d.y)); c = mix(c, uBot * 0.2, smoothstep(0.0, -0.3, d.y));
+      c += uA * 0.05 * exp(-pow(d.y * 3.0, 2.0)) * (1.0 + uAud); gl_FragColor = vec4(c, 1.0); ${END} }`));
+  // LED 地砖：随节拍闪烁的方格
+  root.add(floor(`void main(){ vec2 p = vW.xz; float r = length(p); float d = length(vW - cameraPosition); vec2 cell = floor(p / 2.0), f = fract(p / 2.0); float h = hash21(cell);
+      float flick = step(0.62, hash21(cell + floor(uT * (1.5 + h * 3.0) + h * 9.0))); float edge = step(0.06, f.x) * step(f.x, 0.94) * step(0.06, f.y) * step(f.y, 0.94);
+      vec3 col = uBot * 0.25 + mix(uA, uB, h) * flick * edge * (0.35 + uAud * 0.6) * uGlow * (1.0 - smoothstep(10.0, 70.0, r));
+      col += uC * smoothstep(0.08, 0.0, abs(r - 5.6)) * 1.5 * uGlow + (uA + uB) * 0.04 * uGlow * edge; gl_FragColor = vec4(fogMix(col, d), 1.0); ${END} }`));
+  // 激光束：两侧灯架 + 顶部扇形，随时间 / 音量扫动
+  const beams = [], Y = new THREE.Vector3(0, 1, 0), rigs = new THREE.Group(); root.add(rigs);
+  const bg = new THREE.CylinderGeometry(0.03, 0.03, 140, 6, 1, true).translate(0, 70, 0), hg = new THREE.CylinderGeometry(0.5, 0.05, 140, 12, 1, true).translate(0, 70, 0);
+  for (let i = 0; i < 28; i++) {
+    const side = i < 10 ? -1 : i < 20 ? 1 : 0, k = i % 10, g = new THREE.Group();
+    g.position.set(side === 0 ? (i - 24) * 4 : side * 24, side === 0 ? 30 : 4 + k * 0.4, side === 0 ? -20 : -18 + k * 1.6);
+    const b = new THREE.Mesh(bg, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    const h = new THREE.Mesh(hg, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+    g.add(b, h); g.userData = { side, k, ph: i * 1.7, key: ['a', 'b', 'c'][i % 3], mats: [b.material, h.material] }; rigs.add(g); beams.push(g);
+  }
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(90, 34), mat(`varying vec2 vU; void main(){ vU = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    `varying vec2 vU; void main(){ float col = floor(vU.x * 64.0), fx = fract(vU.x * 64.0), fy = fract(vU.y * 24.0);
+      float lvl = 0.25 + 0.75 * hash21(vec2(col, floor(uT * 5.0 + col * 0.3))) * (0.6 + 0.6 * uAud); float on = step(vU.y, lvl * 0.8) * step(0.12, fx) * step(fx, 0.88) * step(0.15, fy);
+      vec3 c = mix(uB, uA, vU.y) * on * 0.8 * uGlow + uC * smoothstep(0.012, 0.0, abs(vU.y - 0.88)) * uGlow; c += mix(uA, uB, vU.x) * 0.05; gl_FragColor = vec4(c, 1.0); ${END} }`));
+  wall.position.set(0, 17, -48); root.add(wall);
+  const trims = []; for (const [rad, y] of [[26, 26], [34, 14]]) { const t = rampMesh(new THREE.TorusGeometry(rad, 0.22, 6, 120), 0xffffff); t.rotation.x = Math.PI / 2; t.position.y = y; root.add(t); trims.push([t.material, y > 20 ? 'a' : 'b']); }
+  root.add(glowDisc(8), motes(500, 3, 28, 0.05, 0.35, 21));
+  const upd = () => { for (const [m, k] of trims) m.color.copy(PAL[k]).multiplyScalar(1.3 * U.uGlow.value); for (const g of beams) { const c = PAL[g.userData.key]; for (const m of g.userData.mats) m.color.copy(c).multiplyScalar(U.uGlow.value); } };
+  return { root, onPalette: upd, update(t) {
+    const au = 1 + U.uAud.value * 0.8;
+    for (const g of beams) { const u = g.userData, s = Math.sin(t * (0.7 + (u.k % 5) * 0.12) * au + u.ph), c = Math.cos(t * 0.9 + u.ph * 0.6);
+      if (u.side === 0) { g.rotation.set(Math.PI + s * 0.5, 0, c * 0.9); } else { g.rotation.set(s * 0.6 + 0.2, 0, -u.side * (0.5 + 0.5 * Math.abs(c)) + 0.0); g.rotation.z = -u.side * (0.35 + 0.55 * (0.5 + 0.5 * c)); g.rotation.x = 0.4 + s * 0.7; } }
+    upd(); } };
+}
+
+// ======== 10. 数字雨 MATRIX RAIN ========
+function envMatrix() {
+  const root = new THREE.Group();
+  root.add(sky(`void main(){ vec3 d = normalize(vD); gl_FragColor = vec4(mix(uMid * 0.12, uTop * 0.2, smoothstep(-0.2, 0.8, d.y)), 1.0); ${END} }`));
+  const rain = (R, cols, alpha, spd, seed) => {
+    const g = new THREE.CylinderGeometry(R, R, 140, 96, 1, true), m = mat(`varying vec3 vL; varying vec3 vW; void main(){ vL = position; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+      `varying vec3 vL; varying vec3 vW; void main(){
+        float ang = atan(vL.x, vL.z) / 6.2831853 + 0.5, cols = ${cols.toFixed(1)}; float cid = floor(ang * cols), fx = fract(ang * cols);
+        float h = hash21(vec2(cid, ${seed.toFixed(1)})), speed = (3.0 + h * 8.0) * ${spd.toFixed(2)}, cellH = 0.95; float yy = -vW.y / cellH, fr = fract(yy), row = floor(yy);
+        float head = mod(uT * speed + h * 90.0, 90.0) - 15.0, dd = head - row; float trail = step(0.0, dd) * exp(-dd * 0.09) * step(dd, 55.0);
+        float flick = floor(uT * (1.5 + h * 4.0) + row * 0.7); vec2 gp = floor(vec2(fx * 3.0, fr * 5.0)); float glyph = step(0.42, hash21(gp + vec2(row * 1.7 + cid, flick + h * 9.0)));
+        float mask = step(0.14, fx) * step(fx, 0.86) * step(0.08, fr) * step(fr, 0.92); float act = step(0.35, h);
+        float headG = smoothstep(1.2, 0.0, abs(dd)) * act; vec3 col = (mix(uB, uA, h * 0.35) * trail * (0.25 + 0.75 * glyph) * 0.9 + vec3(1.0) * headG * 1.3 + uC * headG * 0.6) * mask * act;
+        col *= (1.0 + uAud * 0.8) * uGlow * ${alpha.toFixed(2)}; float d = length(vW - cameraPosition); gl_FragColor = vec4(fogMix(col, d), 1.0); ${END} }`, { side: THREE.BackSide, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+    const mesh = new THREE.Mesh(g, m); mesh.position.y = 20; mesh.frustumCulled = false; return mesh;
+  };
+  root.add(rain(36, 110, 1.0, 1.0, 3), rain(22, 70, 0.85, 1.35, 11), rain(52, 150, 0.6, 0.75, 7));
+  root.add(floor(`void main(){ vec2 p = vW.xz; float r = length(p); float d = length(vW - cameraPosition); float g = gridL(p, 1.0, 1.0) * 0.22 + gridL(p, 5.0, 1.3) * 0.5;
+      float ang = atan(p.x, p.y); float stream = smoothstep(0.4, 0.5, abs(fract(ang * 18.0 / 6.2831853) - 0.5)) * smoothstep(0.0, 1.0, sin(r * 0.6 - uT * 3.0) * 0.5 + 0.5) * smoothstep(6.0, 12.0, r) * exp(-r * 0.03);
+      vec3 col = uBot * 0.3 + (uB * g + uA * stream * 0.9) * uGlow * (1.0 - smoothstep(20.0, 120.0, r)); col += uC * smoothstep(0.08, 0.0, abs(r - 5.5)) * 1.5 * uGlow; gl_FragColor = vec4(fogMix(col, d), 1.0); ${END} }`));
+  root.add(glowDisc(8), motes(500, 3, 26, 0.05, 0.45, 31));
+  return { root, onPalette: () => {}, update() {} };
+}
+
+// ======== 11. 霓虹海洋 NEON OCEAN ========
+function envOcean() {
+  const root = new THREE.Group();
+  const SKYF = `vec3 MD = normalize(vec3(0.0, 0.2, -1.0));
+    vec3 skyCol(vec3 d){ vec3 c = mix(uMid * 0.55, uTop * 0.55, smoothstep(0.0, 0.7, d.y)); c = mix(uB * 0.28, c, smoothstep(0.0, 0.12, d.y));
+      float a = acos(clamp(dot(d, MD), -1.0, 1.0)); float disc = smoothstep(0.2, 0.19, a), ring = exp(-pow((a - 0.29) * 26.0, 2.0)), halo = exp(-a * 5.0);
+      float cut = smoothstep(0.0, 0.01, sin((d.y - MD.y) * 150.0) * 0.5 + 0.5 - (0.55 - (d.y - MD.y) * 2.2)) ; if (d.y < MD.y) disc *= cut;
+      c += uC * disc * 1.6 + uA * ring * 1.1 + uA * halo * 0.4 * (1.0 + uAud * 0.6); float st = step(0.9965, hash21(floor(d.xz / max(d.y + 0.2, 0.2) * 90.0))) * smoothstep(0.1, 0.5, d.y); c += vec3(st) * 0.7; return c; }`;
+  root.add(sky(`${SKYF} void main(){ vec3 d = normalize(vD); gl_FragColor = vec4(skyCol(d) * uGlow, 1.0); ${END} }`));
+  root.add(floor(`${SKYF}
+    float wv(vec2 p){ return fbm2(p * 0.09 + vec2(uT * 0.05, uT * 0.03)) * 3.0 + sin(p.x * 0.35 + uT * 0.9) * 0.18 + sin(p.y * 0.5 - uT * 0.7) * 0.12; }
+    void main(){ vec2 p = vW.xz; vec3 v = normalize(cameraPosition - vW); float e = 0.35; float hx = wv(p + vec2(e, 0.0)) - wv(p - vec2(e, 0.0)), hz = wv(p + vec2(0.0, e)) - wv(p - vec2(0.0, e));
+      vec3 n = normalize(vec3(-hx * 0.9, 1.0, -hz * 0.9)); vec3 r = reflect(-v, n); r.y = abs(r.y); float f = pow(1.0 - max(dot(n, v), 0.0), 4.0) * 0.85 + 0.12;
+      vec3 col = uBot * 0.35 + skyCol(r) * f * uGlow; float a = acos(clamp(dot(normalize(r), MD), -1.0, 1.0)); col += uC * exp(-pow(a * 9.0, 2.0)) * (0.6 + 0.8 * hash21(floor(p * 3.0 + uT * 2.0))) * uGlow;
+      col += uB * gridL(p, 6.0, 1.0) * 0.07 * uGlow; float rr = length(p); col += uA * smoothstep(0.1, 0.0, abs(rr - 5.5)) * 1.4 * uGlow; float d = length(vW - cameraPosition); gl_FragColor = vec4(fogMix(col, d), 1.0); ${END} }`));
+  // 远处的霓虹光柱
+  const pil = [], pg = new THREE.CylinderGeometry(0.25, 0.25, 90, 8, 1, true).translate(0, 45, 0);
+  for (let i = 0; i < 18; i++) { const a = i / 18 * 6.2832 + Math.sin(i * 3.1) * 0.2, r = 70 + 40 * Math.abs(Math.sin(i * 2.3)), m = new THREE.Mesh(pg, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    m.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); m.scale.set(1, 0.4 + 0.8 * Math.abs(Math.cos(i * 1.7)), 1); root.add(m); pil.push([m.material, i % 2 ? 'a' : 'b']); }
+  root.add(glowDisc(8), motes(400, 3, 30, 0.05, 0.2, 41));
+  const upd = () => { for (const [m, k] of pil) m.color.copy(PAL[k]).multiplyScalar(U.uGlow.value); };
+  return { root, onPalette: upd, update: upd };
+}
+
+// ======== 12. 晶体洞窟 CRYSTAL CAVERN ========
+function envCrystal() {
+  const root = new THREE.Group();
+  root.add(sky(`void main(){ vec3 d = normalize(vD); vec3 c = mix(uBot * 0.4, uTop * 0.5, smoothstep(-0.3, 0.9, d.y)); c += uA * 0.05 * fbm3(d * 3.0 + uT * 0.03) ; gl_FragColor = vec4(c, 1.0); ${END} }`));
+  root.add(floor(`void main(){ vec2 p = vW.xz; float r = length(p); float d = length(vW - cameraPosition); float v = fbm2(p * 0.12 + 3.0); float vein = smoothstep(0.035, 0.0, abs(v - 0.5)) + 0.5 * smoothstep(0.02, 0.0, abs(fbm2(p * 0.3) - 0.5));
+      float pulse = 0.55 + 0.45 * sin(r * 0.25 - uT * 1.6 - uAud * 2.0); vec3 col = uBot * 0.3 + mix(uA, uB, fbm2(p * 0.05)) * vein * pulse * 0.9 * uGlow * (1.0 - smoothstep(30.0, 150.0, r));
+      col += uC * smoothstep(0.08, 0.0, abs(r - 5.5)) * 1.5 * uGlow; gl_FragColor = vec4(fogMix(col, d), 1.0); ${END} }`));
+  const cm = mat(`varying vec3 vW; varying float vH; varying float vId; void main(){ vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0); vW = w.xyz; vH = position.y + 0.5; vId = float(gl_InstanceID); gl_Position = projectionMatrix * viewMatrix * w; }`,
+    `varying vec3 vW; varying float vH; varying float vId; void main(){ vec3 N = normalize(cross(dFdx(vW), dFdy(vW))); vec3 V = normalize(cameraPosition - vW); if (dot(N, V) < 0.0) N = -N;
+      float h = hash21(vec2(vId, 3.0)); vec3 base = mix(uA, uB, h); vec3 L = normalize(vec3(0.4, 0.8, 0.3)); float diff = max(dot(N, L), 0.0), rim = pow(1.0 - max(dot(N, V), 0.0), 2.5);
+      float pulse = 0.5 + 0.5 * sin(uT * 1.5 + vId * 0.9 + uAud * 3.0); vec3 col = base * (0.1 + 0.4 * diff + 0.5 * pow(vH, 1.5) * (0.6 + 0.6 * pulse)) + uC * rim * 0.6 + mix(base, uC, 0.6) * smoothstep(0.85, 1.0, vH) * 0.8;
+      col *= uGlow; gl_FragColor = vec4(fogMix(col, length(vW - cameraPosition)), 1.0); ${END} }`);
+  const mkCr = (n, up, seed) => { const r = mulberry32(seed), im = new THREE.InstancedMesh(new THREE.ConeGeometry(1, 1, 5), cm, n), M = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), P = new THREE.Vector3(), S = new THREE.Vector3();
+    for (let i = 0; i < n; i++) { const a = r() * 6.2832, rad = 9 + Math.pow(r(), 0.8) * 90, hh = 4 + Math.pow(r(), 2) * 30 * (0.4 + rad / 90), w = 0.7 + r() * 2.2;
+      e.set((r() - 0.5) * 0.35 + (up ? 0 : Math.PI), r() * 6.2832, (r() - 0.5) * 0.35); q.setFromEuler(e); P.set(Math.cos(a) * rad, up ? hh / 2 - 0.5 : 55 - hh / 2, Math.sin(a) * rad); S.set(w, hh, w); M.compose(P, q, S); im.setMatrixAt(i, M); }
+    im.frustumCulled = false; return im; };
+  root.add(mkCr(170, true, 17), mkCr(70, false, 29), glowDisc(8), motes(600, 3, 30, 0.06, 0.15, 51));
+  return { root, onPalette: () => {}, update() {} };
+}
+
+// ======== 13. 星环空间站 ORBITAL RINGS ========
+function envOrbit() {
+  const root = new THREE.Group();
+  root.add(sky(`void main(){ vec3 d = normalize(vD); vec3 c = mix(uMid * 0.1, uTop * 0.25, smoothstep(-0.4, 0.8, d.y)) + uA * 0.04 * fbm3(d * 3.0 + 4.0);
+      vec3 q = floor(d * 240.0); float s = step(0.9915, h3(q)); c += vec3(s) * (0.5 + 0.5 * sin(uT * 2.0 + h3(q + 3.0) * 30.0));
+      vec3 pd = normalize(vec3(-0.55, 0.22, -0.8)); float a = acos(clamp(dot(d, pd), -1.0, 1.0)), R = 0.36;
+      if (a < R) { vec3 loc = d - pd; float band = fbm2(vec2(loc.y * 9.0 + fbm2(loc.xz * 6.0) * 1.2, loc.x * 1.5)); float lit = smoothstep(-0.2, 0.7, dot(normalize(d - pd * cos(a)) + vec3(0.0), vec3(0.6, 0.5, 0.4)) * (a / R) + 0.45);
+        vec3 pc = mix(uTop * 0.7, uA, band) * (0.12 + lit * 0.9); pc += uB * pow(a / R, 6.0) * 0.9; c = pc; }
+      c += uB * exp(-pow((a - R) * 28.0, 2.0)) * 0.9 * uGlow * step(R, a) + uB * exp(-(a - R) * 9.0) * 0.12 * step(R, a);
+      gl_FragColor = vec4(c, 1.0); ${END} }`));
+  const ringMat = (seed) => mat(`varying vec2 vU; varying vec3 vN; varying vec3 vV; void main(){ vU = uv; vN = normalMatrix * normal; vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = -mv.xyz; gl_Position = projectionMatrix * mv; }`,
+    `varying vec2 vU; varying vec3 vN; varying vec3 vV; void main(){ float seg = floor(vU.x * 140.0), fx = fract(vU.x * 140.0), h = hash21(vec2(seg, ${seed.toFixed(1)}));
+      float win = step(0.62, h) * step(0.15, fx) * step(fx, 0.85) * step(0.2, vU.y) * step(vU.y, 0.8) * (0.6 + 0.4 * sin(uT * 2.0 + h * 40.0));
+      float chase = smoothstep(0.9, 1.0, fract(vU.x * 2.0 - uT * 0.12 * (${seed.toFixed(1)} > 5.0 ? -1.0 : 1.0))); float rim = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.0);
+      vec3 col = uMid * 0.35 + mix(uA, uB, h) * win * 1.3 * uGlow + uC * chase * 0.9 * uGlow + uB * rim * 0.5; col *= 1.0 + uAud * 0.4; gl_FragColor = vec4(fogMix(col, length(vV)), 1.0); ${END} }`, { side: THREE.DoubleSide });
+  const rings = [];
+  for (const [R, tube, ax, sp, seed] of [[30, 1.2, [0.35, 0, 0.1], 0.05, 3], [42, 1.6, [-0.5, 0, 0.25], -0.035, 8], [56, 2.0, [0.15, 0, -0.35], 0.025, 5]]) {
+    const m = new THREE.Mesh(new THREE.TorusGeometry(R, tube, 14, 180), ringMat(seed)); m.rotation.set(ax[0] + Math.PI / 2, ax[1], ax[2]); m.position.y = 12; m.frustumCulled = false; m.userData.sp = sp; root.add(m); rings.push(m); }
+  const thin = []; for (const [R, y] of [[14, 0.02], [18, 0.02]]) { const t = rampMesh(new THREE.TorusGeometry(R, 0.06, 6, 128), 0xffffff); t.rotation.x = Math.PI / 2; t.position.y = y; root.add(t); thin.push([t.material, R < 15 ? 'b' : 'a']); }
+  root.add(floor(`void main(){ vec2 p = vW.xz; float r = length(p); float g = gridL(p, 1.0, 1.0) * 0.18 + gridL(p, 4.0, 1.3) * 0.45; float ang = atan(p.x, p.y);
+      float spokes = smoothstep(0.46, 0.5, abs(fract(ang * 16.0 / 6.2831853) - 0.5)) * smoothstep(5.0, 8.0, r); float a = 1.0 - smoothstep(11.0, 13.0, r);
+      vec3 col = uBot * 0.6 + (uA * g + uB * spokes * 0.7 + uC * smoothstep(0.1, 0.0, abs(r - 5.5)) * 1.4) * uGlow; col += uB * smoothstep(0.15, 0.0, abs(r - 12.0)) * 1.3 * uGlow; gl_FragColor = vec4(col, a); ${END} }`, { radius: 14, transparent: true, side: THREE.DoubleSide }));
+  root.add(glowDisc(8), motes(500, 3, 40, 0.05, 0.2, 61));
+  const upd = () => { for (const [m, k] of thin) m.color.copy(PAL[k]).multiplyScalar(1.4 * U.uGlow.value); };
+  return { root, onPalette: upd, update(t, dt) { for (const m of rings) m.rotation.z += dt * m.userData.sp; upd(); } };
+}
+
 // ---------- 环境清单 ----------
 const P = (a, b, c, top, mid, bot) => ({ a, b, c, top, mid, bot });
 export const ENV_DEFS = [
@@ -405,6 +536,11 @@ export const ENV_DEFS = [
   { id: 'aurora', zh: '极光雪原', en: 'AURORA',     make: envAurora,  fog: 0.0035, light: 'aurora', pal: P(0x40ff9a, 0x7a50ff, 0xff50d8, 0x020a1c, 0x0a2a48, 0x03101c) },
   { id: 'eclipse',zh: '黑日余烬', en: 'ECLIPSE',    make: envEclipse, fog: 0.006,  light: 'blood',  pal: P(0xff4a10, 0xff2fa0, 0xffc040, 0x120208, 0x4a0a10, 0x0a0204) },
   { id: 'studio', zh: '极简棚拍', en: 'STUDIO',     make: envStudio,  fog: 0.003,  light: 'studio', pal: P(0xff40d0, 0x30e8ff, 0xffffff, 0x06040e, 0x1a1030, 0x020106) },
+  { id: 'laser',  zh: '激光舞台', en: 'LASER STAGE', make: envLaser,  fog: 0.0045, light: 'cyber',  pal: P(0xff2fd0, 0x30f0ff, 0xffe040, 0x06021a, 0x1a0a3a, 0x030010) },
+  { id: 'matrix', zh: '数字雨',   en: 'MATRIX RAIN', make: envMatrix, fog: 0.004,  light: 'holo',   pal: P(0x30ff9a, 0x20d0ff, 0xe0ffe8, 0x011208, 0x03301c, 0x000a05) },
+  { id: 'ocean',  zh: '霓虹海洋', en: 'NEON OCEAN',  make: envOcean,  fog: 0.0035, light: 'sunset', pal: P(0xff3fa0, 0x30e0ff, 0xffd070, 0x08042a, 0x3a1070, 0x04021a) },
+  { id: 'crystal',zh: '晶体洞窟', en: 'CRYSTAL CAVE', make: envCrystal, fog: 0.007, light: 'cyber',  pal: P(0xa040ff, 0x30f0d0, 0xff60c0, 0x040210, 0x1a0838, 0x020108) },
+  { id: 'orbit',  zh: '星环空间站', en: 'ORBITAL RINGS', make: envOrbit, fog: 0.0015, light: 'holo', pal: P(0x40a0ff, 0xff50b0, 0xffe08a, 0x01030c, 0x0a1840, 0x010208) },
 ];
 
 export class Envs {

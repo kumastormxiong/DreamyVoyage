@@ -123,14 +123,15 @@ export class Controls {
       const gp = h.src.gamepad, b = gp.buttons, ax = gp.axes, prev = this.prev[side];
       const P = (i) => !!b[i]?.pressed, edge = (i) => P(i) && !prev[i];
       info[side] = { P, edge, ax, trig: P(0), grip: P(1) };
-      info[side].cur = [0, 1, 2, 3, 4, 5].map((i) => P(i));
+      info[side].cur = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => P(i));
     }
     const L = info.left, R = info.right;
     // 菜单/换模型/重置
     const holding = !!(this.carry.left || this.carry.right);
     const lh = this.hotSide.left, lSel = lh && lh.k !== 'main';
     if (L && L.edge(4) && lSel) this.toggleSelect(lh.node);       // 左手光圈碰着空中的手办时，X = 选中 / 取消选中（用来批量隐藏）
-    if (L) { if (L.edge(3)) A.toggleUI(); if (!holding && !lSel && L.edge(4)) A.prev(); if (!holding && L.edge(5)) A.next(); }
+    if (L) { if (L.edge(3) || L.edge(7) || L.edge(8) || L.edge(9)) A.toggleUI();   // 左摇杆按下；或左手「菜单」键（若浏览器把它作为额外按键报告）
+      if (!holding && !lSel && L.edge(4)) A.prev(); if (!holding && L.edge(5)) A.next(); }
     if (R) { if (R.edge(3)) { A.resetStage(); } }
     // 飞行 + 转向
     let boost = false;

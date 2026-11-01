@@ -129,8 +129,8 @@ export class UI {
       btn(947, y, 301, 58, '跟随环境 LINK', () => { S.lightFollow = !S.lightFollow; }, { active: S.lightFollow, size: 25 }); y += 70;
       Object.entries(PRESETS).forEach(([k, p], i) => btn(32 + i * 204, y, 196, 58, p.zh, () => { A.lights.apply(k); A.touchLight(); this.say('灯光预设：' + p.zh); }, { active: A.lights.preset === k, size: 25 }));
     } else if (this.tab === 3) {
-      ENV_DEFS.forEach((d, i) => W.push({ t: 'env', x: 32 + (i % 4) * 308, y: y + Math.floor(i / 4) * 126, w: 292, h: 114, def: d, fn: () => A.setEnv(i), active: S.envIdx === i }));
-      y += 2 * 126 + 10; const sy = 62;
+      ENV_DEFS.forEach((d, i) => W.push({ t: 'env', x: 32 + (i % 5) * 245, y: y + Math.floor(i / 5) * 98, w: 235, h: 88, def: d, fn: () => A.setEnv(i), active: S.envIdx === i }));
+      y += Math.ceil(ENV_DEFS.length / 5) * 98 + 8; const sy = 62;
       slider(y, '雾 FOG', () => S.fog, (v) => { S.fog = v; }, 0, 3, (v) => v.toFixed(2)); y += sy;
       slider(y, '霓虹色相 HUE', () => S.hue, (v) => { S.hue = v; PAL.hue = v; A.paletteChanged(); }, -0.5, 0.5, (v) => Math.round(v * 360) + '°', { rainbow: true, onEnd: () => A.rebuildEnvMap() }); y += sy;
       slider(y, '霓虹亮度 GLOW', () => S.glow, (v) => { S.glow = v; A.paletteChanged(); }, 0.2, 2.5, (v) => v.toFixed(2)); y += sy;
@@ -190,10 +190,10 @@ export class UI {
       this.rr(w.x, w.y, w.w, w.h, 18); const gg = c.createLinearGradient(w.x, w.y, w.x + w.w, w.y + w.h);
       const hx = (n) => '#' + n.toString(16).padStart(6, '0');
       gg.addColorStop(0, hx(d.pal.top)); gg.addColorStop(0.55, hx(d.pal.mid)); gg.addColorStop(1, hx(d.pal.bot)); c.fillStyle = gg; c.fill();
-      c.fillStyle = hx(d.pal.a); c.fillRect(w.x + 18, w.y + w.h - 20, 74, 6); c.fillStyle = hx(d.pal.b); c.fillRect(w.x + 98, w.y + w.h - 20, 74, 6); c.fillStyle = hx(d.pal.c); c.fillRect(w.x + 178, w.y + w.h - 20, 74, 6);
+      c.fillStyle = hx(d.pal.a); c.fillRect(w.x + 14, w.y + w.h - 14, 62, 5); c.fillStyle = hx(d.pal.b); c.fillRect(w.x + 82, w.y + w.h - 14, 62, 5); c.fillStyle = hx(d.pal.c); c.fillRect(w.x + 150, w.y + w.h - 14, 62, 5);
       this.rr(w.x, w.y, w.w, w.h, 18);
       if (w.active) { const g2 = c.createLinearGradient(w.x, w.y, w.x + w.w, w.y); g2.addColorStop(0, a); g2.addColorStop(1, b); c.strokeStyle = g2; c.lineWidth = 6; } else { c.strokeStyle = hov ? '#fff' : 'rgba(255,255,255,0.3)'; c.lineWidth = hov ? 5 : 2; }
-      c.stroke(); this.txt(d.zh, w.x + 18, w.y + 36, 34, '#fff', 'left', 800); this.txt(d.en, w.x + 18, w.y + 72, 21, 'rgba(255,255,255,0.8)', 'left', 600);
+      c.stroke(); this.txt(d.zh, w.x + 14, w.y + 30, 29, '#fff', 'left', 800); this.txt(d.en, w.x + 14, w.y + 58, 16, 'rgba(255,255,255,0.8)', 'left', 600);
     } else if (w.t === 'sl') {
       const tx = w.tx, tw = w.tw, ty = w.y + w.h / 2, v = w.get(), t = this.toT(w, v);
       this.txt(w.label, w.x, ty, 27, '#dfe6ff', 'left', 600);
