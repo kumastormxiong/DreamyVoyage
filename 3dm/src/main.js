@@ -14,7 +14,8 @@ const qual = Q.get('q') || (quest3 ? 'high' : 'mid');
 const FB = { low: 0.8, mid: 1.0, high: 1.25 }[qual] ?? 1.0;
 
 // ---------- 渲染器 / 场景 / 玩家平台 ----------
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: TEST });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: TEST });
+renderer.setClearColor(0x000000, 1);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1;
 renderer.xr.enabled = true; renderer.xr.setReferenceSpaceType('local-floor'); renderer.xr.setFoveation(Math.min(1, Math.max(0, parseFloat(new URLSearchParams(location.search).get('fov') ?? '0') || 0))); renderer.xr.setFramebufferScaleFactor(FB);
@@ -31,8 +32,9 @@ const st = {
   lightAuto: false, orbs: true, lightFollow: true, selLight: 0,
   envIdx: 0, fog: 1, hue: 0, glow: 1, envInt: 1, particles: 0.7, music: true, vol: 0.55, react: 1,
   speed: 6, autoSpeed: true, snap: true, invertY: false, uiOpen: true,
+  rotSpeed: 0.35, galCount: 12, dropScale: 0.6, placeMode: false, spinPlaced: false, mainVisible: true, pass: false,
 };
-const app = { renderer, scene, camera, rig, st, statusText: '正在加载 …' };
+const app = { renderer, scene, camera, rig, st, statusText: '正在加载 …', sessionMode: null };
 window.DM = { app, U, PAL };
 
 const envs = new Envs(scene);
@@ -74,7 +76,7 @@ app.setEnv = (i) => {
   i = (i + ENV_DEFS.length) % ENV_DEFS.length; st.envIdx = i;
   const d = envs.set(i);
   if (st.lightFollow) lights.apply(d.light);
-  app.rebuildEnvMap(); fadeT = 1; ui.say('环境：' + d.zh + ' ' + d.en); ui.invalidate();
+  app.rebuildEnvMap(); fadeT = st.pass ? 0 : 1; ui.say('环境：' + d.zh + ' ' + d.en); ui.invalidate();
 };
 app.setMode = (m) => {
   if (st.mode === m) return;
@@ -86,12 +88,49 @@ app.selectModel = (i) => {
   if (st.mode !== 'showcase') { st.mode = 'showcase'; stage.resetTransform(); stage.setMode('showcase'); app.resetRig(); }
   stage.showModel(i); ui.invalidate();
 };
-app.next = () => { if (st.mode === 'gallery') { stage.index = (stage.index + 1) % stage.count; ui.invalidate(); } else stage.next(1); };
-app.prev = () => { if (st.mode === 'gallery') { stage.index = (stage.index + stage.count - 1) % stage.count; ui.invalidate(); } else stage.next(-1); };
+app.next = () => { if (st.mode === 'gallery') app.galPage(1); else stage.next(1); };
+app.prev = () => { if (st.mode === 'gallery') app.galPage(-1); else stage.next(-1); };
+app.galPage = (d) => { stage.galleryPage(d); ui.say(`画廊 第 ${stage.galPage + 1}/${stage.galPages} 页`); ui.invalidate(); };
+app.setGalCount = (n) => { st.galCount = n; stage.setGallery(n, Math.floor(stage.index / n)); ui.say(`画廊每页 ${n} 个`); ui.invalidate(); };
 app.resetStage = () => { stage.resetTransform(); ui.say('模型已重置'); ui.invalidate(); };
 app.resetRig = () => {
   rig.position.set(0, 0, st.mode === 'gallery' ? 0 : 2.5); rig.rotation.set(0, 0, 0); controls.yaw = 0; controls.pitch = 0;
 };
+// ---------- MR 透视 + 多模型摆放 ----------
+const floorY = () => (st.pass ? rig.position.y : 0);
+app.floorY = floorY;
+app.setPassthrough = (on) => {
+  st.pass = on; envs.group.visible = !on; renderer.setClearAlpha(on ? 0 : 1); fadeT = 0;
+  ui.say(on ? 'MR 透视：开（背景为真实房间）' : 'MR 透视：关（虚拟环境）'); ui.invalidate();
+};
+app.toggleMR = () => {
+  if (app.sessionMode === 'ar') app.setPassthrough(!st.pass);
+  else if (app.sessionMode === 'vr') {
+    try { localStorage.setItem('dm_want_mr', '1'); } catch (e) { /* 无痕模式 */ }
+    ui.say('正在退出 VR … 回到页面后点「进入 MR 透视」');
+    setTimeout(() => renderer.xr.getSession()?.end(), 900);
+  } else ui.say('MR 透视只能在 Quest 头显浏览器里用');
+  ui.invalidate();
+};
+app.placeAt = (pos) => {
+  if (st.mode !== 'showcase') { ui.say('摆放只在展台模式使用'); return; }
+  camera.getWorldPosition(tmpH);
+  const yaw = Math.atan2(tmpH.x - pos.x, tmpH.z - pos.z);
+  stage.addPlaced(stage.index, pos, yaw, st.dropScale).then((it) => {
+    if (!it) ui.say('场景已满（最多 16 个），先移除几个'); else ui.say(`已放入 #${stage.index + 1}（场景 ${stage.placed.length} 个）`);
+    ui.invalidate();
+  });
+  ui.invalidate();
+};
+app.addHere = () => {          // 放在面前 1.6 米的地面上，多个时左右错开
+  rig.updateMatrixWorld(true); camera.getWorldPosition(tmpH); camera.getWorldDirection(tmpF); tmpF.y = 0; if (tmpF.lengthSq() < 1e-4) tmpF.set(0, 0, -1); tmpF.normalize();
+  const right = new THREE.Vector3().crossVectors(tmpF, new THREE.Vector3(0, 1, 0)), k = stage.placed.length;
+  const pos = tmpH.clone().addScaledVector(tmpF, 1.6).addScaledVector(right, (((k % 5) - 2) * 0.55) * Math.max(0.5, st.dropScale)); pos.y = floorY();
+  app.placeAt(pos);
+};
+app.removeSel = () => { if (stage.sel < 0) { ui.say('先选中一个已摆放的模型'); return; } stage.removeSelected(); ui.say('已移除'); ui.invalidate(); };
+app.clearPlaced = () => { stage.clearPlaced(); ui.say('场景已清空'); ui.invalidate(); };
+app.setMainVisible = (v) => { st.mainVisible = v; stage.setMainVisible(v); ui.invalidate(); };
 app.toggleMusic = () => { st.music = !st.music; if (st.music) music.start(); else music.stop(); ui.invalidate(); };
 app.userGesture = () => { if (st.music && !music.on) music.start(); };
 const tmpH = new THREE.Vector3(), tmpF = new THREE.Vector3();
@@ -131,11 +170,11 @@ renderer.setAnimationLoop(frame);
 
 // ---------- 启动 ----------
 async function boot() {
-  const manifest = await (await fetch('./models.json')).json();
-  await stage.init(manifest);
+  const manifest = await (await fetch(Q.get('manifest') || './models.json')).json();
+  await stage.init(manifest); stage.rotSpeed = st.rotSpeed; stage.galCount = st.galCount;
   app.setEnv(Number(Q.get('env') ?? 0)); app.applyFx();
   if (Q.has('ui')) app.toggleUI(Q.get('ui') !== '0'); else app.toggleUI(!TEST);
-  ui.tab = Number(Q.get('tab') ?? 0);
+  ui.tab = Number(Q.get('tab') ?? 0); if (Q.get('gc')) { st.galCount = Number(Q.get('gc')); stage.galCount = st.galCount; }
   if (Q.get('gallery') === '1') { st.mode = 'gallery'; stage.setMode('gallery'); app.resetRig(); stage.setHover(-1); } else app.resetRig();
   await stage.showModel(Number(Q.get('model') ?? 0), { instant: TEST });
   if (Q.get('scale')) stage.setScale(Number(Q.get('scale')));
@@ -144,17 +183,20 @@ async function boot() {
   if (TEST) startDesktop();
 }
 function startDesktop() { started = true; document.getElementById('launcher')?.classList.add('hide'); app.toggleUI(st.uiOpen); app.userGesture(); }
-async function startVR() {
+async function startXR(mode) {          // mode: 'vr' | 'ar'（ar = Quest 彩色/黑白透视，MR）
   if (!navigator.xr) { alert('此浏览器不支持 WebXR'); return; }
   try {
     if (st.music) music.start();           // 必须在点击手势内启动音频
-    const session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor', 'layers'] });
+    try { localStorage.removeItem('dm_want_mr'); } catch (e) { /* ignore */ }
+    app.sessionMode = mode;
+    const session = await navigator.xr.requestSession(mode === 'ar' ? 'immersive-ar' : 'immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor', 'layers'] });
     await renderer.xr.setSession(session); started = true;
     document.getElementById('launcher')?.classList.add('hide');
-  } catch (e) { console.error(e); alert('无法进入 VR：' + e.message); }
+  } catch (e) { app.sessionMode = null; console.error(e); alert((mode === 'ar' ? '无法进入 MR：' : '无法进入 VR：') + e.message); }
 }
-renderer.xr.addEventListener('sessionstart', () => { ui.dom.style.display = 'none'; app.resetRig(); app.toggleUI(true); camera.position.set(0, 0, 0); });
-renderer.xr.addEventListener('sessionend', () => { camera.position.set(0, 1.6, 0); app.toggleUI(st.uiOpen); document.getElementById('launcher')?.classList.remove('hide'); started = false; });
-window.DM.startVR = startVR; window.DM.startDesktop = startDesktop;
+const startVR = () => startXR('vr'), startMR = () => startXR('ar');
+renderer.xr.addEventListener('sessionstart', () => { ui.dom.style.display = 'none'; app.resetRig(); app.toggleUI(true); camera.position.set(0, 0, 0); app.setPassthrough(app.sessionMode === 'ar'); });
+renderer.xr.addEventListener('sessionend', () => { app.sessionMode = null; app.setPassthrough(false); camera.position.set(0, 1.6, 0); app.toggleUI(st.uiOpen); document.getElementById('launcher')?.classList.remove('hide'); started = false; });
+window.DM.startVR = startVR; window.DM.startMR = startMR; window.DM.startDesktop = startDesktop;
 if (Q.has('fps')) { const d = document.createElement('div'); Object.assign(d.style, { position: 'fixed', right: '10px', top: '8px', color: '#0f0', font: '14px monospace', zIndex: 50 }); document.body.appendChild(d); let t0 = performance.now(); setInterval(() => { const dt = (performance.now() - t0) / 1000; d.textContent = renderer.info.render.calls + ' calls · ' + Math.round(renderer.info.render.triangles / 1000) + 'k tris · ' + Math.round(fcount / dt) + ' fps'; fcount = 0; t0 = performance.now(); }, 1000); }
 boot().catch((e) => { console.error(e); const el = document.getElementById('status'); if (el) el.textContent = '加载失败：' + e.message; });

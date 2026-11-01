@@ -7,11 +7,12 @@ import { hsColor } from './util.js';
 export const PW = 1280, PH = 960;
 const FONT = '"Noto Sans SC","PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif';
 const css = (c, k = 1) => { const t = c.clone().multiplyScalar(k); return '#' + t.getHexString(); };
-const TABS = ['模型 MODELS', '灯光 LIGHT', '环境 WORLD', '飞行 FLY'];
+const TABS = ['模型 MODEL', '场景 SCENE', '灯光 LIGHT', '环境 WORLD', '飞行 FLY'];
+const PER = 18;   // 菜单里每页缩略图数
 
 export class UI {
   constructor(app) {
-    this.app = app; this.tab = 0; this.widgets = []; this.dirty = true; this.active = null; this.hover = -1; this.toast = ''; this.toastT = 0;
+    this.app = app; this.tab = 0; this.thumbPage = 0; this.widgets = []; this.dirty = true; this.active = null; this.hover = -1; this.toast = ''; this.toastT = 0;
     this.canvas = document.createElement('canvas'); this.canvas.width = PW; this.canvas.height = PH; this.ctx = this.canvas.getContext('2d');
     this.texture = new THREE.CanvasTexture(this.canvas); this.texture.colorSpace = THREE.SRGBColorSpace; this.texture.anisotropy = 4;
     this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.9), new THREE.MeshBasicMaterial({ map: this.texture, transparent: true, toneMapped: false, depthTest: false, side: THREE.DoubleSide }));
@@ -37,25 +38,63 @@ export class UI {
     const slider = (y, label, get, set, min, max, fmt, o = {}) => W.push({ t: 'sl', x: 32, y, w: 1216, h: 52, tx: 322, tw: 776, label, get, set, min, max, fmt, ...o });
     const gap = 12;
     // 标签栏
-    TABS.forEach((n, i) => btn(250 + i * 214, 22, 204, 64, n, () => { this.tab = i; this.dirty = true; }, { active: this.tab === i, size: 27 }));
+    TABS.forEach((n, i) => btn(206 + i * 195, 22, 185, 64, n, () => { this.tab = i; this.dirty = true; }, { active: this.tab === i, size: 23 }));
     btn(1186, 22, 62, 64, '✕', () => A.toggleUI(false), { size: 30 });
     let y = 116;
     const keepActive = () => { if (this.active) this.active = W.find((x) => x.t === 'sl' && x.label === this.active.label) || this.active; };
+    const lb = (x, y, w, h, label, o = {}) => W.push({ t: 'lb', x, y, w, h, label, ...o });
+    const st = A.stage;
     if (this.tab === 0) {
-      btn(32, y, 280, 60, '展台 SHOWCASE', () => A.setMode('showcase'), { active: S.mode === 'showcase' });
-      btn(324, y, 280, 60, '画廊 GALLERY', () => A.setMode('gallery'), { active: S.mode === 'gallery' });
-      y += 72; const cw = 192, ch = 178, g = 12.8;
-      for (let i = 0; i < A.stage.count; i++) {
-        const c = i % 6, r = Math.floor(i / 6);
-        W.push({ t: 'th', x: 32 + c * (cw + g), y: y + r * (ch + 8), w: cw, h: ch, idx: i, fn: () => A.selectModel(i), active: A.stage.index === i && S.mode === 'showcase' });
+      const pages = Math.max(1, Math.ceil(st.count / PER)); this.thumbPage = Math.min(this.thumbPage, pages - 1);
+      btn(32, y, 200, 56, '展台 SHOW', () => A.setMode('showcase'), { active: S.mode === 'showcase', size: 26 });
+      btn(244, y, 200, 56, '画廊 GALLERY', () => A.setMode('gallery'), { active: S.mode === 'gallery', size: 26 });
+      if (pages > 1) {
+        btn(700, y, 110, 56, '◀', () => { this.thumbPage = (this.thumbPage + pages - 1) % pages; this.dirty = true; });
+        btn(822, y, 300, 56, `第 ${this.thumbPage + 1}/${pages} 页 · 共 ${st.count} 个`, null, { noop: true, size: 24 });
+        btn(1134, y, 114, 56, '▶', () => { this.thumbPage = (this.thumbPage + 1) % pages; this.dirty = true; });
+      } else lb(700, y, 548, 56, `共 ${st.count} 个模型`, { size: 24, color: '#9fb4ff' });
+      y += 64; const cw = 192, ch = 160, g = 12.8;
+      for (let k = 0; k < PER; k++) {
+        const i = this.thumbPage * PER + k; if (i >= st.count) break;
+        const c = k % 6, r = Math.floor(k / 6);
+        W.push({ t: 'th', x: 32 + c * (cw + g), y: y + r * (ch + 6), w: cw, h: ch, idx: i, fn: () => A.selectModel(i), active: st.index === i && S.mode === 'showcase' });
       }
-      y += 3 * (178 + 8) + 4;
-      btn(32, y, 290, 60, '◀ 上一个 PREV', () => A.prev()); btn(334, y, 290, 60, '下一个 NEXT ▶', () => A.next());
-      btn(636, y, 290, 60, '自动旋转 SPIN', () => { S.autoRotate = !S.autoRotate; A.stage.autoRotate = S.autoRotate; }, { active: S.autoRotate });
-      btn(938, y, 310, 60, '扫描线 SCAN', () => { S.scan = !S.scan; A.applyFx(); }, { active: S.scan });
-      y += 70;
-      slider(y, '模型大小 SCALE', () => A.stage.scale, (v) => A.stage.setScale(v), 0.02, 80, (v) => '×' + (v < 1 ? v.toFixed(2) : v.toFixed(1)), { log: true });
+      y += 3 * (160 + 6) + 4;
+      btn(32, y, 290, 56, S.mode === 'gallery' ? '◀ 上一页 PREV' : '◀ 上一个 PREV', () => A.prev(), { size: 26 }); btn(334, y, 290, 56, S.mode === 'gallery' ? '下一页 NEXT ▶' : '下一个 NEXT ▶', () => A.next(), { size: 26 });
+      btn(636, y, 290, 56, '自动旋转 SPIN', () => { S.autoRotate = !S.autoRotate; st.autoRotate = S.autoRotate; }, { active: S.autoRotate, size: 26 });
+      btn(938, y, 310, 56, '扫描线 SCAN', () => { S.scan = !S.scan; A.applyFx(); }, { active: S.scan, size: 26 });
+      y += 64;
+      slider(y, '模型大小 SCALE', () => st.tgtScale, (v) => st.setScale(v), 0.02, 80, (v) => '×' + (v < 1 ? v.toFixed(2) : v.toFixed(1)), { log: true }); y += 56;
+      slider(y, '自转速度 SPIN SPEED', () => S.rotSpeed, (v) => { S.rotSpeed = v; st.rotSpeed = v; }, 0, 3, (v) => Math.round(v * 57.3) + '°/s');
     } else if (this.tab === 1) {
+      const pages = st.galPages, sel = st.sel;
+      lb(32, y, 222, 56, '画廊每页 GALLERY', { size: 24, color: css(PAL.a, 1.5), weight: 800 });
+      [3, 6, 12, 18, 24].forEach((n, i) => btn(260 + i * 158, y, 148, 56, n + ' 个', () => A.setGalCount(n), { active: S.galCount === n, size: 26 }));
+      y += 68;
+      btn(260, y, 230, 56, '◀ 上一页', () => A.galPage(-1), { size: 25 });
+      btn(502, y, 330, 56, `第 ${st.galPage + 1}/${pages} 页 · 共 ${st.count} 个`, null, { noop: true, size: 24 });
+      btn(844, y, 230, 56, '下一页 ▶', () => A.galPage(1), { size: 25 });
+      btn(1086, y, 162, 56, '进入画廊', () => A.setMode('gallery'), { size: 25, active: S.mode === 'gallery' });
+      y += 76;
+      lb(32, y, 1216, 40, `多模型摆放 PLACE　已摆 ${st.placed.length} / 16　（当前模型 #${st.index + 1}）`, { size: 26, color: css(PAL.a, 1.5), weight: 800 }); y += 46;
+      btn(32, y, 300, 58, '＋ 放入场景 ADD', () => A.addHere(), { size: 26 });
+      btn(344, y, 300, 58, '摆放模式 AIM', () => { S.placeMode = !S.placeMode; this.say(S.placeMode ? '摆放模式：射线指向地面，扳机放置' : '摆放模式关'); }, { active: S.placeMode, size: 26 });
+      btn(656, y, 300, 58, '移除所选 REMOVE', () => A.removeSel(), { size: 25 });
+      btn(968, y, 280, 58, '清空 CLEAR', () => A.clearPlaced(), { size: 26 });
+      y += 70;
+      btn(32, y, 300, 58, '◀ 选上一个', () => { st.cycleSel(-1); this.dirty = true; }, { size: 25 });
+      btn(344, y, 300, 58, '选下一个 ▶', () => { st.cycleSel(1); this.dirty = true; }, { size: 25 });
+      btn(656, y, 300, 58, S.mainVisible ? '主展台：显示' : '主展台：隐藏', () => A.setMainVisible(!S.mainVisible), { active: S.mainVisible, size: 25 });
+      btn(968, y, 280, 58, '场景自转 SPIN', () => { S.spinPlaced = !S.spinPlaced; st.spinPlaced = S.spinPlaced; }, { active: S.spinPlaced, size: 25 });
+      y += 68;
+      lb(32, y, 1216, 36, '当前选中：' + (sel < 0 ? '主展台模型（#' + (st.curIdx + 1) + '）' : `第 ${sel + 1} 个摆放模型（#${st.placed[sel].idx + 1}）`) + '　— 握把移动 / A·B 缩放 / 滚轮缩放', { size: 24, color: '#e8ecff' }); y += 44;
+      slider(y, '放置大小 DROP', () => S.dropScale, (v) => { S.dropScale = v; }, 0.05, 3, (v) => '×' + v.toFixed(2), { log: true }); y += 56;
+      slider(y, '所选大小 SCALE', () => st.tgtScale, (v) => st.setScale(v), 0.02, 80, (v) => '×' + (v < 1 ? v.toFixed(2) : v.toFixed(1)), { log: true }); y += 66;
+      lb(32, y, 1216, 36, 'MR 透视 PASSTHROUGH', { size: 26, color: css(PAL.a, 1.5), weight: 800 }); y += 42;
+      const ar = A.sessionMode === 'ar';
+      btn(32, y, 700, 62, ar ? (S.pass ? '透视：开　点击关闭（回到虚拟环境）' : '透视：关　点击开启（显示真实房间）') : (A.sessionMode === 'vr' ? '切换到 MR：退出 VR，再点页面「进入 MR」' : 'MR 只能在 Quest 头显里使用'), () => A.toggleMR(), { active: S.pass, size: 25 });
+      lb(750, y, 498, 62, '', { lines: ['开启后背景隐藏，模型摆在真实房间里；', '摆放模式 + 扳机 = 放到射线指向的地面。'], size: 20, color: '#9fb4ff', weight: 500 });
+    } else if (this.tab === 2) {
       const L = A.lights.items[S.selLight];
       A.lights.items.forEach((it, i) => btn(32 + i * 305, y, 293, 60, it.zh, () => { S.selLight = i; this.dirty = true; }, { active: S.selLight === i, tint: css(it.color, 1) }));
       y += 74;
@@ -78,7 +117,7 @@ export class UI {
       btn(642, y, 293, 58, '线框 WIRE', () => { S.wire = !S.wire; A.stage.setWire(S.wire); }, { active: S.wire, size: 25 });
       btn(947, y, 301, 58, '跟随环境 LINK', () => { S.lightFollow = !S.lightFollow; }, { active: S.lightFollow, size: 25 }); y += 70;
       Object.entries(PRESETS).forEach(([k, p], i) => btn(32 + i * 204, y, 196, 58, p.zh, () => { A.lights.apply(k); A.touchLight(); this.say('灯光预设：' + p.zh); }, { active: A.lights.preset === k, size: 25 }));
-    } else if (this.tab === 2) {
+    } else if (this.tab === 3) {
       ENV_DEFS.forEach((d, i) => W.push({ t: 'env', x: 32 + (i % 4) * 308, y: y + Math.floor(i / 4) * 126, w: 292, h: 114, def: d, fn: () => A.setEnv(i), active: S.envIdx === i }));
       y += 2 * 126 + 10; const sy = 62;
       slider(y, '雾 FOG', () => S.fog, (v) => { S.fog = v; }, 0, 3, (v) => v.toFixed(2)); y += sy;
@@ -113,14 +152,15 @@ export class UI {
     const g = c.createLinearGradient(0, 0, PW, PH); g.addColorStop(0, a); g.addColorStop(1, b); c.lineWidth = 5; c.strokeStyle = g; c.shadowColor = a; c.shadowBlur = 18; c.stroke(); c.shadowBlur = 0;
     this.txt('3DM', 40, 46, 42, a, 'left', 800); this.txt('NEON VIEWER', 42, 78, 17, '#9fb4ff', 'left', 600);
     for (let i = 0; i < this.widgets.length; i++) this.drawWidget(this.widgets[i], i === this.hover, a, b);
-    if (this.tab === 3) this.drawHelp();
+    if (this.tab === 4) this.drawHelp();
     // 状态栏
     this.txt(A.statusText || '', 36, PH - 22, 22, '#9fb4ff', 'left', 500);
     if (this.toastT > 0) { const w = 520; this.rr(PW / 2 - w / 2, PH - 84, w, 54, 27); c.fillStyle = 'rgba(0,0,0,0.78)'; c.fill(); c.lineWidth = 2; c.strokeStyle = a; c.stroke(); this.txt(this.toast, PW / 2, PH - 57, 27, '#fff', 'center'); }
     this.texture.needsUpdate = true; this.dirty = false;
   }
   drawWidget(w, hov, a, b) {
-    const c = this.ctx;
+    const c = this.ctx; if (w.noop) hov = false;
+    if (w.t === 'lb') { const L = w.lines || [w.label]; L.forEach((l, i) => this.txt(l, w.x, w.y + (w.h / L.length) * (i + 0.5), w.size || 26, w.color || '#dfe6ff', 'left', w.weight || 600)); return; }
     if (w.t === 'btn' || w.t === 'sw') {
       this.rr(w.x, w.y, w.w, w.h, 16);
       if (w.t === 'sw') { c.fillStyle = w.color; c.fill(); } else { c.fillStyle = w.active ? 'rgba(120,60,255,0.45)' : (hov ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.06)'); c.fill(); }
@@ -129,7 +169,7 @@ export class UI {
       if (w.t === 'btn') { this.txt(w.label, w.x + w.w / 2, w.y + w.h / 2 + 1, w.size || 28, '#fff', 'center'); if (w.tint) { c.fillStyle = w.tint; c.fillRect(w.x + 18, w.y + w.h - 9, w.w - 36, 4); } }
     } else if (w.t === 'th') {
       this.rr(w.x, w.y, w.w, w.h, 18); c.fillStyle = 'rgba(255,255,255,0.05)'; c.fill();
-      if (this.thumbsOk) { c.save(); this.rr(w.x + 3, w.y + 3, w.w - 6, w.h - 6, 15); c.clip(); const col = w.idx % 6, row = Math.floor(w.idx / 6); const iw = this.thumbs.width / 6, ih = this.thumbs.height / 3; c.drawImage(this.thumbs, col * iw, row * ih, iw, ih, w.x + 3, w.y + 3, w.w - 6, w.h - 6); c.restore(); }
+      if (this.thumbsOk) { c.save(); this.rr(w.x + 3, w.y + 3, w.w - 6, w.h - 6, 15); c.clip(); const col = w.idx % 6, row = Math.floor(w.idx / 6); const iw = this.thumbs.width / 6, ih = iw; if (row * ih + ih <= this.thumbs.height + 1) { const dw = w.w - 6, dh = w.h - 6, sh = iw * dh / dw; c.drawImage(this.thumbs, col * iw, row * ih + (ih - sh) * 0.35, iw, sh, w.x + 3, w.y + 3, dw, dh); } c.restore(); }
       this.rr(w.x, w.y, w.w, w.h, 18);
       if (w.active) { const gg = c.createLinearGradient(w.x, w.y, w.x + w.w, w.y + w.h); gg.addColorStop(0, a); gg.addColorStop(1, b); c.strokeStyle = gg; c.lineWidth = 6; } else { c.strokeStyle = hov ? '#fff' : 'rgba(255,255,255,0.22)'; c.lineWidth = hov ? 5 : 2; }
       c.stroke(); this.txt(String(w.idx + 1).padStart(2, '0'), w.x + 14, w.y + 22, 26, '#fff', 'left', 800);
@@ -155,7 +195,7 @@ export class UI {
   }
   drawHelp() {
     const L = [['左摇杆', '沿视线方向 飞行 / 平移'], ['右摇杆 ↔', '转向（快速30° 或 平滑）'], ['右摇杆 ↕', '上升 / 下降'], ['A / B', '模型 放大 / 缩小（按住）'], ['握把', '抓住模型：移动、旋转；双手握把拉开/靠拢 = 巨大化/缩小'],
-      ['X / Y', '上一个 / 下一个 模型'], ['右扳机', '点击菜单 / 选画廊模型；空白处按住 = 加速'], ['左摇杆按下', '显示 / 隐藏菜单'], ['右摇杆按下', '重置模型']];
+      ['X / Y', '上一个 / 下一个 模型（画廊里 = 翻页）'], ['右扳机', '点菜单 / 选画廊模型 / 选中摆放的模型；空白处按住 = 加速'], ['场景页', '放入多个模型、摆放模式、MR 透视'], ['左摇杆按下', '显示 / 隐藏菜单'], ['右摇杆按下', '重置模型']];
     let y = this.helpY + 6;
     for (const [k, v] of L) { this.txt(k, 40, y, 26, css(PAL.a, 1.5), 'left', 800); this.txt(v, 290, y, 25, '#e8ecff', 'left', 500); y += 46; }
     this.txt('桌面预览：拖动鼠标转视角 · WASD/空格/C 飞行 · Shift 加速 · 滚轮 缩放模型 · Q/E 换模型 · Tab 菜单 · G 画廊', 40, y + 14, 22, '#9fb4ff', 'left', 500);

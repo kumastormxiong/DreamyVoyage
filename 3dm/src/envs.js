@@ -39,7 +39,13 @@ function sky(fs, extra) {
 }
 const FLOOR_VS = `varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`;
 function floor(fs, { radius = 1400, transparent = false, extra, side = THREE.FrontSide } = {}) {
-  const g = new THREE.CircleGeometry(radius, 64); g.rotateX(-Math.PI / 2);
+  // 极坐标分环网格：中心附近的三角形足够小（单个大扇形三角面在相机正对圆心时会出现深度精度问题，把展台盖住）
+  const rings = [3, 8, 20, 50, 120, 300, 700, 1400].map((x) => x / 1400 * radius), seg = 72, pos = [0, 0, 0], idx = [];
+  for (const r of rings) for (let k = 0; k < seg; k++) { const t = k / seg * Math.PI * 2; pos.push(Math.cos(t) * r, 0, Math.sin(t) * r); }
+  const at = (ri, k) => 1 + ri * seg + (k % seg);
+  for (let k = 0; k < seg; k++) idx.push(0, at(0, k + 1), at(0, k));
+  for (let ri = 0; ri < rings.length - 1; ri++) for (let k = 0; k < seg; k++) idx.push(at(ri, k), at(ri, k + 1), at(ri + 1, k), at(ri, k + 1), at(ri + 1, k + 1), at(ri + 1, k));
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
   const m = mat(FLOOR_VS, 'varying vec3 vW;\n' + fs, { transparent, extra, side });
   const mesh = new THREE.Mesh(g, m); mesh.frustumCulled = false; return mesh;
 }

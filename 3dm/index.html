@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>3DM · 霓虹展厅</title>
 <link rel="icon" href="data:,">
-<meta name="description" content="虚空造物 · 18 位 3D 模型的霓虹赛博 VR 展厅：Quest 手柄飞行、巨大化、调灯光、切换环境。">
+<meta name="description" content="虚空造物 · 3D 模型的霓虹赛博 VR 展厅：Quest 手柄飞行、巨大化、调灯光、切换环境。">
 <style>
   :root { --a:#ff2fd0; --b:#30f0ff; --bg:#05030f; }
   * { box-sizing: border-box; }
@@ -40,8 +40,9 @@
 <div id="launcher">
   <div class="card">
     <h1>3DM</h1>
-    <div class="sub">霓虹赛博 · 18 位模型展厅 · NEON VIEWER</div>
+    <div class="sub">霓虹赛博 · 模型展厅 · NEON VIEWER</div>
     <button class="primary go" id="bvr" disabled>进入 VR（Quest 浏览器）</button>
+    <button class="go" id="bmr" disabled>进入 MR 透视（Quest，模型叠在真实房间里）</button>
     <button class="go" id="bdesk">桌面预览（鼠标 + 键盘）</button>
     <div id="status">正在加载 …</div>
     <div class="help">
@@ -49,7 +50,7 @@
       <div><b>A / B</b>模型放大 / 缩小（按住）</div>
       <div><b>握把</b>抓住模型移动；<b>双手握把</b>拉开 = 巨大化，靠拢 = 缩小</div>
       <div><b>X / Y</b>上一个 / 下一个　<b>左摇杆按下</b>菜单</div>
-      <div><b>菜单</b>切换模型/画廊 · 调灯光颜色与方位 · 切 8 个环境</div>
+      <div><b>菜单</b>切换模型/画廊（每页 3/6/12/18/24 个）· 同场景摆放多个模型 · MR 透视 · 调灯光与环境</div>
     </div>
     <div class="foot">© 虚空造物 · <a href="/">dreamy.voyage</a> · <a href="/vrmv/">ChainedGhost VR</a></div>
   </div>
@@ -60,7 +61,10 @@
   const wait = () => new Promise((r) => { const t = setInterval(() => { if (window.DM && window.DM.startVR) { clearInterval(t); r(); } }, 60); });
   await wait();
   desk.onclick = () => window.DM.startDesktop();
+  const mr = document.getElementById('bmr');
+  let want = false; try { want = localStorage.getItem('dm_want_mr') === '1'; } catch (e) {}
   if (navigator.xr) {
+    try { const okAR = await navigator.xr.isSessionSupported('immersive-ar'); if (okAR) { mr.disabled = false; mr.onclick = () => window.DM.startMR(); if (want) { mr.classList.add('primary'); mr.textContent = '▶ 点这里进入 MR 透视'; } } else mr.textContent = '此设备不支持 MR 透视（需 Quest 浏览器）'; } catch (e) { mr.textContent = '无法检测 MR'; }
     try { const ok = await navigator.xr.isSessionSupported('immersive-vr'); if (ok) { vr.disabled = false; vr.onclick = () => window.DM.startVR(); } else vr.textContent = '此设备未检测到 VR（用 Quest 浏览器打开）'; }
     catch (e) { vr.textContent = '无法检测 VR'; }
   } else vr.textContent = '此浏览器不支持 WebXR（用 Quest 浏览器打开）';

@@ -7,7 +7,7 @@ import { clamp } from './util.js';
 
 export const PED_H = 0.55;       // 展台高度（米）
 export const MODEL_H = 1.15;     // 模型归一化后的高度（米）
-const GAL_R = 7.5;               // 画廊圆环半径
+export const MAX_PLACED = 16;    // 场景里最多同时摆放的模型数
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 
 // 材质补丁共享的 uniform（灯光模块会把 rimA/rimB 指向两盏边缘光的颜色对象）
@@ -105,45 +105,117 @@ export class Stage {
     }));
     beam.position.y = PED_H + 0.95; this.show.add(beam); this.beam = beam;
     this.gal.visible = false;
+    // 主展台的点选盒（射线选中主模型 = 取消选择已摆放的模型）
+    const mh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
+    mh.scale.set(1.0, 1.45, 1.0); mh.position.y = PED_H + 0.62; this.show.add(mh); this.mainHit = mh;
+    // 场景里摆放的多个模型（各自独立的位置/旋转/大小）
+    this.scene = scene; this.placedGroup = new THREE.Group(); this.placedGroup.name = 'placed'; scene.add(this.placedGroup);
+    this.placed = []; this.sel = -1; this.spinPlaced = false; this.mainVisible = true;
+    this.galCount = 12; this.galPage = 0; this.galToken = 0; this.galDirty = true; this.galR = 4;
   }
   async init(manifest) {
-    this.list = manifest; this.buildGallery();
+    this.list = manifest;
   }
   get count() { return this.list.length; }
   get scale() { return this.root.scale.x; }
   // 世界坐标里模型的中心（灯光围绕它）
   center(out = new THREE.Vector3()) { return out.copy(this.root.position).addScaledVector(new THREE.Vector3(0, 1, 0), (PED_H + MODEL_H * 0.55) * this.scale); }
 
-  buildGallery() {
-    const N = this.list.length;
+  // ---------- 画廊：每页 galCount 个（3/6/12/18/24），只加载当前页的低面数版本，翻页时释放上一页 ----------
+  get galPages() { return Math.max(1, Math.ceil(this.list.length / this.galCount)); }
+  setGallery(count, page = 0) {
+    this.galCount = count; this.galPage = clamp(page, 0, this.galPages - 1); this.galDirty = true;
+    if (this.mode === 'gallery') { this.rebuildGallery(); this.loadGalleryModels(); }
+  }
+  galleryPage(d) {
+    const n = this.galPages; this.galPage = (((this.galPage + d) % n) + n) % n; this.galDirty = true;
+    if (this.mode === 'gallery') { this.rebuildGallery(); this.loadGalleryModels(); }
+  }
+  slotOf(gi) { return this.slots.find((s) => s.gi === gi); }
+  rebuildGallery() {
+    ++this.galToken;
+    for (const s of this.slots) { if (s.model) disposeObj(s.model); s.lab.material.map?.dispose(); s.lab.material.dispose(); }
+    for (const c of [...this.gal.children]) { this.gal.remove(c); disposeObj(c); }
+    this.slots = [];
+    const N = this.list.length, base = this.galPage * this.galCount, M = Math.max(0, Math.min(this.galCount, N - base));
+    const R = this.galR = Math.max(3.2, M * 0.42);
     const ringMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
-    const big = new THREE.Mesh(new THREE.TorusGeometry(GAL_R, 0.03, 8, 160), ringMat); big.rotation.x = Math.PI / 2; big.position.y = 0.03; this.gal.add(big);
-    const inner = new THREE.Mesh(new THREE.TorusGeometry(GAL_R * 0.35, 0.02, 8, 120), ringMat); inner.rotation.x = Math.PI / 2; inner.position.y = 0.03; this.gal.add(inner);
+    const big = new THREE.Mesh(new THREE.TorusGeometry(R, 0.03, 8, 160), ringMat); big.rotation.x = Math.PI / 2; big.position.y = 0.03; this.gal.add(big);
+    const inner = new THREE.Mesh(new THREE.TorusGeometry(R * 0.35, 0.02, 8, 120), ringMat); inner.rotation.x = Math.PI / 2; inner.position.y = 0.03; this.gal.add(inner);
     this.galRings = [ringMat];
-    for (let i = 0; i < N; i++) {
-      const th = i / N * Math.PI * 2, slot = new THREE.Group();
-      slot.position.set(Math.sin(th) * GAL_R, 0, -Math.cos(th) * GAL_R); slot.rotation.y = -th;
+    for (let k = 0; k < M; k++) {
+      const gi = base + k, th = k / M * Math.PI * 2, slot = new THREE.Group();
+      slot.position.set(Math.sin(th) * R, 0, -Math.cos(th) * R); slot.rotation.y = -th;
       const p = pedestal(0.5); p.ring.material = p.ring.material.clone(); slot.add(p.g);
-      const lab = labelSprite(String(i + 1).padStart(2, '0')); lab.position.set(0, PED_H + MODEL_H + 0.3, 0); slot.add(lab);
+      const lab = labelSprite(String(gi + 1).padStart(2, '0')); lab.position.set(0, PED_H + MODEL_H + 0.3, 0); slot.add(lab);
       const hit = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.9, 1.5), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
-      hit.position.y = PED_H + 0.75; hit.userData.slot = i; slot.add(hit);
+      hit.position.y = PED_H + 0.75; hit.userData.slot = gi; slot.add(hit);
       const holder = new THREE.Group(); holder.position.y = PED_H; slot.add(holder);
-      this.gal.add(slot); this.slots.push({ slot, ped: p, holder, hit, lab, loaded: false, hl: 0 });
+      this.gal.add(slot); this.slots.push({ slot, ped: p, holder, hit, lab, gi, loaded: false, hl: 0 });
     }
+    this.galDirty = false;
   }
   async loadGalleryModels() {
-    if (this.galleryLoading) return this.galleryLoading;
-    const queue = this.list.map((_, i) => i);
+    const token = ++this.galToken, queue = this.slots.filter((s) => !s.model), total = this.slots.length;
     const worker = async () => {
-      while (queue.length) {
-        const i = queue.shift(), s = this.slots[i];
-        try { const g = await loader.loadAsync(this.list[i].lod); const h = prepare(g); s.holder.add(h); s.loaded = true; s.model = h; }
-        catch (e) { console.warn('LOD load failed', i, e); }
-        this.onStatus?.(`画廊 ${this.slots.filter((x) => x.loaded).length}/${this.slots.length}`);
+      while (queue.length && token === this.galToken) {
+        const s = queue.shift();
+        try {
+          const g = await loader.loadAsync(this.list[s.gi].lod);
+          if (token !== this.galToken) { disposeObj(g.scene); return; }
+          const h = prepare(g); s.holder.add(h); s.loaded = true; s.model = h;
+        } catch (e) { console.warn('LOD load failed', s.gi, e); }
+        if (token === this.galToken) this.onStatus?.(`画廊 第${this.galPage + 1}/${this.galPages}页 · ${this.slots.filter((x) => x.loaded).length}/${total}`);
       }
     };
-    this.galleryLoading = Promise.all([worker(), worker(), worker()]);
-    return this.galleryLoading;
+    await Promise.all([worker(), worker(), worker()]);
+  }
+
+  // ---------- 场景里摆放多个模型 ----------
+  async addPlaced(idx, pos, rotY = 0, scale = 1) {
+    if (this.placed.length >= MAX_PLACED) return null;
+    const group = new THREE.Group(); group.position.copy(pos); group.rotation.y = rotY; group.scale.setScalar(clamp(scale, 0.01, 120));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.012, 8, 56), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, transparent: true, depthWrite: false }));
+    ring.rotation.x = Math.PI / 2; ring.position.y = 0.012;
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(0.4, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, transparent: true, opacity: 0.1, depthWrite: false, blending: THREE.AdditiveBlending }));
+    disc.rotation.x = -Math.PI / 2; disc.position.y = 0.01;
+    const hit = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }));
+    hit.scale.set(0.8, MODEL_H, 0.8); hit.position.y = MODEL_H / 2;
+    const inner = new THREE.Group(); group.add(ring, disc, hit, inner);
+    const item = { idx, group, inner, ring, disc, hit, model: null, reveal: 0, hl: 0, removed: false };
+    hit.userData.placed = item;
+    this.placedGroup.add(group); this.placed.push(item); this.sel = this.placed.length - 1;
+    try {
+      const g = await loader.loadAsync(this.list[idx].lod);
+      if (item.removed) { disposeObj(g.scene); return item; }
+      const h = prepare(g); inner.add(h); item.model = h;
+      const sz = h.userData.size; hit.scale.set(Math.max(sz.x, 0.3) * 1.1, sz.y * 1.05, Math.max(sz.z, 0.3) * 1.1); hit.position.y = sz.y * 0.525;
+      for (const m of h.userData.mats) { m.userData.uReveal.value = 0; if (this.wire) m.wireframe = true; }
+    } catch (e) { console.warn('place load failed', idx, e); }
+    this.onStatus?.(`场景中 ${this.placed.length} 个模型`);
+    return item;
+  }
+  removePlaced(item) {
+    const i = this.placed.indexOf(item); if (i < 0) return;
+    item.removed = true; this.placed.splice(i, 1); this.placedGroup.remove(item.group);
+    disposeObj(item.group); item.group.traverse((n) => { if (n.material && !n.isMesh) n.material.dispose?.(); });
+    if (this.sel === i) this.sel = Math.min(i, this.placed.length - 1); else if (this.sel > i) this.sel--;
+    this.onStatus?.(`场景中 ${this.placed.length} 个模型`);
+  }
+  removeSelected() { if (this.sel >= 0) this.removePlaced(this.placed[this.sel]); }
+  clearPlaced() { for (const it of [...this.placed]) this.removePlaced(it); this.sel = -1; }
+  select(i) { this.sel = i < 0 || i >= this.placed.length ? -1 : i; }
+  cycleSel(d) { const n = this.placed.length; if (!n) return; const k = this.sel + d; this.sel = k < -1 ? n - 1 : k >= n ? -1 : k; }   // -1 = 主展台
+  get target() { return (this.sel >= 0 && this.placed[this.sel]) ? this.placed[this.sel].group : this.root; }
+  get tgtScale() { return this.target.scale.x; }
+  setMainVisible(v) { this.mainVisible = v; this.show.visible = this.mode === 'showcase' && v; }
+  // 射线选中：摆放的模型或主展台模型
+  pickItem(raycaster) {
+    if (this.mode !== 'showcase') return null;
+    this.root.updateMatrixWorld(true); this.placedGroup.updateMatrixWorld(true);
+    const objs = this.placed.map((p) => p.hit); if (this.show.visible) objs.push(this.mainHit);
+    const hits = raycaster.intersectObjects(objs, false); if (!hits.length) return null;
+    const o = hits[0].object; return o.userData.placed ? { k: 'placed', item: o.userData.placed, dist: hits[0].distance } : { k: 'main', dist: hits[0].distance };
   }
 
   async getFull(i) {
@@ -176,8 +248,13 @@ export class Stage {
   next(d = 1) { this.showModel(this.index + d); }
 
   setMode(mode) {
-    this.mode = mode; this.show.visible = mode === 'showcase'; this.gal.visible = mode === 'gallery';
-    if (mode === 'gallery') this.loadGalleryModels();
+    const was = this.mode; this.mode = mode;
+    this.show.visible = mode === 'showcase' && this.mainVisible; this.gal.visible = mode === 'gallery'; this.placedGroup.visible = mode === 'showcase';
+    if (mode === 'gallery') {
+      if (was !== 'gallery') { const pg = Math.floor(this.index / this.galCount); if (pg !== this.galPage) { this.galPage = pg; this.galDirty = true; } }
+      if (this.galDirty) this.rebuildGallery();
+      this.loadGalleryModels();
+    }
   }
 
   // 射线拾取画廊里的模型 → 序号或 -1
@@ -185,7 +262,7 @@ export class Stage {
     if (this.mode !== 'gallery') return -1;
     this.root.updateMatrixWorld(true);
     const hits = raycaster.intersectObjects(this.slots.map((s) => s.hit), false);
-    return hits.length ? hits[0].object.userData.slot : -1;
+    return hits.length ? hits[0].object.userData.slot : -1;   // 返回全局模型序号
   }
   setHover(i) { this.hover = i; }
 
@@ -202,8 +279,8 @@ export class Stage {
     } else {
       this.galRings[0].color.copy(PAL.b).multiplyScalar(1.2 * pulse);
       for (let i = 0; i < this.slots.length; i++) {
-        const s = this.slots[i], on = i === this.hover || i === this.index;
-        s.hl += ((i === this.hover ? 1 : i === this.index ? 0.55 : 0) - s.hl) * Math.min(1, dt * 8);
+        const s = this.slots[i];
+        s.hl += ((s.gi === this.hover ? 1 : s.gi === this.index ? 0.55 : 0) - s.hl) * Math.min(1, dt * 8);
         s.ped.ring.material.color.copy(PAL.a).multiplyScalar((0.5 + 2.2 * s.hl) * pulse);
         s.ped.ring2.material.color.copy(PAL.b).multiplyScalar((0.4 + 1.2 * s.hl) * pulse);
         if (s.model) { s.model.rotation.y = Math.sin(t * 0.5 + i) * 0.2 * (1 - s.hl) + s.hl * Math.sin(t * 1.2) * 0.35; s.model.scale.setScalar(1 + 0.08 * s.hl); }
@@ -211,9 +288,25 @@ export class Stage {
       }
     }
     this.beam.visible = this.mode === 'showcase';
+    if (this.mode === 'showcase') {
+      for (let i = 0; i < this.placed.length; i++) {
+        const it = this.placed[i], on = i === this.sel;
+        it.hl += ((on ? 1 : 0) - it.hl) * Math.min(1, dt * 8);
+        it.ring.material.color.copy(on ? PAL.b : PAL.a).multiplyScalar((0.5 + 1.8 * it.hl) * pulse); it.ring.material.opacity = 0.6 + 0.4 * it.hl;
+        it.disc.material.color.copy(PAL.a).multiplyScalar(0.5 + it.hl);
+        if (it.model) {
+          if (this.spinPlaced) it.inner.rotation.y += this.rotSpeed * dt;
+          if (it.reveal < 1) { it.reveal = Math.min(1, it.reveal + dt / 1.0); for (const m of it.model.userData.mats) m.userData.uReveal.value = it.reveal; }
+        }
+      }
+    }
   }
 
-  setWire(on) { for (const h of this.cache.values()) h.then((hh) => hh.userData.mats.forEach((m) => { m.wireframe = on; })).catch(() => {}); this.wire = on; }
+  setWire(on) {
+    for (const h of this.cache.values()) h.then((hh) => hh.userData.mats.forEach((m) => { m.wireframe = on; })).catch(() => {});
+    for (const it of this.placed) it.model?.userData.mats.forEach((m) => { m.wireframe = on; });
+    this.wire = on;
+  }
   resetTransform() { this.root.position.set(0, 0, 0); this.root.rotation.set(0, 0, 0); this.root.scale.setScalar(1); }
-  setScale(s) { this.root.scale.setScalar(clamp(s, 0.01, 120)); }
+  setScale(s) { this.target.scale.setScalar(clamp(s, 0.01, 120)); }     // 缩放当前选中的对象（默认是主展台）
 }

@@ -45,6 +45,9 @@ export class Controls {
       else if (e.code === 'KeyR') { A.resetStage(); A.resetRig(); }
       else if (/^Digit[1-8]$/.test(e.code)) A.setEnv(+e.code.slice(5) - 1);
       else if (e.code === 'KeyM') A.toggleMusic();
+      else if (e.code === 'KeyP') A.addHere();
+      else if (e.code === 'Delete' || e.code === 'Backspace') A.removeSel();
+      else if (e.code === 'KeyT') { A.stage.cycleSel(1); A.ui.invalidate(); }
       else if (e.code === 'KeyF') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.(); }
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
@@ -57,14 +60,20 @@ export class Controls {
     el.addEventListener('pointerup', (e) => {
       if (A.renderer.xr.isPresenting) return;
       if (this.drag && this.drag.moved < 6 && A.st.mode === 'gallery') { const i = this.deskPick(e); if (i >= 0) A.selectModel(i); }
+      else if (this.drag && this.drag.moved < 6 && A.st.mode === 'showcase') {
+        this.deskRay(e);
+        if (A.st.placeMode) { const pt = this.floorHit(this.ray.ray); if (pt) A.placeAt(pt); }
+        else { const h = A.stage.pickItem(this.ray); if (h) { A.stage.select(h.k === 'placed' ? A.stage.placed.indexOf(h.item) : -1); A.ui.invalidate(); } }
+      }
       this.drag = null;
     });
-    el.addEventListener('wheel', (e) => { if (A.renderer.xr.isPresenting) return; e.preventDefault(); A.stage.setScale(A.stage.scale * Math.exp(-e.deltaY * 0.0012)); A.ui.invalidate(); }, { passive: false });
+    el.addEventListener('wheel', (e) => { if (A.renderer.xr.isPresenting) return; e.preventDefault(); A.stage.setScale(A.stage.tgtScale * Math.exp(-e.deltaY * 0.0012)); A.ui.invalidate(); }, { passive: false });
   }
   deskRay(e) {
     const A = this.app, r = A.renderer.domElement.getBoundingClientRect();
     this.ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), A.camera);
   }
+  floorHit(ray) { const pl = new THREE.Plane(UP, -this.app.floorY()); const p = ray.intersectPlane(pl, new THREE.Vector3()); return p && p.distanceTo(ray.origin) < 40 ? p : null; }
   deskPick(e) { this.deskRay(e); return this.app.stage.pick(this.ray); }
   deskHover(e) { this.app.stage.setHover(this.deskPick(e)); }
 
@@ -84,7 +93,7 @@ export class Controls {
     const dx = rig.position.x - tmpV.x, dzz = rig.position.z - tmpV.z, c = Math.cos(a), s = Math.sin(a);
     rig.position.x = tmpV.x + dx * c + dzz * s; rig.position.z = tmpV.z - dx * s + dzz * c; rig.rotation.y += a;
   }
-  scaleBy(f) { this.app.stage.setScale(this.app.stage.scale * f); this.app.ui.invalidate(); }
+  scaleBy(f) { this.app.stage.setScale(this.app.stage.tgtScale * f); this.app.ui.invalidate(); }
 
   update(dt) {
     const A = this.app;
@@ -145,17 +154,25 @@ export class Controls {
         }
       }
       if (hitUI) anyUiHit = true;
-      if (!hitUI && A.st.mode === 'gallery') { const i = A.stage.pick(this.ray); if (i >= 0) { hoverSlot = i; len = Math.min(len, this.ray.ray.origin.distanceTo(A.stage.slots[i].slot.getWorldPosition(tmpV)) - 0.3); } }
+      if (!hitUI && A.st.mode === 'gallery') { const i = A.stage.pick(this.ray); if (i >= 0) { hoverSlot = i; const sl = A.stage.slotOf(i); if (sl) len = Math.min(len, this.ray.ray.origin.distanceTo(sl.slot.getWorldPosition(tmpV)) - 0.3); } }
+      // 展台模式：射线选中摆放的模型 / 地面落点
+      let itemHit = null, floorPt = null;
+      if (!hitUI && A.st.mode === 'showcase') {
+        itemHit = A.stage.pickItem(this.ray); if (itemHit) len = Math.min(len, itemHit.dist);
+        if (st.placeMode) { floorPt = this.floorHit(this.ray.ray); if (floorPt) len = Math.min(len, this.ray.ray.origin.distanceTo(floorPt)); }
+      }
       // 扳机
       if (I.edge(0)) {
         if (hitUI) { p.down = ui.down(p.px, p.py); this.haptic(side, 0.35, 30); }
         else if (A.st.mode === 'gallery' && hoverSlot >= 0) { A.selectModel(hoverSlot); this.haptic(side, 0.5, 40); }
+        else if (A.st.mode === 'showcase' && st.placeMode && floorPt) { A.placeAt(floorPt); this.haptic(side, 0.5, 40); }
+        else if (itemHit) { A.stage.select(itemHit.k === 'placed' ? A.stage.placed.indexOf(itemHit.item) : -1); A.ui.invalidate(); this.haptic(side, 0.3, 25); }
       }
       if (!I.trig && p.down) { ui.up(); p.down = false; }
-      if (I.trig && !hitUI && !p.down) this.boost = true;
+      if (I.trig && !hitUI && !p.down && !st.placeMode && !itemHit) this.boost = true;
       // 激光显示
-      const show = st.uiOpen || A.st.mode === 'gallery';
-      h.laser.visible = show; h.dot.visible = show && (hitUI || hoverSlot >= 0);
+      const show = st.uiOpen || A.st.mode === 'gallery' || st.placeMode || A.stage.placed.length > 0;
+      h.laser.visible = show; h.dot.visible = show && (hitUI || hoverSlot >= 0 || !!itemHit || !!floorPt);
       h.laser.scale.z = len; h.dot.position.z = -len;
       this.prev[side] = I.cur || [];
     }
@@ -166,12 +183,12 @@ export class Controls {
 
   // 握把：单手抓取移动，双手同时握住 = 缩放+旋转（拉开=巨大化）
   updateGrab(info) {
-    const A = this.app, st = A.stage, L = this.hands.left, R = this.hands.right;
+    const A = this.app, stg = A.stage, st = { root: stg.target, get scale() { return this.root.scale.x; } }, L = this.hands.left, R = this.hands.right;
     const gl = !!(info.left && info.left.grip && L), gr = !!(info.right && info.right.grip && R);
     const pos = (h, out) => h.g.getWorldPosition(out);
     if (gl && gr) {
       const pl = pos(L, new THREE.Vector3()), pr = pos(R, new THREE.Vector3()), mid = pl.clone().add(pr).multiplyScalar(0.5), d = Math.max(pl.distanceTo(pr), 0.04), yaw = Math.atan2(pr.x - pl.x, pr.z - pl.z);
-      if (!this.grabState || this.grabState.k !== 2) { this.grabState = { k: 2, mid, d, yaw, pos: st.root.position.clone(), s: st.scale, ry: st.root.rotation.y }; A.ui.say('双手缩放'); }
+      if (!this.grabState || this.grabState.k !== 2 || this.grabState.root !== st.root) { this.grabState = { root: st.root, k: 2, mid, d, yaw, pos: st.root.position.clone(), s: st.scale, ry: st.root.rotation.y }; A.ui.say('双手缩放'); }
       else {
         const g = this.grabState; let s = clamp(g.s * (d / g.d), 0.01, 120); const k = s / g.s, dy = yaw - g.yaw;
         const off = g.pos.clone().sub(g.mid).applyAxisAngle(UP, dy).multiplyScalar(k);
@@ -179,7 +196,7 @@ export class Controls {
       }
     } else if (gl || gr) {
       const h = gl ? L : R, p = pos(h, new THREE.Vector3());
-      if (!this.grabState || this.grabState.k !== 1 || this.grabState.h !== h) this.grabState = { k: 1, h, p, pos: st.root.position.clone() };
+      if (!this.grabState || this.grabState.k !== 1 || this.grabState.h !== h || this.grabState.root !== st.root) this.grabState = { root: st.root, k: 1, h, p, pos: st.root.position.clone() };
       else st.root.position.copy(this.grabState.pos).add(p.sub(this.grabState.p));
     } else this.grabState = null;
     if (this.grabState && st.root.position.y < 0) st.root.position.y = 0;   // 模型不会被拽到地面以下
