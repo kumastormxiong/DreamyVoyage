@@ -7,6 +7,7 @@ import { Controls } from './input.js';
 import { Music } from './audio.js';
 import { clamp } from './util.js';
 import { LIFE, setLife, tickLife } from './life.js';
+import { loadModels } from './modelstore.js';
 
 const Q = new URLSearchParams(location.search);
 const TEST = Q.has('test');
@@ -173,7 +174,7 @@ renderer.setAnimationLoop(frame);
 
 // ---------- 启动 ----------
 async function boot() {
-  const manifest = await (await fetch(Q.get('manifest') || './models.json')).json();
+  const manifest = await loadModels();
   await stage.init(manifest); stage.rotSpeed = st.rotSpeed; stage.galCount = st.galCount;
   app.setEnv(Number(Q.get('env') ?? 0)); app.applyFx();
   if (Q.has('ui')) app.toggleUI(Q.get('ui') !== '0'); else app.toggleUI(!TEST);

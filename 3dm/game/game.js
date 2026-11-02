@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { Envs, ENV_DEFS, PAL } from '../src/envs.js';
+import { loadModels, migrateProgress } from '../src/modelstore.js';
 import { lifeify, tickLife, LIFE } from '../src/life.js';       // 呼吸方案与展示模式完全一致（同一套着色器 / 同一份设置）     // 复用展厅的 8 个场景
 
 const Q = new URLSearchParams(location.search);
@@ -230,7 +231,7 @@ function showPending() { if (!pending) newPending(); applyEnv(pending.env); draw
 const pReady = () => !!pending && pending.state === 'ok';
 const isUnlocked = (id) => save.unlocked.includes(id);
 async function loadData() {
-  models = await (await fetch('./models.json')).json();
+  models = await loadModels(); if (migrateProgress(save, models)) persist();   // 旧 ID（girl-N）的解锁进度迁到 UUIDv7
   songs = await (await fetch('./game/songs.json')).json();
   sheet = await new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = './thumbs.webp'; });
   save.sel = Math.min(save.sel, models.length - 1);
