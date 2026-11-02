@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 
 export const SPLAT_URL = 'assets/pantheon.sog';
-export const AUDIO_URL = 'audio/ChainedGhost.mp3';
+export const AUDIO_URL = 'https://pub-bd539265c2a1491c845fd2758d51b673.r2.dev/mp3s/ChainedGhost.mp3';
 export const LIFT = 0.9;                // 观众抬高（米）：站在比地面略高的平台上，视野更开阔、离地面伪影更远
 export const EYE = 1.6 + LIFT;          // 预览相机眼高（米）；VR 里是 rig 抬高 LIFT，再加头显自身高度
 

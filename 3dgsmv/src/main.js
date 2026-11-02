@@ -119,6 +119,7 @@ const director = createDirector(tl, LIFT);
 
 // ---------- 音频与播放控制 ----------
 audio = new Audio(new URL(AUDIO_URL, location.href).href);
+audio.crossOrigin = 'anonymous';
 audio.preload = 'auto';
 const secs = tl.sections;
 const toggle = () => { if (T_FIX !== null) return; if (audio.ended) audio.currentTime = 0; audio.paused ? audio.play() : audio.pause(); };

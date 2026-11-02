@@ -99,6 +99,7 @@ for (const [k, w] of Object.entries(worlds)) {
 
 // ---------- 音频与播放控制 ----------
 const audio = new Audio(new URL(AUDIO_FILE, import.meta.url).href);
+audio.crossOrigin = 'anonymous';
 audio.preload = 'auto';
 const secs = tl.sections;
 const toggle = () => { if (audio.ended) audio.currentTime = 0; audio.paused ? audio.play() : audio.pause(); };

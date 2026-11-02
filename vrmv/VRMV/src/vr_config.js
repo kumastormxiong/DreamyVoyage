@@ -2,7 +2,7 @@
 // 1 个场景单位 = 1 米（WebXR 的世界单位就是米）。
 
 export const EYE = 1.6;               // 观众眼睛离脚下平台的高度（米）
-export const AUDIO_FILE = '../audio/ChainedGhost.mp3';   // 相对本文件夹 src/ 的路径
+export const AUDIO_FILE = 'https://pub-bd539265c2a1491c845fd2758d51b673.r2.dev/mp3s/ChainedGhost.mp3';   // 相对本文件夹 src/ 的路径
 
 // 画质：VR 帧缓冲倍率 + 注视点渲染强度（0 关闭 ~ 1 最强，越强越省性能、边缘越模糊）
 export const VR_QUALITY = {

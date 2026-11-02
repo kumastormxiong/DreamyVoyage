@@ -79,7 +79,9 @@ post.reset();
 status('预编译着色器…');
 for (const [k, w] of Object.entries(worlds)) { try { renderer.compile(w.scene, w.camera); } catch (e) { console.warn('compile', k, e); } }
 
-const audio = new Audio(new URL('../audio/' + (vrp.audio || 'song.mp3').split('/').pop(), import.meta.url).href);
+const caosAudioName = (vrp.audio || 'song.mp3').split('/').pop();
+const audio = new Audio('https://pub-bd539265c2a1491c845fd2758d51b673.r2.dev/mp3s/' + (caosAudioName === 'song.mp3' ? 'caos-song.mp3' : caosAudioName));
+audio.crossOrigin = 'anonymous';
 audio.preload = 'auto';
 const secs = tl.sections;
 const toggle = () => { if (audio.ended) audio.currentTime = 0; audio.paused ? audio.play() : audio.pause(); };

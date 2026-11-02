@@ -489,7 +489,7 @@ class BlindTestApp {
         }
 
         // Set Audio source
-        const audioSrc = `../mp3s/${encodeURIComponent(picked.file)}`;
+        const audioSrc = `https://pub-bd539265c2a1491c845fd2758d51b673.r2.dev/mp3s/${encodeURIComponent(picked.file)}`;
         this.audio.src = audioSrc;
         this.audio.load();
 

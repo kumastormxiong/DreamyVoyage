@@ -815,7 +815,7 @@
             await new Promise(r => setTimeout(r, fadeOutDuration * 1000));
         }
 
-        const songUrl = `./mp3s/${encodeURIComponent(item.song)}`;
+        const songUrl = `https://pub-bd539265c2a1491c845fd2758d51b673.r2.dev/mp3s/${encodeURIComponent(item.song)}`;
         audio.src = songUrl;
         audio.load();
 
@@ -1109,7 +1109,8 @@ const VR_TITLE_SCALE = 0.5; // VR 里曲名字号缩小为官方的一半，避�
         // 预加载音频
         const preAudio = new Audio();
         preAudio.preload = 'metadata';
-        preAudio.src = `./mp3s/${encodeURIComponent(next.song)}`;
+        preAudio.crossOrigin = 'anonymous';
+preAudio.src = `https://pub-bd539265c2a1491c845fd2758d51b673.r2.dev/mp3s/${encodeURIComponent(next.song)}`;
 
         // 预加载预设
         if (!presets[next.presetName]) {
