@@ -1,5 +1,5 @@
 // 背景音乐 + 频谱（让霓虹随节奏呼吸）。音乐复用 dreamy.voyage/vrmv 里的 ChainedGhost.mp3，本地调试时按顺序尝试几个位置。
-const CANDIDATES = ['./audio/ChainedGhost.mp3', '/vrmv/VRMV/audio/ChainedGhost.mp3', '../vrmv/VRMV/audio/ChainedGhost.mp3', '../GhostChain_MV/VRMV/audio/ChainedGhost.mp3', '/vrmv/audio/ChainedGhost.mp3', '../GhostChain_MV/VRMV/audio/ChainedGhost.mp3'];
+const CANDIDATES = ['https://pub-bd539265c2a1491c845fd2758d51b673.r2.dev/mp3s/ChainedGhost.mp3', './audio/ChainedGhost.mp3', '/vrmv/VRMV/audio/ChainedGhost.mp3', '../vrmv/VRMV/audio/ChainedGhost.mp3', '../GhostChain_MV/VRMV/audio/ChainedGhost.mp3', '/vrmv/audio/ChainedGhost.mp3', '../GhostChain_MV/VRMV/audio/ChainedGhost.mp3'];
 
 export class Music {
   constructor() { this.on = false; this.level = 0; this.kick = 0; this.ready = false; this.failed = false; this.idx = 0; this.vol = 0.55; }

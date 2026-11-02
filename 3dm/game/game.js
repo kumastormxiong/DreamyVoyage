@@ -17,7 +17,7 @@ const HIT_Z = -0.55, SPEED = 8, TIP_R = 0.17, LEAD = 0.8, WARM = 5;   // WARM：
 const FIG_H = 25, FIG_Z = -30;                        // 巨像：25 米高、离玩家 30 米，略微抬头就能看到全貌
 const ROUND = 90;                                     // 每局时长（秒），从歌曲的随机位置开始
 const ENV_SCALE = 2.2;                                // 展厅场景放大倍数（配合 30 米巨像）
-const MP3_BASE = 'https://dreamy.voyage/mp3s/';
+const MP3_BASE = 'https://pub-bd539265c2a1491c845fd2758d51b673.r2.dev/mp3s/';
 const pick = (a) => a[(Math.random() * a.length) | 0];
 const DIFFS = {
   easy:   { zh: '简单', appr: 2.0, need: 0.60, win: [0.06, 0.12, 0.2],    any: false, desc: '约 1 个/秒 · 蓝球左手 · 红球右手' },
