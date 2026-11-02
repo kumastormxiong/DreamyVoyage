@@ -217,7 +217,7 @@ function makeRound(fo = null) {
     r.charts = {}; for (const k of Object.keys(DIFFS)) r.charts[k] = d.charts[k].filter((a) => a[0] >= st + WARM && a[0] <= tEnd).map((a) => [a[0] - st, a[1], a[2], a[3]]);
     if (!actx || SILENT) { r.state = 'ok'; return; }
     try {
-      const ab = await (await fetch(MP3_BASE + encodeURIComponent(song.file))).arrayBuffer(), full = await actx.decodeAudioData(ab), sr = full.sampleRate;
+      const ab = await (await fetch(MP3_BASE + encodeURIComponent(song.file))).arrayBuffer(), full = await actx.decodeAudioData(ab), sr = full.sampleRate; if (state !== 'playing') prevBuf = { id: song.id, buf: full };   // 菜单里留着整首，给背景音乐 / 试听复用（游戏中预载下一局时不留，省内存）
       const s0 = Math.floor(st * sr), n = Math.min(full.length - s0, Math.floor((len + 2.5) * sr));
       if (s0 === 0 && n >= full.length) r.buf = full;       // 完整版：直接用整首
       else { const win = actx.createBuffer(full.numberOfChannels, n, sr); for (let c = 0; c < full.numberOfChannels; c++) win.copyToChannel(full.getChannelData(c).subarray(s0, s0 + n), c); r.buf = win; }   // 只保留这一局用到的片段，省内存
@@ -227,7 +227,7 @@ function makeRound(fo = null) {
   return r;
 }
 function newPending() { pending = makeRound(); }
-function showPending() { if (!pending) newPending(); applyEnv(pending.env); drawPanel(); }
+function showPending() { if (!pending) newPending(); applyEnv(pending.env); drawPanel(); playMenuBgm(); }
 const pReady = () => !!pending && pending.state === 'ok';
 const isUnlocked = (id) => save.unlocked.includes(id);
 async function loadData() {
@@ -245,7 +245,7 @@ function resetStats() { return { score: 0, combo: 0, maxCombo: 0, counts: [0, 0,
 const hitRate = () => (stats.total ? stats.hits / stats.total : 0);
 
 function startSong() {
-  if (!pReady()) return; stopPreview(); cur = pending; pending = null; prefetched = false; applyEnv(cur.env); cfg = DIFFS[save.diff];
+  if (!pReady()) return; stopPreview(); stopBgm(); prevBuf = null; cur = pending; pending = null; prefetched = false; applyEnv(cur.env); cfg = DIFFS[save.diff];
   const ch = cur.charts[save.diff];
   notes = ch.map((a) => ({ t: a[0], c: a[1], r: a[2], h: a[3], s: 0 })); lo = hi = 0; beatIdx = 0; stats = resetStats(); judgeText = ''; result = null; notified = false;
   recenter(); layoutFrames(); panel.mesh.visible = false; hud.mesh.visible = true; hudDirty = true;
@@ -426,12 +426,29 @@ function bg(g, w, h) {
 let prevToken = 0, prevSrc = null, prevId = null, prevLoad = null, prevBuf = null;
 function stopPreview() { prevToken++; const s0 = prevSrc; prevSrc = null; prevId = null; prevLoad = null; try { s0?.stop(); } catch (e) { /* 已停止 */ } }
 async function playPreview(sg) {
-  if (!actx || SILENT) return; stopPreview(); const tok = prevToken; prevLoad = sg.id; actx.resume(); drawPanel();
+  if (!actx || SILENT) return; stopPreview(); stopBgm(); const tok = prevToken; prevLoad = sg.id; actx.resume(); drawPanel();
   let buf = prevBuf && prevBuf.id === sg.id ? prevBuf.buf : null;
   if (!buf) { try { const ab = await (await fetch(MP3_BASE + encodeURIComponent(sg.file))).arrayBuffer(); buf = await actx.decodeAudioData(ab); } catch (e) { if (tok === prevToken) { prevLoad = null; drawPanel(); } return; } if (tok !== prevToken) return; prevBuf = { id: sg.id, buf }; }
   const len = Math.min(30, buf.duration), st = Math.random() * Math.max(0, buf.duration - len), sr = actx.createBufferSource(), g = actx.createGain(), t = actx.currentTime + 0.05;
   sr.buffer = buf; sr.connect(g).connect(musicGain); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + 0.7); g.gain.setValueAtTime(1, t + len - 1.5); g.gain.linearRampToValueAtTime(0, t + len); sr.start(t, st, len);
   prevSrc = sr; prevLoad = null; prevId = sg.id; sr.onended = () => { if (prevSrc === sr) { prevSrc = null; prevId = null; drawPanel(); } }; drawPanel();
+}
+// 菜单背景音乐：播放当前选中的歌（pending.song），随机起点播 60 秒；🎲 随机 / 选曲界面指定了新歌，就换成新的那首
+const BGM_LEN = 60;
+let bgmTok = 0, bgmSrc = null, bgmId = null, bgmStart = 0;
+function stopBgm() { bgmTok++; const s0 = bgmSrc; bgmSrc = null; bgmId = null; try { s0?.stop(); } catch (e) { /* 已停止 */ } }
+async function playMenuBgm() {
+  stopBgm(); if (!actx || SILENT || !active || state !== 'menu' || !pending) return;
+  const r = pending, sg = r.song, tok = bgmTok; bgmId = sg.id;
+  await r.promise;                       // 这一局本来就要下载同一首：等它解码完直接复用，不重复下载
+  if (tok !== bgmTok) return;
+  let buf = prevBuf && prevBuf.id === sg.id ? prevBuf.buf : null;
+  if (!buf) { try { const ab = await (await fetch(MP3_BASE + encodeURIComponent(sg.file))).arrayBuffer(); buf = await actx.decodeAudioData(ab); } catch (e) { if (tok === bgmTok) bgmId = null; return; } if (tok !== bgmTok) return; prevBuf = { id: sg.id, buf }; }
+  if (state !== 'menu') return;
+  const len = Math.min(BGM_LEN, buf.duration), fd = Math.min(3, len / 3), st = Math.random() * Math.max(0, buf.duration - len), sr = actx.createBufferSource(), g = actx.createGain(), t = actx.currentTime + 0.05;
+  actx.resume(); sr.buffer = buf; sr.connect(g).connect(musicGain);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + fd); g.gain.setValueAtTime(1, t + len - fd); g.gain.linearRampToValueAtTime(0, t + len); sr.start(t, st, len);
+  bgmSrc = sr; bgmStart = st; sr.onended = () => { if (bgmSrc === sr) { bgmSrc = null; } };
 }
 let spgPages = 1;
 function drawSongs(g) {
@@ -685,7 +702,7 @@ function drawHud() {
 // ---------- 面板交互 ----------
 function click(id) {
   if (!id) return;
-  if (['sok', 'sback', 'srand', 'reroll', 'start', 'again', 'menu', 'gallery', 'back'].includes(id)) stopPreview();
+  if (['sok', 'sback', 'srand', 'reroll', 'start', 'again', 'menu', 'gallery', 'back'].includes(id)) { stopPreview(); stopBgm(); }
   if (id === 'skip') { if (resT < RES_END) resT = RES_END; drawPanel(); return; }
   if (state === 'result' && (id === 'again' || id === 'menu' || id === 'gallery') && !btnsReady()) return;
   if (id.startsWith('d:')) { save.diff = id.slice(2); cfg = DIFFS[save.diff]; persist(); }
@@ -695,7 +712,7 @@ function click(id) {
   else if (id.startsWith('off:')) { save.offset = Math.max(-300, Math.min(300, save.offset + +id.slice(4))); persist(); }
   else if (id === 'reroll' || id === 'srand') { save.pick = null; persist(); view = 'main'; newPending(); showPending(); return; }
   else if (id === 'songs') { view = 'songs'; spick = save.pick?.id || pending?.song.id || null; const ix = songs.findIndex((x) => x.id === spick); if (ix >= 0) spage = (ix / 16) | 0; const sg0 = songs[ix]; smode = sg0 ? (save.pick && save.pick.id === spick ? save.pick.mode : pending?.mode ?? modesFor(sg0)[0]) : 90; }
-  else if (id === 'sback') { view = 'main'; }
+  else if (id === 'sback') { view = 'main'; playMenuBgm(); }
   else if (id.startsWith('spg:')) { spage = (spage + +id.slice(4) + spgPages) % spgPages; }
   else if (id.startsWith('sg:')) { spick = id.slice(3); const sg = songs.find((x) => x.id === spick), ms = modesFor(sg); smode = save.pick && save.pick.id === spick && ms.includes(save.pick.mode) ? save.pick.mode : ms[0]; if (songOpen(sg.id)) playPreview(sg); else stopPreview(); }
   else if (id.startsWith('md:')) { const sg = songs.find((x) => x.id === spick); if (sg && songOpen(sg.id)) { const m = id.slice(3) === 'full' ? 'full' : +id.slice(3); if (modesFor(sg).includes(m)) smode = m; } }
@@ -810,7 +827,7 @@ async function activate() {
   recenter(); layoutFrames(); showPending(); showFigure(save.sel);
 }
 function deactivate() {
-  if (!active) return; active = false; stopSong(); stopPreview(); state = 'menu'; hideGacha(); hud.mesh.visible = false; noteCore.count = noteWire.count = 0;
+  if (!active) return; active = false; stopSong(); stopPreview(); stopBgm(); state = 'menu'; hideGacha(); hud.mesh.visible = false; noteCore.count = noteWire.count = 0;
   for (let i = 0; i < 2; i++) { app.rig.add(renderer.xr.getController(i), renderer.xr.getControllerGrip(i)); ctrls[i].laser.visible = ctrls[i].tip.visible = ctrls[i].halo.visible = false; }
   if (app.envs && app.envs.cur >= 0) app.envs.set(app.envs.cur);        // 把展厅的调色板还回去
   if (app.st?.music) app.music?.start();
@@ -821,7 +838,7 @@ function exitToShowcase(idx) {                           // 回到展厅（VR �
 }
 const api = {
   get active() { return active; }, frame, activate, deactivate,
-  debug: { round: () => cur, pending: () => pending, notes: () => notes, now: songTime, toWorld: (x, y, z) => play.localToWorld(new THREE.Vector3(x, y, z)), COLX, rowY, HIT_Z, SPEED, panelPos: () => panel.mesh.getWorldPosition(new THREE.Vector3()), hover: () => hoverId },
+  debug: { round: () => cur, bgm: () => ({ id: bgmId, playing: !!bgmSrc, start: bgmStart, ctx: actx && actx.state }), pending: () => pending, notes: () => notes, now: songTime, toWorld: (x, y, z) => play.localToWorld(new THREE.Vector3(x, y, z)), COLX, rowY, HIT_Z, SPEED, panelPos: () => panel.mesh.getWorldPosition(new THREE.Vector3()), hover: () => hoverId },
   res: (t) => { if (t != null) resT = t; return resT; }, hp: () => hp, setHp: (v) => { hp = v; }, gacha: () => result?.gacha, openBox: (i) => openBox(i), gachaLive,
   skip: (sec) => { fallbackT0 -= (sec * 1000) / RATE; startAt -= sec; }, state: () => state, save, click, get stats() { return stats; }, get result() { return result; },
 };
