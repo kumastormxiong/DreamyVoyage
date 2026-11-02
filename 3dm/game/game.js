@@ -272,7 +272,7 @@ let notified = false, prefetched = false;
 // 能量条（参考节奏光剑）：一开始 50%，命中 +1%，漏掉大幅下降，降到 0 就失败（音乐变慢 → LEVEL FAILED → 重来）
 const HP_START = 50, HP_HIT = 1, HP_MISS = { easy: 1.0, normal: 1.8, hard: 4.0 };
 let hp = HP_START, hurtT = 0, failing = false, failT = 0, ending = false, endT = 0;
-const RESULT_DELAY = 3;      // 一局结束后，等 3 秒再弹出结算
+const RESULT_DELAY = 5;      // 一局结束后，等 3 秒再弹出结算
 const hpAdd = (v) => { hp = Math.max(0, Math.min(100, hp + v)); };
 function miss(n) {
   n.s = 2; stats.counts[3]++; stats.combo = 0; judgeText = 'MISS'; judgeK = 3; judgeT = 0.4; hudDirty = true;
@@ -629,6 +629,7 @@ function updateGacha(dt) {
     b.position.set(tg[i][0] * e, (headY - 0.08) + (tg[i][1] - (headY - 0.08)) * e + Math.sin(T * 2 + i * 2) * 0.015 * k, -1.55 + (tg[i][2] + 1.55) * e);
     let s = (0.15 + 0.85 * e) * (1 + u.hov * 0.14), fade = 1;
     if (G.opened >= 0 && G.opened !== i) { fade = 1 - clamp01((G.t - G.openT - 0.35) / 0.7); s *= fade; }
+    else if (G.opened === i) { fade = 1 - clamp01((G.t - G.openT - 5.0) / 0.8); s *= 0.4 + 0.6 * fade; b.visible = fade > 0.001; }   // 展示 5 秒后盒子与光效一起消失
     b.scale.setScalar(Math.max(0.001, s)); b.rotation.y = T * (k < 1 ? 3 : 0.5) + i; b.rotation.x = Math.sin(T * 0.7 + i) * 0.12;
     const op = u.open >= 0, q = op ? 1 - Math.pow(1 - clamp01(u.open / 0.75), 3) : 0;
     for (const m of [u.fm, u.cm, u.bm]) { m.uniforms.uT.value = T; m.uniforms.uA.value = fade; } u.fm.uniforms.uH.value = u.hov; u.fm.uniforms.uA.value = fade * (1 - q * 0.85);
@@ -643,7 +644,7 @@ function updateGacha(dt) {
   });
   if (gcard?.visible && G.opened >= 0) {
     const bp = gboxes[G.opened].position; gcard.userData.k = Math.min(1, gcard.userData.k + dt / 0.6); const e = easeOutBack(Math.min(1, Math.max(0, (G.t - G.openT - 0.25) / 0.6)));
-    gcard.position.set(bp.x * 0.6, bp.y + 0.45 + 0.04 * Math.sin(T * 2), bp.z + 0.05); const fo = 1 - clamp01((G.t - G.openT - 5.5) / 0.5); gcard.scale.setScalar(Math.max(0.001, e * 1.25 * fo)); if (fo <= 0) gcard.visible = false; camera.getWorldPosition(gCam); gcard.lookAt(gCam);
+    gcard.position.set(bp.x * 0.6, bp.y + 0.45 + 0.04 * Math.sin(T * 2), bp.z + 0.05); const fo = 1 - clamp01((G.t - G.openT - 5.2) / 0.6); gcard.scale.setScalar(Math.max(0.001, e * 1.25 * fo)); if (fo <= 0) gcard.visible = false; camera.getWorldPosition(gCam); gcard.lookAt(gCam);
   }
   if (VRlive() && gachaLive()) {
     for (const rec of ctrls) { if (!rec.src) continue; rec.c.updateMatrixWorld(true); gTip.set(0, 0, -0.06).applyMatrix4(rec.c.matrixWorld); gachaG.worldToLocal(gTip);

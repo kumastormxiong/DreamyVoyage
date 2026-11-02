@@ -129,8 +129,8 @@ export class UI {
       btn(947, y, 301, 58, '跟随环境 LINK', () => { S.lightFollow = !S.lightFollow; }, { active: S.lightFollow, size: 25 }); y += 70;
       Object.entries(PRESETS).forEach(([k, p], i) => btn(32 + i * 204, y, 196, 58, p.zh, () => { A.lights.apply(k); A.touchLight(); this.say('灯光预设：' + p.zh); }, { active: A.lights.preset === k, size: 25 }));
     } else if (this.tab === 3) {
-      ENV_DEFS.forEach((d, i) => W.push({ t: 'env', x: 32 + (i % 5) * 245, y: y + Math.floor(i / 5) * 98, w: 235, h: 88, def: d, fn: () => A.setEnv(i), active: S.envIdx === i }));
-      y += Math.ceil(ENV_DEFS.length / 5) * 98 + 8; const sy = 62;
+      ENV_DEFS.forEach((d, i) => W.push({ t: 'env', x: 32 + (i % 6) * 204, y: y + Math.floor(i / 6) * 98, w: 196, h: 88, def: d, fn: () => A.setEnv(i), active: S.envIdx === i }));
+      y += Math.ceil(ENV_DEFS.length / 6) * 98 + 8; const sy = 62;
       slider(y, '雾 FOG', () => S.fog, (v) => { S.fog = v; }, 0, 3, (v) => v.toFixed(2)); y += sy;
       slider(y, '霓虹色相 HUE', () => S.hue, (v) => { S.hue = v; PAL.hue = v; A.paletteChanged(); }, -0.5, 0.5, (v) => Math.round(v * 360) + '°', { rainbow: true, onEnd: () => A.rebuildEnvMap() }); y += sy;
       slider(y, '霓虹亮度 GLOW', () => S.glow, (v) => { S.glow = v; A.paletteChanged(); }, 0.2, 2.5, (v) => v.toFixed(2)); y += sy;
