@@ -33,3 +33,5 @@ problematic_presets/
 recordings/
 *.mp4
 *.webm
+# Music is served from Cloudflare R2; local mp3s/ is not tracked
+mp3s/
