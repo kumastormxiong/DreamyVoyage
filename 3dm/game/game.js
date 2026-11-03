@@ -542,6 +542,76 @@ function drawPanel() {
   panel.tex.needsUpdate = true;
 }
 let resT = 0, resF = {}, resNext = 0, resDraw = 0;
+// ---------- 立体评级字母（霓虹管 + shader：边缘光 / 流动高光 / 扫光）：砸入 + 旋转 + 摇摆 + 冲击环 ----------
+const LETTER_R = 0.075, GRADE_U = { uT: { value: 0 }, uFlash: { value: 0 } };
+const LETTERS = {
+  S: [[[0.28, 0.3], [0.18, 0.46], [0, 0.5], [-0.18, 0.46], [-0.28, 0.28], [-0.2, 0.08], [0, 0], [0.2, -0.08], [0.28, -0.28], [0.18, -0.46], [0, -0.5], [-0.18, -0.46], [-0.28, -0.3]]],
+  A: [[[-0.3, -0.5], [0, 0.5]], [[0, 0.5], [0.3, -0.5]], [[-0.17, -0.12], [0.17, -0.12]]],
+  B: [[[-0.25, -0.5], [-0.25, 0.5]], [[-0.25, 0.5], [0.08, 0.5], [0.24, 0.38], [0.24, 0.14], [0.08, 0], [-0.25, 0]], [[-0.25, 0], [0.12, 0], [0.3, -0.14], [0.3, -0.38], [0.12, -0.5], [-0.25, -0.5]]],
+  C: [[[0.3, 0.3], [0.17, 0.46], [-0.02, 0.5], [-0.2, 0.42], [-0.3, 0.2], [-0.3, -0.2], [-0.2, -0.42], [-0.02, -0.5], [0.17, -0.46], [0.3, -0.3]]],
+  D: [[[-0.25, -0.5], [-0.25, 0.5]], [[-0.25, 0.5], [0.05, 0.5], [0.25, 0.35], [0.32, 0], [0.25, -0.35], [0.05, -0.5], [-0.25, -0.5]]],
+  F: [[[-0.22, -0.5], [-0.22, 0.5]], [[-0.22, 0.5], [0.28, 0.5]], [[-0.22, 0.05], [0.15, 0.05]]],
+};
+const GRADE_VS = 'varying vec3 vN; varying vec3 vV; varying vec2 vP; void main(){ vP = position.xy; vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = -mv.xyz; gl_Position = projectionMatrix * mv; }';
+const GRADE_FS = `uniform float uT; uniform float uFlash; uniform vec3 uCol; varying vec3 vN; varying vec3 vV; varying vec2 vP;
+void main(){
+  vec3 n = normalize(vN), v = normalize(vV); float ndv = clamp(dot(n, v), 0.0, 1.0);
+  float fr = pow(1.0 - ndv, 2.2); float diag = vP.y * 0.9 + vP.x * 0.6;
+  float band = 0.5 + 0.5 * sin(diag * 10.0 - uT * 4.0);
+  float sweep = exp(-pow(fract(uT * 0.4) * 3.0 - 1.2 - diag, 2.0) * 40.0);
+  float spec = pow(ndv, 24.0) * 0.5;
+  vec3 c = uCol * (0.35 + 0.35 * band + 0.5 * ndv) + uCol * fr * 1.4 + vec3(1.0) * (sweep * 1.1 + spec + uFlash);
+  gl_FragColor = vec4(c, 1.0);
+  #include <colorspace_fragment>
+}`;
+const gradeAnchor = new THREE.Group(); gradeAnchor.position.set(-0.503, 0.225, 0.1); gradeAnchor.visible = false; panel.mesh.add(gradeAnchor);
+const gradeObjs = {};
+const gradeRing = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+gradeRing.position.set(-0.503, 0.225, 0.06); gradeRing.visible = false; panel.mesh.add(gradeRing);
+function gradeObj(gr) {
+  if (gradeObjs[gr]) return gradeObjs[gr];
+  const grp = new THREE.Group(), mat = new THREE.ShaderMaterial({ uniforms: { uT: GRADE_U.uT, uFlash: GRADE_U.uFlash, uCol: { value: new THREE.Color(GCOLR[gr]) } }, vertexShader: GRADE_VS, fragmentShader: GRADE_FS }), joint = new THREE.SphereGeometry(LETTER_R, 14, 10);
+  for (const st of LETTERS[gr]) {
+    const pts = st.map(([x, y]) => new THREE.Vector3(x, y, 0)), curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+    grp.add(new THREE.Mesh(new THREE.TubeGeometry(curve, Math.max(6, st.length * 8), LETTER_R, 10, false), mat));
+    for (const p of [pts[0], pts[pts.length - 1]]) { const s = new THREE.Mesh(joint, mat); s.position.copy(p); grp.add(s); }
+  }
+  grp.visible = false; gradeAnchor.add(grp); gradeObjs[gr] = grp; return grp;
+}
+function updateGrade3D() {
+  for (const k in gradeObjs) gradeObjs[k].visible = false;
+  if (state !== 'result' || !result || resT < GRADE_T) { gradeAnchor.visible = false; gradeRing.visible = false; return; }
+  const gt = resT - GRADE_T, k = Math.min(1, gt / 0.5), slam = Math.pow(1 - k, 2), grp = gradeObj(result.gr);
+  gradeAnchor.visible = true; grp.visible = true;
+  gradeAnchor.position.z = 0.1 + 0.35 * slam; gradeAnchor.position.y = 0.225 + 0.01 * Math.sin(T * 2.2);
+  gradeAnchor.scale.setScalar(0.3 * (1 + 1.8 * slam) * (1 + 0.07 * Math.sin(gt * 7) * Math.exp(-gt * 2.5)));
+  gradeAnchor.rotation.set(0.1 * Math.sin(T * 1.1), slam * Math.PI * 2 + 0.45 * Math.sin(T * 1.5) * k, 0);
+  GRADE_U.uT.value = T; GRADE_U.uFlash.value = Math.max(0, 1 - gt * 2.2);
+  gradeRing.visible = gt < 1; if (gt < 1) { gradeRing.scale.setScalar(0.06 + gt * 0.8); gradeRing.material.color.set(GCOLR[result.gr]); gradeRing.material.opacity = (1 - gt) * 0.9; }
+}
+function gradeBurst() { const gr = result.gr; gradeAnchor.getWorldPosition(tmpV3); play.worldToLocal(tmpV3); burst(tmpV3.x, tmpV3.y, tmpV3.z, GCOLR[gr], gr === 'S' ? 90 : gr === 'A' ? 50 : 24); }
+
+// ---------- 站位脚印：固定在场景原点（玩家应该站的地方），所有关卡场景都有；站对了变绿，站偏了粉色闪烁 ----------
+const foot = new THREE.Group(); foot.position.y = 0.02; foot.renderOrder = 1; play.add(foot);
+const footMats = [], FOOT_OK = new THREE.Color(0x6dffb0), FOOT_BAD = new THREE.Color(0xff2fd0), footCol = new THREE.Color(0x30f0ff), footV = new THREE.Vector3();
+let footRing = null;
+{
+  const cv = document.createElement('canvas'); cv.width = 128; cv.height = 256; const g = cv.getContext('2d'); g.shadowColor = '#fff'; g.shadowBlur = 14; g.fillStyle = '#fff';
+  g.beginPath(); g.ellipse(64, 86, 34, 64, 0, 0, 7); g.fill(); g.beginPath(); g.ellipse(64, 204, 26, 32, 0, 0, 7); g.fill();
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const mk = (extra) => { const m = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, depthTest: false, toneMapped: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, ...extra }); footMats.push(m); return m; };
+  const printM = mk({ map: tex });
+  for (const sx of [-1, 1]) { const p = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.3), printM); p.rotation.x = -Math.PI / 2; p.position.set(sx * 0.11, 0, 0); p.renderOrder = 1; foot.add(p); }
+  footRing = new THREE.Mesh(new THREE.RingGeometry(0.36, 0.4, 64), mk({})); footRing.rotation.x = -Math.PI / 2; footRing.renderOrder = 1; foot.add(footRing);
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(0.36, 48), mk({})); disc.rotation.x = -Math.PI / 2; disc.renderOrder = 1; disc.userData.disc = true; foot.add(disc);
+}
+function updateFoot(dt) {
+  let ok = true; if (renderer.xr.isPresenting) { camera.getWorldPosition(footV); play.worldToLocal(footV); ok = Math.hypot(footV.x, footV.z) < 0.3; }
+  footCol.lerp(ok ? FOOT_OK : FOOT_BAD, Math.min(1, dt * 8));
+  const a = ok ? 0.8 : 0.55 + 0.45 * Math.sin(T * 8);
+  footMats[0].color.copy(footCol); footMats[0].opacity = a; footMats[1].color.copy(footCol); footMats[1].opacity = a * 0.9; footMats[2].color.copy(footCol); footMats[2].opacity = 0.1 + a * 0.06;
+  footRing.scale.setScalar(ok ? 1 : 1 + 0.06 * Math.sin(T * 6));
+}
 const RES_END = 2.9, GRADE_T = 1.9;
 const GCOLR = { S: '#ffe35a', A: '#6dffb0', B: '#30f0ff', C: '#c9a7ff', D: '#ff8aa0', F: '#ff4466' };
 const GWORD = { S: 'SUPERB !', A: 'EXCELLENT', B: 'GOOD', C: 'NOT BAD', D: 'KEEP TRYING', F: 'LEVEL FAILED' };
@@ -558,8 +628,7 @@ function drawResult(g) {
   txt(g, `PERFECT ${Math.round(c[0] * e)}   GREAT ${Math.round(c[1] * e)}   GOOD ${Math.round(c[2] * e)}   MISS ${Math.round(c[3] * e)}`, 330, 300, 24, '#9fb4ff');
   if (gt >= 0) {                                              // 评价：砸入 + 冲击波 + 光点
     const k = Math.min(1, gt / 0.5), sc = 1 + 2.4 * Math.pow(1 - k, 2);
-    if (gt < 1.0) { g.save(); g.globalAlpha = (1 - gt) * 0.9; g.strokeStyle = col; g.lineWidth = 9 * (1 - gt) + 1; g.beginPath(); g.arc(190, 240, 40 + gt * 440, 0, 7); g.stroke(); g.restore(); }
-    g.save(); g.globalAlpha = Math.min(1, gt / 0.15); g.translate(190, 240); g.scale(sc, sc); neon(g, r.gr, 0, 0, 170, col); g.restore();
+    // 评级字母和冲击环改为 3D（见 updateGrade3D）；这里只留文字和光点
     if (r.gr === 'S' || r.gr === 'A') { const nS = r.gr === 'S' ? 16 : 8; for (let i = 0; i < nS; i++) { const a = i * 2.4 + gt * (r.gr === 'S' ? 1.2 : 0.6), rad = 100 + ((gt * 0.9 + i * 0.37) % 1) * 90, al = 1 - ((gt * 0.9 + i * 0.37) % 1); g.save(); g.globalAlpha = Math.max(0, al) * Math.min(1, gt); g.fillStyle = col; const x = 190 + Math.cos(a) * rad, y = 240 + Math.sin(a) * rad * 0.8; g.fillRect(x - 1.5, y - 7, 3, 14); g.fillRect(x - 7, y - 1.5, 14, 3); g.restore(); } }
     g.save(); g.globalAlpha = Math.min(1, Math.max(0, (gt - 0.25) / 0.3)); g.translate(Math.min(0, -60 * (1 - Math.min(1, (gt - 0.25) / 0.4))), 0); g.shadowColor = col; g.shadowBlur = 16; txt(g, GWORD[r.gr], 190, 345, 24, col, 'center', 800); g.restore();
   }
@@ -585,7 +654,7 @@ function drawResult(g) {
 function updateResult(dt) {
   if (!result) return; const prev = resT; resT += dt;
   if (resT > 0.15 && resT < 1.75 && resT >= resNext) { sfxTick(Math.min(1, (resT - 0.15) / 1.6)); resNext = resT + 0.055; }
-  if (resT >= GRADE_T && !resF.grade) { resF.grade = 1; sfxGrade(result.gr); controls.haptic(0, 0.6, 80); controls.haptic(1, 0.6, 80); if (result.pass) { burst(0, 1.8, -1.5, 0xffffff, 60); } }
+  if (resT >= GRADE_T && !resF.grade) { resF.grade = 1; gradeBurst(); sfxGrade(result.gr); controls.haptic(0, 0.6, 80); controls.haptic(1, 0.6, 80); if (result.pass) { burst(0, 1.8, -1.5, 0xffffff, 60); } }
   if (resT >= RES_END + 0.1 && result.gacha && !resF.gacha) { resF.gacha = 1; startGacha(); }
   const busy = resT < RES_END + 0.6 || (result.gacha && result.gacha.opened >= 0 && result.gacha.t - result.gacha.openT < 2.5);
   resDraw += dt; if (busy && resDraw > 0.033) { resDraw = 0; drawPanel(); } else if (!busy && prev < RES_END + 0.6) drawPanel();
@@ -776,8 +845,8 @@ addEventListener('keydown', (e) => {
 let headY = 1.6;
 function recenter() {
   if (renderer.xr.isPresenting) {
-    camera.getWorldPosition(tmpV); camera.getWorldDirection(tmpV2); const yaw = Math.atan2(-tmpV2.x, -tmpV2.z);
-    play.position.set(tmpV.x, 0, tmpV.z); play.rotation.set(0, yaw, 0); headY = tmpV.y || 1.6;
+    camera.getWorldPosition(tmpV); headY = tmpV.y || 1.6;
+    if (!anchored) { anchored = true; play.position.set(0, 0, 0); play.rotation.set(0, 0, 0); }   // 默认：场景和脚印固定在 Quest 的游玩空间原点；按右摇杆 / 系统长按重置会重新对齐到你
   } else { play.position.set(0, 0, 0.6); play.rotation.set(0, 0, 0); headY = 1.5; }
   base = Math.min(1.25, Math.max(0.6, headY - 0.65)); layoutFrames();
   const xr = renderer.xr.isPresenting, k = xr ? 1 : 1.45; panel.mesh.scale.setScalar(k);
@@ -788,9 +857,18 @@ function recenter() {
   const dy = xr ? 0.95 : 0.36, dz = xr ? 1.5 : 1.15;     // 下方 HUD：在视线下方，向上倾斜朝向眼睛
   hudB.mesh.position.set(0, headY - dy, -dz); hudB.mesh.rotation.set(-Math.atan2(dy, dz), 0, 0);
 }
-function checkRecenter() { if (needRecenter > 0 && renderer.xr.isPresenting && ++needRecenter > 8) { needRecenter = 0; recenter(); drawPanel(); } }
+let anchored = false, refBound = null;
+function snapPlay() {       // 把场景（和脚印）挪到我现在站的位置、正对我现在面朝的方向
+  if (!renderer.xr.isPresenting) return; camera.getWorldPosition(tmpV); camera.getWorldDirection(tmpV2);
+  anchored = true; play.position.set(tmpV.x, 0, tmpV.z); play.rotation.set(0, Math.atan2(-tmpV2.x, -tmpV2.z), 0); recenter(); drawPanel(); controls.haptic(1, 0.5, 60);
+}
+function bindReset() {      // 系统长按 Meta 键重置视角时，浏览器会发 reset 事件：场景跟着回到「正对」的位置
+  const rs = renderer.xr.getReferenceSpace?.(); if (!rs || rs === refBound) return; refBound = rs;
+  try { rs.addEventListener('reset', () => { anchored = false; needRecenter = 1; }); } catch (e) { /* 不支持 */ }
+}
+function checkRecenter() { if (renderer.xr.isPresenting) bindReset(); if (needRecenter > 0 && renderer.xr.isPresenting && ++needRecenter > 8) { needRecenter = 0; recenter(); drawPanel(); } }
 let needRecenter = 0;
-renderer.xr.addEventListener('sessionstart', () => { if (!active) return; camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0); needRecenter = 1; if (actx) actx.resume(); });
+renderer.xr.addEventListener('sessionstart', () => { if (!active) return; anchored = false; refBound = null; camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0); needRecenter = 1; if (actx) actx.resume(); });
 renderer.xr.addEventListener('sessionend', () => { needRecenter = 0; deskCamera(); if (active) deactivate(); });
 
 // ---------- 主循环 ----------
@@ -805,6 +883,8 @@ function updateXRPanelRay() {
     if (h) { len = h.distance; const r = padHit(h.uv); controls.hover[i] = r; if (r && r.id !== hoverId) { setHover(r.id); controls.haptic(rec.side, 0.12, 10); } else if (!r && hoverId && controls.hover[1 - i] == null) setHover(null); } else controls.hover[i] = null;
     rec.laser.scale.z = len;
   }
+  // 右手摇杆按下（圆形功能键）：把场景和脚印重置到我现在的位置、正对我面朝的方向
+  const gr = ctrls.find((c) => c.side === 1)?.src?.gamepad, rd = !!gr?.buttons[3]?.pressed; if (rd && !controls.rDown) { controls.rDown = true; snapPlay(); } else if (!rd) controls.rDown = false;
   // 左手 X：演奏中途退出
   const gp = ctrls.find((c) => c.side === 0)?.src?.gamepad; if (gp && state === 'playing' && gp.buttons[4]?.pressed && !controls.xDown) { controls.xDown = true; quitToMenu(); } else if (gp && !gp.buttons[4]?.pressed) controls.xDown = false;
 }
@@ -827,7 +907,7 @@ function frame(dtIn) {
   for (const f of frames) { f.visible = !!save.frames; const u = f.userData; u.flash = Math.max(0, u.flash - dt * 3.5); f.material.opacity = 0.22 + u.flash * 0.8; f.scale.setScalar(1 + u.flash * 0.25); }
   if (judgeT > 0) { judgeT -= dt; hudDirty = true; } if (hurtT > 0) { hurtT -= dt; hudDirty = true; }
   hudT += dt; if (state === 'playing' && hud.mesh.visible && (hudDirty || hudT > 0.12) && hudT > 0.05) { drawHud(); hudT = 0; hudDirty = false; }
-  updateParticles(dt);
+  updateParticles(dt); updateGrade3D(); updateFoot(dt);
   renderer.render(scene, camera); if (++frames_ === 8) window.__ready = true;
 }
 
@@ -845,7 +925,7 @@ async function activate() {
   app.controls?.ctrls?.forEach((m) => { m.laser.visible = false; m.dot.visible = false; });
   for (let i = 0; i < 2; i++) { rig.add(renderer.xr.getController(i), renderer.xr.getControllerGrip(i)); ctrls[i].tip.visible = true; }
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-  if (renderer.xr.isPresenting) { camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0); needRecenter = 1; } else deskCamera();
+  if (renderer.xr.isPresenting) { anchored = false; camera.position.set(0, 0, 0); camera.rotation.set(0, 0, 0); needRecenter = 1; } else deskCamera();
   if (actx) actx.resume();
   recenter(); layoutFrames(); drawPanel();
   await boot(); if (!active) return;
