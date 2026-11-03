@@ -316,7 +316,7 @@ export class Controls {
       const pl = pos(L, new THREE.Vector3()), pr = pos(R, new THREE.Vector3()), mid = pl.clone().add(pr).multiplyScalar(0.5), d = Math.max(pl.distanceTo(pr), 0.04), yaw = Math.atan2(pr.x - pl.x, pr.z - pl.z);
       if (!this.grabState || this.grabState.k !== 2 || this.grabState.root !== st.root) { this.grabState = { root: st.root, k: 2, mid, d, yaw, pos: st.root.position.clone(), s: st.scale, ry: st.root.rotation.y }; A.ui.say('双手缩放'); }
       else {
-        const g = this.grabState; let s = clamp(g.s * (d / g.d), 0.01, 120); const k = s / g.s, dy = yaw - g.yaw;
+        const g = this.grabState; let s = clamp(g.s * (d / g.d), 0.01, 360); const k = s / g.s, dy = yaw - g.yaw;
         const off = g.pos.clone().sub(g.mid).applyAxisAngle(UP, dy).multiplyScalar(k);
         st.root.position.copy(mid).add(off); st.root.rotation.y = g.ry + dy; st.root.scale.setScalar(s);
       }

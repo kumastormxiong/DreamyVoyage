@@ -66,7 +66,7 @@ export class UI {
       btn(636, y, 290, 56, '自动旋转 SPIN', () => { S.autoRotate = !S.autoRotate; st.autoRotate = S.autoRotate; }, { active: S.autoRotate, size: 26 });
       btn(938, y, 310, 56, '扫描线 SCAN', () => { S.scan = !S.scan; A.applyFx(); }, { active: S.scan, size: 26 });
       y += 64;
-      slider(y, '模型大小 SCALE', () => st.tgtScale, (v) => st.setScale(v), 0.02, 80, (v) => '×' + (v < 1 ? v.toFixed(2) : v.toFixed(1)), { log: true }); y += 56;
+      slider(y, '模型大小 SCALE', () => st.tgtScale, (v) => st.setScale(v), 0.02, 360, (v) => '×' + (v < 1 ? v.toFixed(2) : v.toFixed(1)), { log: true }); y += 56;
       slider(y, '自转速度 SPIN SPEED', () => S.rotSpeed, (v) => { S.rotSpeed = v; st.rotSpeed = v; }, 0, 3, (v) => Math.round(v * 57.3) + '°/s');
       { const C = A.controls, fl = C.floaters(), hid = fl.filter((f) => f.hidden).length;       // 空中模型：选中 / 隐藏
         btn(32, 866, 300, 56, `隐藏已选 (${C.sel.size})`, () => C.hideSelected(), { size: 24 });
@@ -96,7 +96,7 @@ export class UI {
       y += 68;
       lb(32, y, 1216, 36, '当前选中：' + (sel < 0 ? (st.curIdx >= 0 ? '主展台模型（#' + (st.curIdx + 1) + '）' : '主展台（空）') : `第 ${sel + 1} 个摆放模型（#${st.placed[sel].idx + 1}）`) + '　— 握把移动 / A·B 缩放 / 滚轮缩放', { size: 24, color: '#e8ecff' }); y += 44;
       slider(y, '放置大小 DROP', () => S.dropScale, (v) => { S.dropScale = v; }, 0.05, 3, (v) => '×' + v.toFixed(2), { log: true }); y += 56;
-      slider(y, '所选大小 SCALE', () => st.tgtScale, (v) => st.setScale(v), 0.02, 80, (v) => '×' + (v < 1 ? v.toFixed(2) : v.toFixed(1)), { log: true }); y += 66;
+      slider(y, '所选大小 SCALE', () => st.tgtScale, (v) => st.setScale(v), 0.02, 360, (v) => '×' + (v < 1 ? v.toFixed(2) : v.toFixed(1)), { log: true }); y += 66;
       lb(32, y, 1216, 36, 'MR 透视 PASSTHROUGH', { size: 26, color: css(PAL.a, 1.5), weight: 800 }); y += 42;
       const ar = A.sessionMode === 'ar';
       btn(32, y, 700, 62, ar ? (S.pass ? '透视：开　点击关闭（回到虚拟环境）' : '透视：关　点击开启（显示真实房间）') : (A.sessionMode === 'vr' ? '切换到 MR：退出 VR，再点页面「进入 MR」' : 'MR 只能在 Quest 头显里使用'), () => A.toggleMR(), { active: S.pass, size: 25 });

@@ -175,7 +175,7 @@ export class Stage {
   // ---------- 场景里摆放多个模型 ----------
   async addPlaced(idx, pos, rotY = 0, scale = 1) {
     if (this.placed.length >= MAX_PLACED) return null;
-    const group = new THREE.Group(); group.position.copy(pos); group.rotation.y = rotY; group.scale.setScalar(clamp(scale, 0.01, 120));
+    const group = new THREE.Group(); group.position.copy(pos); group.rotation.y = rotY; group.scale.setScalar(clamp(scale, 0.01, 360));
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.012, 8, 56), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, transparent: true, depthWrite: false }));
     ring.rotation.x = Math.PI / 2; ring.position.y = 0.012;
     const disc = new THREE.Mesh(new THREE.CircleGeometry(0.4, 40), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false, transparent: true, opacity: 0.1, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -315,5 +315,5 @@ export class Stage {
     this.wire = on;
   }
   resetTransform() { this.root.position.set(0, 0, 0); this.root.rotation.set(0, 0, 0); this.root.scale.setScalar(1); }
-  setScale(s) { this.target.scale.setScalar(clamp(s, 0.01, 120)); }     // 缩放当前选中的对象（默认是主展台）
+  setScale(s) { this.target.scale.setScalar(clamp(s, 0.01, 360)); }     // 缩放当前选中的对象（默认是主展台）
 }
