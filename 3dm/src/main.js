@@ -134,8 +134,8 @@ app.addHere = () => {          // 放在面前 1.6 米的地面上，多个时�
 app.removeSel = () => { if (stage.sel < 0) { ui.say('先选中一个已摆放的模型'); return; } stage.removeSelected(); ui.say('已移除'); ui.invalidate(); };
 app.clearPlaced = () => { stage.clearPlaced(); ui.say('场景已清空'); ui.invalidate(); };
 app.setMainVisible = (v) => { st.mainVisible = v; stage.setMainVisible(v); ui.invalidate(); };
-app.toggleMusic = () => { st.music = !st.music; if (st.music) music.start(); else music.stop(); ui.invalidate(); };
-app.userGesture = () => { if (st.music && !music.on) music.start(); };
+app.toggleMusic = () => { st.music = !st.music; if (st.music) { if (!app.handoff) music.start(); } else { music.stop(); app.handoff?.stop(); } ui.invalidate(); };
+app.userGesture = () => { if (st.music && !music.on && !app.handoff) music.start(); };
 const tmpH = new THREE.Vector3(), tmpF = new THREE.Vector3();
 function placeUI() {
   rig.updateMatrixWorld(true); camera.getWorldPosition(tmpH); camera.getWorldDirection(tmpF); tmpF.y = 0; if (tmpF.lengthSq() < 1e-4) tmpF.set(0, 0, -1); tmpF.normalize();
@@ -190,7 +190,7 @@ function startDesktop() { started = true; document.getElementById('launcher')?.c
 async function startXR(mode) {          // mode: 'vr' | 'ar'（ar = Quest 彩色/黑白透视，MR）
   if (!navigator.xr) { alert('此浏览器不支持 WebXR'); return; }
   try {
-    if (st.music) music.start();           // 必须在点击手势内启动音频
+    if (st.music && !app.handoff) music.start();           // 必须在点击手势内启动音频
     try { localStorage.removeItem('dm_want_mr'); } catch (e) { /* ignore */ }
     app.sessionMode = mode;
     const session = await navigator.xr.requestSession(mode === 'ar' ? 'immersive-ar' : 'immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor', 'layers'] });

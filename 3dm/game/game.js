@@ -152,8 +152,8 @@ async function showFigure(i) {
 }
 
 // ---------- 音频 ----------
-const AC = window.AudioContext || window.webkitAudioContext; let actx = null, musicGain = null, sfxGain = null, src = null, startAt = 0, roundGain = null;
-try { actx = new AC(); musicGain = actx.createGain(); musicGain.gain.value = 0.85; sfxGain = actx.createGain(); sfxGain.gain.value = 0.5; musicGain.connect(actx.destination); sfxGain.connect(actx.destination); } catch (e) { actx = null; }
+const AC = window.AudioContext || window.webkitAudioContext; let actx = null, musicGain = null, sfxGain = null, src = null, startAt = 0, roundGain = null, duck = null;
+try { actx = new AC(); musicGain = actx.createGain(); musicGain.gain.value = 0.85; sfxGain = actx.createGain(); sfxGain.gain.value = 0.5; musicGain.connect(actx.destination); sfxGain.connect(actx.destination); duck = actx.createGain(); duck.connect(musicGain); } catch (e) { actx = null; }
 // 音效：全部用振荡器 / 噪声现场合成，不需要音频文件。触碰方块本身不再有音效。
 const sfxOn = () => actx && actx.state === 'running';
 function tone(f, t0 = 0, d = 0.15, type = 'sine', vol = 0.18, f2 = 0) {
@@ -422,33 +422,56 @@ function bg(g, w, h) {
   const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, 'rgba(14,6,40,.94)'); gr.addColorStop(1, 'rgba(6,16,40,.94)');
   rr(g, 4, 4, w - 8, h - 8, 28); g.fillStyle = gr; g.fill(); g.lineWidth = 4; const s = g.createLinearGradient(0, 0, w, 0); s.addColorStop(0, P.a); s.addColorStop(1, P.b); g.strokeStyle = s; g.stroke();
 }
-// 试听：点一首已解锁的歌，随机从中间某处起播 30 秒
+// 试听：点一首已解锁的歌，随机从中间某处起播 60 秒；试听期间菜单背景音乐静音（不停，仍在后台走时间），试听结束 / 点返回后接着播
 let prevToken = 0, prevSrc = null, prevId = null, prevLoad = null, prevBuf = null;
-function stopPreview() { prevToken++; const s0 = prevSrc; prevSrc = null; prevId = null; prevLoad = null; try { s0?.stop(); } catch (e) { /* 已停止 */ } }
+function stopPreview(keepDuck) { const was = prevSrc || prevLoad; prevToken++; const s0 = prevSrc; prevSrc = null; prevId = null; prevLoad = null; try { s0?.stop(); } catch (e) { /* 已停止 */ } if (was && !keepDuck) duckBgm(false); }
 async function playPreview(sg) {
-  if (!actx || SILENT) return; stopPreview(); stopBgm(); const tok = prevToken; prevLoad = sg.id; actx.resume(); drawPanel();
+  if (!actx || SILENT) return; stopPreview(true); duckBgm(true); const tok = prevToken; prevLoad = sg.id; actx.resume(); drawPanel();
   let buf = prevBuf && prevBuf.id === sg.id ? prevBuf.buf : null;
-  if (!buf) { try { const ab = await (await fetch(MP3_BASE + encodeURIComponent(sg.file))).arrayBuffer(); buf = await actx.decodeAudioData(ab); } catch (e) { if (tok === prevToken) { prevLoad = null; drawPanel(); } return; } if (tok !== prevToken) return; prevBuf = { id: sg.id, buf }; }
-  const len = Math.min(30, buf.duration), st = Math.random() * Math.max(0, buf.duration - len), sr = actx.createBufferSource(), g = actx.createGain(), t = actx.currentTime + 0.05;
+  if (!buf) { try { const ab = await (await fetch(MP3_BASE + encodeURIComponent(sg.file))).arrayBuffer(); buf = await actx.decodeAudioData(ab); } catch (e) { if (tok === prevToken) { prevLoad = null; duckBgm(false); drawPanel(); } return; } if (tok !== prevToken) return; prevBuf = { id: sg.id, buf }; }
+  const len = Math.min(60, buf.duration), st = Math.random() * Math.max(0, buf.duration - len), sr = actx.createBufferSource(), g = actx.createGain(), t = actx.currentTime + 0.05;
   sr.buffer = buf; sr.connect(g).connect(musicGain); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + 0.7); g.gain.setValueAtTime(1, t + len - 1.5); g.gain.linearRampToValueAtTime(0, t + len); sr.start(t, st, len);
-  prevSrc = sr; prevLoad = null; prevId = sg.id; sr.onended = () => { if (prevSrc === sr) { prevSrc = null; prevId = null; drawPanel(); } }; drawPanel();
+  prevSrc = sr; prevLoad = null; prevId = sg.id; sr.onended = () => { if (prevSrc === sr) { prevSrc = null; prevId = null; duckBgm(false); drawPanel(); } }; drawPanel();
 }
 // 菜单背景音乐：播放当前选中的歌（pending.song），随机起点播 60 秒；🎲 随机 / 选曲界面指定了新歌，就换成新的那首
 const BGM_LEN = 60;
-let bgmTok = 0, bgmSrc = null, bgmId = null, bgmStart = 0;
-function stopBgm() { bgmTok++; const s0 = bgmSrc; bgmSrc = null; bgmId = null; try { s0?.stop(); } catch (e) { /* 已停止 */ } }
+let bgmTok = 0, bgmSrc = null, bgmG = null, bgmId = null, bgmStart = 0, bgmBuf = null, bgmHand = false, hAn = null;
+function stopBgm() { bgmTok++; bgmHand = false; const s0 = bgmSrc; bgmSrc = null; bgmG = null; bgmBuf = null; bgmId = null; try { s0?.stop(); } catch (e) { /* 已停止 */ } }
+function duckBgm(on) { if (!actx || !duck) return; const t = actx.currentTime; duck.gain.cancelScheduledValues(t); duck.gain.setTargetAtTime(on ? 0 : 1, t, 0.12); }
+// 去展厅时让当前菜单歌曲接着播：不断音、整首、单曲循环；展厅的频谱 / 音量 / 音乐开关都接到它上面
+function makeHandoff(sr, g) {
+  app.handoff?.stop(); const now = actx.currentTime;
+  sr.loop = true; sr.loopStart = 0; sr.loopEnd = 0; sr.stop(now + 1e9);
+  g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(g.gain.value, now); g.gain.linearRampToValueAtTime(1, now + 0.6);
+  duck.gain.cancelScheduledValues(now); duck.gain.setValueAtTime(1, now);
+  if (!hAn) { hAn = actx.createAnalyser(); hAn.fftSize = 256; hAn.smoothingTimeConstant = 0.6; musicGain.connect(hAn); }
+  const K = 0.85 / 0.55, ext = { an: hAn, buf: new Uint8Array(hAn.frequencyBinCount) }, id = pending?.song.id;
+  musicGain.gain.value = (app.st?.vol ?? 0.55) * K;
+  if (app.music) { app.music.ext = ext; app.music.onVol = (v) => { musicGain.gain.value = v * K; }; }
+  const h = { id, stop() { const t = actx.currentTime; g.gain.cancelScheduledValues(t); g.gain.setTargetAtTime(0, t, 0.12); try { sr.stop(t + 0.8); } catch (e) { /* 已停止 */ } if (app.music && app.music.ext === ext) { app.music.ext = null; app.music.onVol = null; } if (app.handoff === h) app.handoff = null; } };
+  app.handoff = h;
+}
+function handoffMusic() {
+  if (!actx || SILENT || !pending) return false;
+  if (bgmSrc) { const sr = bgmSrc, g = bgmG; bgmTok++; bgmSrc = null; bgmG = null; bgmId = null; bgmBuf = null; makeHandoff(sr, g); return true; }   // 正在播：原地改成整首循环，不断音
+  if (bgmId === pending.song.id && !bgmBuf) { bgmHand = true; return true; }                                                                 // 还在加载：加载完直接整首循环
+  const buf = bgmBuf && bgmId === pending.song.id ? bgmBuf : prevBuf && prevBuf.id === pending.song.id ? prevBuf.buf : null;                   // 60 秒已播完：从头整首循环
+  if (!buf) return false;
+  const sr = actx.createBufferSource(), g = actx.createGain(), t = actx.currentTime + 0.05; sr.buffer = buf; sr.connect(g).connect(duck); g.gain.setValueAtTime(0, t); sr.start(t); bgmTok++; makeHandoff(sr, g); return true;
+}
 async function playMenuBgm() {
   stopBgm(); if (!actx || SILENT || !active || state !== 'menu' || !pending) return;
   const r = pending, sg = r.song, tok = bgmTok; bgmId = sg.id;
   await r.promise;                       // 这一局本来就要下载同一首：等它解码完直接复用，不重复下载
   if (tok !== bgmTok) return;
   let buf = prevBuf && prevBuf.id === sg.id ? prevBuf.buf : null;
-  if (!buf) { try { const ab = await (await fetch(MP3_BASE + encodeURIComponent(sg.file))).arrayBuffer(); buf = await actx.decodeAudioData(ab); } catch (e) { if (tok === bgmTok) bgmId = null; return; } if (tok !== bgmTok) return; prevBuf = { id: sg.id, buf }; }
+  if (!buf) { try { const ab = await (await fetch(MP3_BASE + encodeURIComponent(sg.file))).arrayBuffer(); buf = await actx.decodeAudioData(ab); } catch (e) { if (tok === bgmTok) { bgmId = null; if (bgmHand) { bgmHand = false; if (app.st?.music) app.music?.start(); } } return; } if (tok !== bgmTok) return; prevBuf = { id: sg.id, buf }; }
   if (state !== 'menu') return;
   const len = Math.min(BGM_LEN, buf.duration), fd = Math.min(3, len / 3), st = Math.random() * Math.max(0, buf.duration - len), sr = actx.createBufferSource(), g = actx.createGain(), t = actx.currentTime + 0.05;
-  actx.resume(); sr.buffer = buf; sr.connect(g).connect(musicGain);
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + fd); g.gain.setValueAtTime(1, t + len - fd); g.gain.linearRampToValueAtTime(0, t + len); sr.start(t, st, len);
-  bgmSrc = sr; bgmStart = st; sr.onended = () => { if (bgmSrc === sr) { bgmSrc = null; } };
+  actx.resume(); sr.buffer = buf; sr.connect(g).connect(duck); bgmBuf = buf;
+  if (bgmHand) { bgmHand = false; g.gain.setValueAtTime(0, t); sr.start(t); makeHandoff(sr, g); return; }   // 加载期间已经去了展厅：从头整首循环
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(1, t + fd); g.gain.setValueAtTime(1, t + len - fd); g.gain.linearRampToValueAtTime(0, t + len); sr.start(t, st); sr.stop(t + len);
+  bgmSrc = sr; bgmG = g; bgmStart = st; sr.onended = () => { if (bgmSrc === sr) { bgmSrc = null; bgmG = null; } };
 }
 let spgPages = 1;
 function drawSongs(g) {
@@ -474,7 +497,7 @@ function drawSongs(g) {
     txt(g, op ? `${fmtT(sg.duration)} · ${sg.bpm | 0} BPM` : '🔒 未解锁 · 通关其他歌曲后随机解锁', 760, 570, 19, op ? '#9fb4ff' : '#ffb0e8', 'left');
     const ms = modesFor(sg); ms.forEach((m, k) => btn(g, 'md:' + m, 40 + k * 232, 612, 220, 56, modeName(sg, m), { fs: 24, sel: op && smode === m, dim: !op }));
     btn(g, 'sok', 740, 612, 244, 56, '✓ 选定', { fs: 28, sel: op, dim: !op });
-    if (op) txt(g, prevLoad === sg.id ? '♪ 试听加载中 …' : prevId === sg.id ? '♪ 试听中（随机 30 秒，再点一次换一段）' : '点歌名可试听随机 30 秒', 40, 592, 17, '#ffe9a8');
+    if (op) txt(g, prevLoad === sg.id ? '♪ 试听加载中 …' : prevId === sg.id ? '♪ 试听中（随机 60 秒，再点一次换一段）' : '点歌名可试听随机 60 秒', 40, 592, 17, '#ffe9a8');
   } else txt(g, '点选一首歌曲', 512, 640, 24, '#9fb4ff', 'center');
   btn(g, 'srand', 40, 690, 220, 46, '🎲 随机选曲', { fs: 20 }); btn(g, 'sback', 280, 690, 200, 46, '← 返回', { fs: 20 });
   txt(g, '时长：1分30秒（随机片段）· 3分30秒 · 完整版；不足 3分30 的歌没有 3分30 选项', 500, 720, 16, '#7d8fc0', 'left');
@@ -702,7 +725,8 @@ function drawHud() {
 // ---------- 面板交互 ----------
 function click(id) {
   if (!id) return;
-  if (['sok', 'sback', 'srand', 'reroll', 'start', 'again', 'menu', 'gallery', 'back'].includes(id)) { stopPreview(); stopBgm(); }
+  if (['sok', 'srand', 'reroll', 'start', 'again', 'menu', 'gallery'].includes(id)) { stopPreview(true); stopBgm(); duckBgm(false); }
+  else if (id === 'sback' || id === 'back') stopPreview();      // 只停试听，菜单背景音乐不中断；'back' 去展厅时由 deactivate 接管成整首循环
   if (id === 'skip') { if (resT < RES_END) resT = RES_END; drawPanel(); return; }
   if (state === 'result' && (id === 'again' || id === 'menu' || id === 'gallery') && !btnsReady()) return;
   if (id.startsWith('d:')) { save.diff = id.slice(2); cfg = DIFFS[save.diff]; persist(); }
@@ -712,7 +736,7 @@ function click(id) {
   else if (id.startsWith('off:')) { save.offset = Math.max(-300, Math.min(300, save.offset + +id.slice(4))); persist(); }
   else if (id === 'reroll' || id === 'srand') { save.pick = null; persist(); view = 'main'; newPending(); showPending(); return; }
   else if (id === 'songs') { view = 'songs'; spick = save.pick?.id || pending?.song.id || null; const ix = songs.findIndex((x) => x.id === spick); if (ix >= 0) spage = (ix / 16) | 0; const sg0 = songs[ix]; smode = sg0 ? (save.pick && save.pick.id === spick ? save.pick.mode : pending?.mode ?? modesFor(sg0)[0]) : 90; }
-  else if (id === 'sback') { view = 'main'; playMenuBgm(); }
+  else if (id === 'sback') view = 'main';
   else if (id.startsWith('spg:')) { spage = (spage + +id.slice(4) + spgPages) % spgPages; }
   else if (id.startsWith('sg:')) { spick = id.slice(3); const sg = songs.find((x) => x.id === spick), ms = modesFor(sg); smode = save.pick && save.pick.id === spick && ms.includes(save.pick.mode) ? save.pick.mode : ms[0]; if (songOpen(sg.id)) playPreview(sg); else stopPreview(); }
   else if (id.startsWith('md:')) { const sg = songs.find((x) => x.id === spick); if (sg && songOpen(sg.id)) { const m = id.slice(3) === 'full' ? 'full' : +id.slice(3); if (modesFor(sg).includes(m)) smode = m; } }
@@ -815,6 +839,7 @@ function boot() {
 }
 async function activate() {
   active = true; state = 'menu'; stopSong(); hideGacha(); hud.mesh.visible = false; panel.mesh.visible = true;
+  app.handoff?.stop(); bgmHand = false; if (musicGain) musicGain.gain.value = 0.85;
   app.music?.stop();                                    // 展厅的背景音乐让位给游戏里的歌
   if (app.ui?.dom) app.ui.dom.style.display = 'none'; if (app.ui?.mesh) app.ui.mesh.visible = false;
   app.controls?.ctrls?.forEach((m) => { m.laser.visible = false; m.dot.visible = false; });
@@ -827,10 +852,10 @@ async function activate() {
   recenter(); layoutFrames(); showPending(); showFigure(save.sel);
 }
 function deactivate() {
-  if (!active) return; active = false; stopSong(); stopPreview(); stopBgm(); state = 'menu'; hideGacha(); hud.mesh.visible = false; noteCore.count = noteWire.count = 0;
+  if (!active) return; active = false; stopSong(); stopPreview(); const hand = state === 'menu' && handoffMusic(); if (!hand) stopBgm(); state = 'menu'; hideGacha(); hud.mesh.visible = false; noteCore.count = noteWire.count = 0;
   for (let i = 0; i < 2; i++) { app.rig.add(renderer.xr.getController(i), renderer.xr.getControllerGrip(i)); ctrls[i].laser.visible = ctrls[i].tip.visible = ctrls[i].halo.visible = false; }
   if (app.envs && app.envs.cur >= 0) app.envs.set(app.envs.cur);        // 把展厅的调色板还回去
-  if (app.st?.music) app.music?.start();
+  if (app.st?.music && !hand) app.music?.start();
   app.toggleUI?.(app.st.uiOpen); app.ui?.invalidate();
 }
 function exitToShowcase(idx) {                           // 回到展厅（VR 里不会退出会话）

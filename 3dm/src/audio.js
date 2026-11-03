@@ -20,12 +20,14 @@ export class Music {
     } catch (e) { console.warn('audio', e); }
   }
   stop() { this.on = false; this.el?.pause(); }
-  setVolume(v) { this.vol = v; if (this.el) this.el.volume = v; }
+  setVolume(v) { this.vol = v; if (this.el) this.el.volume = v; this.onVol?.(v); }
   // 每帧调用：返回 0..1 的低频能量（带平滑），kick 为鼓点瞬时值
   update(dt) {
-    if (!this.on || !this.ready || !this.an || this.el.paused) { this.level += (0 - this.level) * Math.min(1, dt * 3); this.kick *= 0.9; return this.level; }
-    this.an.getByteFrequencyData(this.buf);
-    let s = 0; for (let i = 1; i < 9; i++) s += this.buf[i]; s = s / 8 / 255;
+    const ext = this.ext;   // 游戏菜单歌曲交接过来时，用它的分析器驱动呼吸
+    if (!ext && (!this.on || !this.ready || !this.an || this.el.paused)) { this.level += (0 - this.level) * Math.min(1, dt * 3); this.kick *= 0.9; return this.level; }
+    const an = ext ? ext.an : this.an, bf = ext ? ext.buf : this.buf;
+    an.getByteFrequencyData(bf);
+    let s = 0; for (let i = 1; i < 9; i++) s += bf[i]; s = s / 8 / 255;
     const target = Math.min(1, Math.pow(s, 1.6) * 1.6);
     if (target > this.level + 0.12) this.kick = 1;
     this.kick *= 0.88; this.level += (target - this.level) * Math.min(1, dt * 10);
