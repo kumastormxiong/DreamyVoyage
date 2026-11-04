@@ -1498,5 +1498,229 @@
   ],
   "title": "hyper3d-21",
   "sha256": "fd0630297ba5b958b025071d327f08a62b1e6d10190f5139c8130dc7e49471a6"
+ },
+ {
+  "id": "01a1a7ed-18ce-77ff-9098-8f6bafe801ee",
+  "n": 97,
+  "file": "models/01a1a7ed-18ce-77ff-9098-8f6bafe801ee.glb",
+  "lod": "models_lod/01a1a7ed-18ce-77ff-9098-8f6bafe801ee.glb",
+  "sort_order": 97,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-04T18:58:15.886Z",
+  "legacy_ids": [
+   "pbr-18"
+  ],
+  "title": "hyper3d-22",
+  "sha256": "10c2ee028169e5d3ef4b8ed58e3486263ff45bda92762b422efa0e5d5d4c3876"
+ },
+ {
+  "id": "01a1a7ed-32a0-7951-a082-c068d774fded",
+  "n": 98,
+  "file": "models/01a1a7ed-32a0-7951-a082-c068d774fded.glb",
+  "lod": "models_lod/01a1a7ed-32a0-7951-a082-c068d774fded.glb",
+  "sort_order": 98,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-04T18:58:22.496Z",
+  "legacy_ids": [
+   "pbr-19"
+  ],
+  "title": "hyper3d-23",
+  "sha256": "969858b01b3b7fdc9a7f94ec6f92b82eebfe2e3ba5ad19fc9c64feb1a2bf5937"
+ },
+ {
+  "id": "01a1a7ed-4a99-74a7-8a26-f4231281c8c3",
+  "n": 99,
+  "file": "models/01a1a7ed-4a99-74a7-8a26-f4231281c8c3.glb",
+  "lod": "models_lod/01a1a7ed-4a99-74a7-8a26-f4231281c8c3.glb",
+  "sort_order": 99,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-04T18:58:28.633Z",
+  "legacy_ids": [
+   "pbr-20"
+  ],
+  "title": "hyper3d-24",
+  "sha256": "7c152a39ab2ecb96ba687045c3eb123a4bdeafba590e456a399b70ace7433743"
+ },
+ {
+  "id": "01a1a7ed-63d6-723f-acb2-f86e578174c5",
+  "n": 100,
+  "file": "models/01a1a7ed-63d6-723f-acb2-f86e578174c5.glb",
+  "lod": "models_lod/01a1a7ed-63d6-723f-acb2-f86e578174c5.glb",
+  "sort_order": 100,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-04T18:58:35.094Z",
+  "legacy_ids": [
+   "pbr-21"
+  ],
+  "title": "hyper3d-25",
+  "sha256": "7e772e45e27e89522e9975def7347d2def10a617879a23c31229f522441d330f"
+ },
+ {
+  "id": "01a1a7ed-7beb-781f-b207-160df0922180",
+  "n": 101,
+  "file": "models/01a1a7ed-7beb-781f-b207-160df0922180.glb",
+  "lod": "models_lod/01a1a7ed-7beb-781f-b207-160df0922180.glb",
+  "sort_order": 101,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-04T18:58:41.259Z",
+  "legacy_ids": [
+   "pbr-22"
+  ],
+  "title": "hyper3d-26",
+  "sha256": "760d933767d20183ffbd2cdd1d4381eb9be26cfdabd1d23849861b211c300481"
+ },
+ {
+  "id": "01a1a7ed-940c-74dc-b421-833ea636eafa",
+  "n": 102,
+  "file": "models/01a1a7ed-940c-74dc-b421-833ea636eafa.glb",
+  "lod": "models_lod/01a1a7ed-940c-74dc-b421-833ea636eafa.glb",
+  "sort_order": 102,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-04T18:58:47.436Z",
+  "legacy_ids": [
+   "pbr-23"
+  ],
+  "title": "hyper3d-27",
+  "sha256": "af50a6eaa440011f7f953e832e6c049b9218e2f3e12b9143d499102a41a12503"
+ },
+ {
+  "id": "01a1a7ed-aace-7993-8335-ae4ac3de6874",
+  "n": 103,
+  "file": "models/01a1a7ed-aace-7993-8335-ae4ac3de6874.glb",
+  "lod": "models_lod/01a1a7ed-aace-7993-8335-ae4ac3de6874.glb",
+  "sort_order": 103,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-04T18:58:53.262Z",
+  "legacy_ids": [
+   "pbr-24"
+  ],
+  "title": "hyper3d-28",
+  "sha256": "91b7c17c111b2a1bf07526964d6eb9348ff8d903569401124f1369a240d4d15e"
+ },
+ {
+  "id": "01a1a7ed-c0e0-74a2-b4f7-764b3e40ecc5",
+  "n": 104,
+  "file": "models/01a1a7ed-c0e0-74a2-b4f7-764b3e40ecc5.glb",
+  "lod": "models_lod/01a1a7ed-c0e0-74a2-b4f7-764b3e40ecc5.glb",
+  "sort_order": 104,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-04T18:58:58.912Z",
+  "legacy_ids": [
+   "pbr-25"
+  ],
+  "title": "hyper3d-29",
+  "sha256": "c863943351953f3b4851d0a4fd70cbf2eef7204756a8b9ad4503cb051108b29e"
+ },
+ {
+  "id": "01a1a7ed-d9c9-7a9a-b437-30f6ec76f533",
+  "n": 105,
+  "file": "models/01a1a7ed-d9c9-7a9a-b437-30f6ec76f533.glb",
+  "lod": "models_lod/01a1a7ed-d9c9-7a9a-b437-30f6ec76f533.glb",
+  "sort_order": 105,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-04T18:59:05.289Z",
+  "legacy_ids": [
+   "pbr-26"
+  ],
+  "title": "hyper3d-30",
+  "sha256": "d11ac1cd8bbc70848eacad627408137710fbd3d1fd747b88fb94d529ba49a9d1"
+ },
+ {
+  "id": "01a1a7ed-f323-7075-8fc0-21f4abcb9e6f",
+  "n": 106,
+  "file": "models/01a1a7ed-f323-7075-8fc0-21f4abcb9e6f.glb",
+  "lod": "models_lod/01a1a7ed-f323-7075-8fc0-21f4abcb9e6f.glb",
+  "sort_order": 106,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-04T18:59:11.779Z",
+  "legacy_ids": [
+   "pbr-27"
+  ],
+  "title": "hyper3d-31",
+  "sha256": "756f20f2d38802ccc00d7015c63c29b3e93e814a417735b05a6c60462dde49db"
+ },
+ {
+  "id": "01a1a7ee-0c71-74cf-b8fc-ef34179be672",
+  "n": 107,
+  "file": "models/01a1a7ee-0c71-74cf-b8fc-ef34179be672.glb",
+  "lod": "models_lod/01a1a7ee-0c71-74cf-b8fc-ef34179be672.glb",
+  "sort_order": 107,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-04T18:59:18.257Z",
+  "legacy_ids": [
+   "pbr-28"
+  ],
+  "title": "hyper3d-32",
+  "sha256": "37d19194c6b14ab208263b0914034683e571bc18e8e3150f1d40fb2ba8a8de20"
+ },
+ {
+  "id": "01a1a7ee-2650-7702-a84c-94d0a345f7c1",
+  "n": 108,
+  "file": "models/01a1a7ee-2650-7702-a84c-94d0a345f7c1.glb",
+  "lod": "models_lod/01a1a7ee-2650-7702-a84c-94d0a345f7c1.glb",
+  "sort_order": 108,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-04T18:59:24.880Z",
+  "legacy_ids": [
+   "pbr-29"
+  ],
+  "title": "hyper3d-33",
+  "sha256": "b93eb1bcc35a1c7d5c5c83fc81118fe33678b46062f4795ba4aabf411c706926"
+ },
+ {
+  "id": "01a1a7ee-3cce-7df3-8af4-a6c69868153f",
+  "n": 109,
+  "file": "models/01a1a7ee-3cce-7df3-8af4-a6c69868153f.glb",
+  "lod": "models_lod/01a1a7ee-3cce-7df3-8af4-a6c69868153f.glb",
+  "sort_order": 109,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-04T18:59:30.638Z",
+  "legacy_ids": [
+   "pbr-30"
+  ],
+  "title": "hyper3d-34",
+  "sha256": "d3179154b0c6645a790596843e429c569af96ffba695f8372efedd2dccaf57f1"
+ },
+ {
+  "id": "01a1a7ee-5377-7acc-96bb-823ee5041c99",
+  "n": 110,
+  "file": "models/01a1a7ee-5377-7acc-96bb-823ee5041c99.glb",
+  "lod": "models_lod/01a1a7ee-5377-7acc-96bb-823ee5041c99.glb",
+  "sort_order": 110,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-04T18:59:36.439Z",
+  "legacy_ids": [
+   "e5dd392b"
+  ],
+  "title": "hyper3d-35",
+  "sha256": "0141ac50e7aa8d045eab9453f52408f3dca7693f6c8840a5d6fef8ba79922208"
  }
 ]
