@@ -1802,5 +1802,133 @@
   ],
   "title": "girl-73",
   "sha256": "8a0cc3f3f01f9ba30255036e6289d80cc360289ddc471f3fd1b35c8b276772f2"
+ },
+ {
+  "id": "01a1ad4a-435f-7c95-96ca-401800673202",
+  "n": 116,
+  "file": "models/01a1ad4a-435f-7c95-96ca-401800673202.glb",
+  "lod": "models_lod/01a1ad4a-435f-7c95-96ca-401800673202.glb",
+  "sort_order": 116,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-05T19:58:07.711Z",
+  "legacy_ids": [
+   "pbr-32"
+  ],
+  "title": "hyper3d-36",
+  "sha256": "661f11ab664ddb39637f7024f73710ee2459cb3ac5372d31d1ba720272d68cfd"
+ },
+ {
+  "id": "01a1ad4a-600f-7b05-b9bd-abd11e50d416",
+  "n": 117,
+  "file": "models/01a1ad4a-600f-7b05-b9bd-abd11e50d416.glb",
+  "lod": "models_lod/01a1ad4a-600f-7b05-b9bd-abd11e50d416.glb",
+  "sort_order": 117,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-05T19:58:15.055Z",
+  "legacy_ids": [
+   "pbr-33"
+  ],
+  "title": "hyper3d-37",
+  "sha256": "d6f76cd15105703d606d326736338d2e86255d7b3f3b510539aef449aac75d06"
+ },
+ {
+  "id": "01a1ad4a-79a4-707c-8c27-43462d349490",
+  "n": 118,
+  "file": "models/01a1ad4a-79a4-707c-8c27-43462d349490.glb",
+  "lod": "models_lod/01a1ad4a-79a4-707c-8c27-43462d349490.glb",
+  "sort_order": 118,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-05T19:58:21.604Z",
+  "legacy_ids": [
+   "pbr-34"
+  ],
+  "title": "hyper3d-38",
+  "sha256": "4257b5ec9c3b7b95e597e013e164b7fb54ff2aeb886bce45904defd18f439884"
+ },
+ {
+  "id": "01a1ad4a-943d-7146-92e4-30f3b2f12c06",
+  "n": 119,
+  "file": "models/01a1ad4a-943d-7146-92e4-30f3b2f12c06.glb",
+  "lod": "models_lod/01a1ad4a-943d-7146-92e4-30f3b2f12c06.glb",
+  "sort_order": 119,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-05T19:58:28.413Z",
+  "legacy_ids": [
+   "pbr-35"
+  ],
+  "title": "hyper3d-39",
+  "sha256": "8a3deb675bbdd8248ca3b5a48ebda075308516835a12f0a06584c41702bcf486"
+ },
+ {
+  "id": "01a1ad4a-a33a-7479-96a7-90dbe767dcd4",
+  "n": 120,
+  "file": "models/01a1ad4a-a33a-7479-96a7-90dbe767dcd4.glb",
+  "lod": "models_lod/01a1ad4a-a33a-7479-96a7-90dbe767dcd4.glb",
+  "sort_order": 120,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-05T19:58:32.250Z",
+  "legacy_ids": [
+   "pbr-36"
+  ],
+  "title": "hyper3d-40",
+  "sha256": "07594909b0de0fae96daabab8cc2025b8e758620013f082091e8a5cb31ed0a06"
+ },
+ {
+  "id": "01a1ad4a-bd04-75e4-ba42-c255ca291b6e",
+  "n": 121,
+  "file": "models/01a1ad4a-bd04-75e4-ba42-c255ca291b6e.glb",
+  "lod": "models_lod/01a1ad4a-bd04-75e4-ba42-c255ca291b6e.glb",
+  "sort_order": 121,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-05T19:58:38.852Z",
+  "legacy_ids": [
+   "pbr-37"
+  ],
+  "title": "hyper3d-41",
+  "sha256": "43c771e3501ab834d046e330c711ac7e9f26f8f97a44eb9d13ef5140f85e852b"
+ },
+ {
+  "id": "01a1ad4a-d854-7f72-a9bd-aca653c0fdd7",
+  "n": 122,
+  "file": "models/01a1ad4a-d854-7f72-a9bd-aca653c0fdd7.glb",
+  "lod": "models_lod/01a1ad4a-d854-7f72-a9bd-aca653c0fdd7.glb",
+  "sort_order": 122,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-05T19:58:45.844Z",
+  "legacy_ids": [
+   "pbr-38"
+  ],
+  "title": "hyper3d-42",
+  "sha256": "bd3553df5e8b9eb7b589803cbb0c83ab8d6096b86f2862fc4bf5ed478e1cfff9"
+ },
+ {
+  "id": "01a1ad4a-f3d0-790d-b6bf-bea9f2d0050c",
+  "n": 123,
+  "file": "models/01a1ad4a-f3d0-790d-b6bf-bea9f2d0050c.glb",
+  "lod": "models_lod/01a1ad4a-f3d0-790d-b6bf-bea9f2d0050c.glb",
+  "sort_order": 123,
+  "owner": "system",
+  "visibility": "official",
+  "status": "ready",
+  "created_at": "2026-11-05T19:58:52.880Z",
+  "legacy_ids": [
+   "pbr-39"
+  ],
+  "title": "hyper3d-43",
+  "sha256": "1d1e24f7ab9b0762c0e110998d6e0438daa3b10b82ce070f447b75af78c4d452"
  }
 ]
