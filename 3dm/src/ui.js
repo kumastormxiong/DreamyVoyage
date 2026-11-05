@@ -181,7 +181,7 @@ export class UI {
       if (w.t === 'btn') { this.txt(w.label, w.x + w.w / 2, w.y + w.h / 2 + 1, w.size || 28, '#fff', 'center'); if (w.tint) { c.fillStyle = w.tint; c.fillRect(w.x + 18, w.y + w.h - 9, w.w - 36, 4); } }
     } else if (w.t === 'th') {
       this.rr(w.x, w.y, w.w, w.h, 18); c.fillStyle = 'rgba(255,255,255,0.05)'; c.fill();
-      if (this.thumbsOk) { c.save(); this.rr(w.x + 3, w.y + 3, w.w - 6, w.h - 6, 15); c.clip(); const col = w.idx % 6, row = Math.floor(w.idx / 6); const iw = this.thumbs.width / 6, ih = iw; if (row * ih + ih <= this.thumbs.height + 1) { const dw = w.w - 6, dh = w.h - 6, sh = iw * dh / dw; c.drawImage(this.thumbs, col * iw, row * ih + (ih - sh) * 0.35, iw, sh, w.x + 3, w.y + 3, dw, dh); } c.restore(); }
+      if (this.thumbsOk) { c.save(); this.rr(w.x + 3, w.y + 3, w.w - 6, w.h - 6, 15); c.clip(); const si = this.app.stage.list[w.idx]?.sheetIdx ?? w.idx, col = si % 6, row = Math.floor(si / 6); const iw = this.thumbs.width / 6, ih = iw; if (row * ih + ih <= this.thumbs.height + 1) { const dw = w.w - 6, dh = w.h - 6, sh = iw * dh / dw; c.drawImage(this.thumbs, col * iw, row * ih + (ih - sh) * 0.35, iw, sh, w.x + 3, w.y + 3, dw, dh); } c.restore(); }
       this.rr(w.x, w.y, w.w, w.h, 18);
       if (w.active) { const gg = c.createLinearGradient(w.x, w.y, w.x + w.w, w.y + w.h); gg.addColorStop(0, a); gg.addColorStop(1, b); c.strokeStyle = gg; c.lineWidth = 6; } else { c.strokeStyle = hov ? '#fff' : 'rgba(255,255,255,0.22)'; c.lineWidth = hov ? 5 : 2; }
       c.stroke(); this.txt(String(w.idx + 1).padStart(2, '0'), w.x + 14, w.y + 22, 26, '#fff', 'left', 800);
@@ -208,9 +208,9 @@ export class UI {
   drawHelp() {
     const L = [['左摇杆', '沿视线方向 飞行 / 平移'], ['右摇杆 ↔', '转向（快速30° 或 平滑）'], ['右摇杆 ↕', '上升 / 下降'], ['A / B', '放大 / 缩小（按住）；光圈碰着或抓着某个手办时只缩放它'], ['握把', '抓住模型：移动、旋转；双手握把拉开/靠拢 = 巨大化/缩小'],
       ['X / Y', '上一个 / 下一个 模型（画廊里 = 翻页）'], ['右扳机', '点菜单 / 选画廊模型 / 选中摆放的模型；空白处按住 = 加速'], ['光圈碰手办+扳机', '按住扳机抓着翻看；松开留在空中，可从展台拿出多个'], ['光圈碰手办+握把', '握把移动 / 双手握把缩放这个手办；光圈不在手办上时才操作展台'], ['左手 X', '光圈碰着空中手办时：选中 / 取消；菜单「模型」页底部批量隐藏'], ['场景页', '放入多个模型、摆放模式、MR 透视'], ['左摇杆按下', '显示 / 隐藏菜单'], ['右摇杆按下', '重置模型']];
-    let y = this.helpY - 20;
-    for (const [k, v] of L) { this.txt(k, 40, y, 26, css(PAL.a, 1.5), 'left', 800); this.txt(v, 290, y, 25, '#e8ecff', 'left', 500); y += 37; }
-    this.txt('桌面预览：拖动鼠标转视角 · WASD/空格/C 飞行 · Shift 加速 · 滚轮 缩放模型 · Q/E 换模型 · Tab 菜单 · G 画廊', 40, y + 14, 22, '#9fb4ff', 'left', 500);
+    let y = this.helpY + 24;   // 从 GAME 按钮下方开始（原来从 helpY-20 开始，第一行压在按钮上）
+    for (const [k, v] of L) { this.txt(k, 40, y, 26, css(PAL.a, 1.5), 'left', 800); this.txt(v, 290, y, 25, '#e8ecff', 'left', 500); y += 33; }
+    this.txt('桌面预览：拖动鼠标转视角 · WASD/空格/C 飞行 · Shift 加速 · 滚轮 缩放模型 · Q/E 换模型 · Tab 菜单 · G 画廊', 40, y - 2, 22, '#9fb4ff', 'left', 500);
   }
 
   // ---------- 交互 ----------

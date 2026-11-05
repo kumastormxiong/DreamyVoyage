@@ -413,7 +413,7 @@ function btn(g, id, x, y, w, h, label, o = {}) {
 function txt(g, s, x, y, fs, col = '#cfd8ff', al = 'left', wt = 600) { g.font = `${wt} ${fs}px ${FONT}`; g.fillStyle = col; g.textAlign = al; g.textBaseline = 'middle'; g.fillText(s, x, y); }
 function neon(g, s, x, y, fs, c1, al = 'center') { g.save(); g.shadowColor = c1; g.shadowBlur = 24; txt(g, s, x, y, fs, '#fff', al, 800); g.restore(); }
 function tile(g, i, x, y, sz, locked, sel) {
-  const col = i % 6, row = (i / 6) | 0;
+  const si = models[i]?.sheetIdx ?? i, col = si % 6, row = (si / 6) | 0;   // i = models 里的序号（已去掉隐藏的）；缩略图格子按 sheetIdx 取
   if (sheet) { g.drawImage(sheet, col * 256, row * 256, 256, 256, x, y, sz, sz); } else { g.fillStyle = '#1a1038'; g.fillRect(x, y, sz, sz); }
   if (locked) { g.fillStyle = 'rgba(4,1,14,.93)'; g.fillRect(x, y, sz, sz); g.save(); g.globalAlpha = 0.75; txt(g, '🔒', x + sz / 2, y + sz / 2 - sz * 0.05, sz * 0.26, '#fff', 'center'); g.restore(); }
   g.lineWidth = sel ? 4 : 1.5; g.strokeStyle = sel ? '#30f0ff' : 'rgba(255,255,255,.3)'; g.strokeRect(x, y, sz, sz);

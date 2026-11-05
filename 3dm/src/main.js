@@ -33,7 +33,7 @@ const st = {
   mode: 'showcase', autoRotate: true, scan: false, wire: false, rim: 1.2, exposure: 1.0,
   lightAuto: false, orbs: true, lightFollow: true, selLight: 0,
   envIdx: 0, fog: 1, hue: 0, glow: 1, envInt: 1, particles: 0.7, music: true, vol: 0.55, react: 1,
-  speed: 6, autoSpeed: true, snap: true, invertY: false, uiOpen: true,
+  speed: 1, autoSpeed: true, snap: true, invertY: false, uiOpen: true,
   rotSpeed: 0.35, galCount: 12, dropScale: 0.6, placeMode: false, spinPlaced: false, mainVisible: true, pass: false,
 };
 const app = { renderer, scene, camera, rig, st, statusText: '正在加载 …', sessionMode: null };

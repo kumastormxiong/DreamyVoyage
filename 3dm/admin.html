@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3DM 模型管理</title>
+<style>
+  :root { --a: #ff2fd0; --b: #30f0ff; --bg: #07051a; --card: #120c2e; --line: #2a1f5a; --mut: #9fb4ff; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: #e8ecff; }
+  body { font: 15px/1.5 "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; padding: 14px 16px; background: rgba(7,5,26,.94); border-bottom: 1px solid var(--line); backdrop-filter: blur(8px); }
+  h1 { margin: 0; font-size: 20px; background: linear-gradient(90deg, var(--a), var(--b)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 10px; }
+  #stat { color: var(--mut); font-size: 14px; flex: 1 1 auto; }
+  input, select, a.btn { font: inherit; color: #fff; background: #1b1245; border: 1px solid #3b2e7a; border-radius: 10px; padding: 8px 12px; text-decoration: none; }
+  input { min-width: 180px; }
+  a.btn:hover, input:focus, select:focus { border-color: var(--b); outline: none; }
+  main { padding: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .card.off { opacity: .42; }
+  .thumb { width: 128px; height: 128px; margin: 0 auto; border-radius: 10px; background-color: #0c0820; background-repeat: no-repeat; }
+  .num { font-weight: 800; color: var(--b); font-size: 13px; }
+  .name { font-size: 13px; color: #cfd8ff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tog { width: 100%; padding: 7px; border-radius: 10px; border: 1px solid #3b2e7a; background: #1b1245; color: #fff; font: inherit; font-size: 14px; cursor: pointer; }
+  .tog.on { background: linear-gradient(90deg, rgba(255,47,208,.4), rgba(48,240,255,.4)); border-color: transparent; }
+  .tog:disabled { opacity: .5; cursor: wait; }
+  #msg { min-height: 1.5em; color: var(--mut); font-size: 14px; margin-top: 6px; }
+  #msg.err { color: #ff9ab8; }
+</style>
+</head>
+<body>
+<header>
+  <h1>3DM 模型管理</h1>
+  <div class="bar">
+    <span id="stat">读取中 …</span>
+    <input id="q" type="search" placeholder="搜索编号 / 名字 / id">
+    <select id="f">
+      <option value="all">全部</option>
+      <option value="on">只看显示</option>
+      <option value="off">只看隐藏</option>
+    </select>
+    <a class="btn" href="./index.html">打开展厅</a>
+    <a class="btn" href="./game.html">音乐游戏</a>
+  </div>
+  <div id="pwbox" class="bar" style="display:none"><input id="pw" type="password" placeholder="管理密码（线上修改时需要）" autocomplete="current-password"></div>
+  <div id="msg"></div>
+</header>
+<main><div class="grid" id="grid"></div></main>
+
+<script type="module">
+  // 点一下切换显示 / 隐藏。本地：写入 models.json（要重新部署才对线上生效）；线上：写入 Cloudflare Worker（KV），刷新展厅即生效。隐藏的模型不进展厅、画廊和游戏；
+  // 页数、计数由剩下的模型自动算。本地需要用 play_3DM.bat 启动（它带有写入接口）。
+  import { loadAllModels, runtimeHidden, VIS_API } from './src/modelstore.js';
+  const LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);   // 本地：play_3DM.bat 的写入接口（改 models.json）；线上：Cloudflare Worker（要密码）
+  const API = LOCAL ? './api/visibility' : VIS_API;
+  let pw = '';   // 线上管理密码：只放在本页内存里，刷新即清空，不写入任何存储
+
+  const PER = 18;            // 展厅 / 游戏每页个数（与 ui.js、game.js 一致）
+  const COLS = 6, CELL = 128; // 缩略图表：6 列，每格正方形
+  const $ = (s) => document.querySelector(s);
+  let all = [], sheet = null;
+
+  function say(text, err = false) { const el = $('#msg'); el.textContent = text; el.classList.toggle('err', err); }
+
+  function loadSheet() {
+    return new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = './thumbs.webp'; });
+  }
+
+  function paintThumb(el, m) {
+    if (!sheet) return;
+    const k = CELL / (sheet.width / COLS), col = m.sheetIdx % COLS, row = Math.floor(m.sheetIdx / COLS);
+    el.style.backgroundImage = 'url(./thumbs.webp)';
+    el.style.backgroundSize = `${sheet.width * k}px ${sheet.height * k}px`;
+    el.style.backgroundPosition = `${-col * CELL}px ${-row * CELL}px`;
+  }
+
+  function render() {
+    let vi = 0;                                   // 展厅里的序号（只算显示中的）
+    for (const m of all) m.vi = m.visible ? ++vi : 0;
+    const n = vi, pages = Math.max(1, Math.ceil(n / PER));
+    $('#stat').textContent = `显示 ${n} / 共 ${all.length} 个 · 展厅和游戏每页 ${PER} 个，现在共 ${pages} 页`;
+    const q = $('#q').value.trim().toLowerCase(), f = $('#f').value;
+    const grid = $('#grid');
+    grid.replaceChildren();
+    for (const m of all) {
+      if (f === 'on' && !m.visible) continue;
+      if (f === 'off' && m.visible) continue;
+      if (q && !`${m.n} ${m.title} ${m.id}`.toLowerCase().includes(q)) continue;
+      grid.append(card(m));
+    }
+  }
+
+  function card(m) {
+    const box = document.createElement('div');
+    box.className = 'card' + (m.visible ? '' : ' off');
+    const th = document.createElement('div');
+    th.className = 'thumb';
+    paintThumb(th, m);
+    const num = document.createElement('div');
+    num.className = 'num';
+    num.textContent = m.visible ? `#${m.n} · 展厅 ${m.vi}` : `#${m.n} · 已隐藏`;
+    const nm = document.createElement('div');
+    nm.className = 'name';
+    nm.textContent = m.title || m.id.slice(0, 8);
+    nm.title = m.id;
+    const btn = document.createElement('button');
+    btn.className = 'tog' + (m.visible ? ' on' : '');
+    btn.textContent = m.visible ? '● 显示中（点击隐藏）' : '○ 已隐藏（点击显示）';
+    btn.addEventListener('click', () => toggle(m, btn));
+    box.append(th, num, nm, btn);
+    return box;
+  }
+
+  async function toggle(m, btn) {
+    const want = !m.visible;
+    if (!LOCAL && !pw) { say('线上修改需要管理密码：先在上方输入', true); $('#pw').focus(); return; }
+    btn.disabled = true;
+    try {
+      const r = await fetch(API, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(LOCAL ? {} : { Authorization: 'Bearer ' + pw }) },
+        body: JSON.stringify({ id: m.id, visible: want }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.ok === false) throw new Error(j.error || 'HTTP ' + r.status);
+      m.visible = want;
+      const tail = LOCAL ? '已写入 models.json；要重新部署才对线上生效。' : '线上已生效：刷新展厅 / 游戏页面即可。';
+      say(`${want ? '已显示' : '已隐藏'} #${m.n}${m.title ? '（' + m.title + '）' : ''}。${tail}`);
+      render();
+    } catch (e) {
+      btn.disabled = false;
+      say(`保存失败：${e.message}。${LOCAL ? '本地请用 play_3DM.bat 启动（它带有写入接口）。' : '线上请确认密码正确。'}`, true);
+    }
+  }
+
+  if (!LOCAL) { $('#pwbox').style.display = 'flex'; $('#pw').addEventListener('input', (e) => { pw = e.target.value; }); }
+  $('#q').addEventListener('input', render);
+  $('#f').addEventListener('change', render);
+
+  (async () => {
+    try {
+      const [a, s, hid] = await Promise.all([loadAllModels(), loadSheet(), LOCAL ? null : runtimeHidden()]);
+      all = a; sheet = s;
+      if (hid) for (const m of all) if (hid.has(m.id)) m.visible = false;   // 线上已经关掉的
+      render();
+      if (!sheet) say('缩略图 thumbs.webp 读取失败，只能看编号。');
+    } catch (e) {
+      $('#stat').textContent = '';
+      say('读取清单失败：' + e.message, true);
+    }
+  })();
+</script>
+</body>
+</html>
