@@ -772,5 +772,167 @@
   "file": "86-永生玄妙-Immortality Arcane-Mastered.mp3",
   "duration": 109.8,
   "bpm": 123.0
+ },
+ {
+  "id": "s87",
+  "n": 87,
+  "zh": "干涉罪恶感",
+  "en": "Interference Guilt",
+  "file": "87-干涉罪恶感-Interference Guilt.mp3",
+  "duration": 194.7,
+  "bpm": 84.7
+ },
+ {
+  "id": "s88",
+  "n": 88,
+  "zh": "幻妄冥想",
+  "en": "Fallacy Meditation",
+  "file": "88-幻妄冥想-Fallacy Meditation.mp3",
+  "duration": 358.3,
+  "bpm": 101.4
+ },
+ {
+  "id": "s89",
+  "n": 89,
+  "zh": "迷失玄妙",
+  "en": "Lostness Arcane",
+  "file": "89-迷失玄妙-Lostness Arcane.mp3",
+  "duration": 326.0,
+  "bpm": 110.0
+ },
+ {
+  "id": "s90",
+  "n": 90,
+  "zh": "原初序惆怅",
+  "en": "Protocosmos Disconsolation",
+  "file": "90-原初序惆怅-Protocosmos Disconsolation.mp3",
+  "duration": 284.0,
+  "bpm": 103.4
+ },
+ {
+  "id": "s91",
+  "n": 91,
+  "zh": "挣扎超拔",
+  "en": "Struggle Sublimity",
+  "file": "91-挣扎超拔-Struggle Sublimity.mp3",
+  "duration": 136.9,
+  "bpm": 132.5
+ },
+ {
+  "id": "s92",
+  "n": 92,
+  "zh": "残破溶剂",
+  "en": "Ruination Solvent",
+  "file": "92-残破溶剂-Ruination Solvent.mp3",
+  "duration": 239.9,
+  "bpm": 120.2
+ },
+ {
+  "id": "s93",
+  "n": 93,
+  "zh": "梦呓宿命",
+  "en": "Babble Fatalism",
+  "file": "93-梦呓宿命-Babble Fatalism.mp3",
+  "duration": 327.6,
+  "bpm": 126.0
+ },
+ {
+  "id": "s94",
+  "n": 94,
+  "zh": "节奏迷茫",
+  "en": "Rhythm Perplexity",
+  "file": "94-节奏迷茫-Rhythm Perplexity.mp3",
+  "duration": 230.0,
+  "bpm": 120.2
+ },
+ {
+  "id": "s95",
+  "n": 95,
+  "zh": "信念虚影",
+  "en": "Faith Silhouette",
+  "file": "95-信念虚影-Faith Silhouette.mp3",
+  "duration": 132.3,
+  "bpm": 105.5
+ },
+ {
+  "id": "s96",
+  "n": 96,
+  "zh": "诚意异化",
+  "en": "Sincerity Alienation",
+  "file": "96-诚意异化-Sincerity Alienation.mp3",
+  "duration": 297.2,
+  "bpm": 120.2
+ },
+ {
+  "id": "s97",
+  "n": 97,
+  "zh": "灵感重生",
+  "en": "Inspiration Rebirth",
+  "file": "97-灵感重生-Inspiration Rebirth.mp3",
+  "duration": 218.9,
+  "bpm": 92.3
+ },
+ {
+  "id": "s98",
+  "n": 98,
+  "zh": "不确定幻觉",
+  "en": "Uncertainty Hallucination",
+  "file": "98-不确定幻觉-Uncertainty Hallucination.mp3",
+  "duration": 222.8,
+  "bpm": 120.2
+ },
+ {
+  "id": "s99",
+  "n": 99,
+  "zh": "绝望辩证",
+  "en": "Despair Dialectic",
+  "file": "99-绝望辩证-Despair Dialectic.mp3",
+  "duration": 313.5,
+  "bpm": 123.1
+ },
+ {
+  "id": "s100",
+  "n": 100,
+  "zh": "费玻∞谐振",
+  "en": "Fermiboson ∞ Harmonics",
+  "file": "100-费玻∞谐振-Fermiboson ∞ Harmonics.mp3",
+  "duration": 221.2,
+  "bpm": 105.5
+ },
+ {
+  "id": "s101",
+  "n": 101,
+  "zh": "明理幻视",
+  "en": "Rational Vision",
+  "file": "101-明理幻视-Rational Vision.mp3",
+  "duration": 249.6,
+  "bpm": 123.0
+ },
+ {
+  "id": "s102",
+  "n": 102,
+  "zh": "微分虚无",
+  "en": "Microtone Nihilism",
+  "file": "102-微分虚无-Microtone Nihilism.mp3",
+  "duration": 203.2,
+  "bpm": 123.0
+ },
+ {
+  "id": "s103",
+  "n": 103,
+  "zh": "散射空虚",
+  "en": "Scattering Empty",
+  "file": "103-散射空虚-Scattering Empty.mp3",
+  "duration": 242.7,
+  "bpm": 92.3
+ },
+ {
+  "id": "s104",
+  "n": 104,
+  "zh": "振荡悠然",
+  "en": "Osc Leisure",
+  "file": "104-振荡悠然-Osc Leisure.mp3",
+  "duration": 168.0,
+  "bpm": 123.0
  }
 ]
